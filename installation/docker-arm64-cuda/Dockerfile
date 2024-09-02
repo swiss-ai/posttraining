@@ -40,18 +40,18 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
 
 ARG DEBIAN_FRONTEND=noninteractive
 # sed is only used as a hack to remove comments from the file apt.txt.
-RUN --mount=type=cache,target=/var/cache/apt,sharing=private \
-    --mount=type=cache,target=/var/lib/apt,sharing=private \
-    apt update && \
-    sed -e 's/#.*//g' -e 's/\r//g' ${DEPENDENCIES_DIR}/apt.txt | \
-    xargs -t apt-get install -y --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
-
-# Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-#RUN apt update && \
+#RUN --mount=type=cache,target=/var/cache/apt,sharing=private \
+#    --mount=type=cache,target=/var/lib/apt,sharing=private \
+#    apt update && \
 #    sed -e 's/#.*//g' -e 's/\r//g' ${DEPENDENCIES_DIR}/apt.txt | \
 #    xargs -t apt-get install -y --no-install-recommends && \
 #    rm -rf /var/lib/apt/lists/*
+
+# Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
+RUN apt update && \
+    sed -e 's/#.*//g' -e 's/\r//g' ${DEPENDENCIES_DIR}/apt.txt | \
+    xargs -t apt-get install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 
 ########################################################################
 # Install dependencies.
@@ -62,10 +62,10 @@ FROM runtime-apt-pkgs AS runtime-deps
 ENV PIP_CACHE_DIR=/root/.cache/pip
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-before-pip-install.txt
 COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
-RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
-    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+#RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
+#    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
 # Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-#RUN pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+RUN pip install -r ${DEPENDENCIES_DIR}/requirements.txt
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-after-pip-install.txt
 
 # Optional optimizations.
