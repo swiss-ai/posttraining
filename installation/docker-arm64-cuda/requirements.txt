@@ -3,3 +3,5 @@ tqdm
 wandb
 pre-commit
 black
+trl[dev]
+bitsandbytes==0.43.3
