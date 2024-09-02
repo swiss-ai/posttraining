@@ -1,1 +1,1 @@
-exec python -m template_package_name.template_experiment
+exec python -m swiss_alignment.template_experiment

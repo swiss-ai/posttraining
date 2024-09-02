@@ -71,7 +71,7 @@ cd $CONTAINER_IMAGES
 # Replace with your image name
 
 srun --exclusive --partition h100 --time=4:00:00 \
-enroot import docker://registry.rcp.epfl.ch#claire/moalla/template-project-name:amd64-cuda-root-latest
+enroot import docker://registry.rcp.epfl.ch#claire/moalla/swiss-alignment:amd64-cuda-root-latest
 # This will create a squashfs file that you'll use to start your jobs.
 ```
 
@@ -80,7 +80,7 @@ Optionally if you want to use Apptainer
 # Takes ages to convert to sif.
 # Don't do this on a login node.
 salloc --exclusive --partition h100 --time=4:00:00 \
-apptainer pull docker://registry.rcp.epfl.ch/claire/moalla/template-project-name:amd64-cuda-root-latest
+apptainer pull docker://registry.rcp.epfl.ch/claire/moalla/swiss-alignment:amd64-cuda-root-latest
 ```
 
 ### Clone your repository in your scratch directory
@@ -103,18 +103,18 @@ SCRATCH=/scratch/kuma/$USER
 # SCRATCH=/scratch/izar/$USER
 cd $SCRATCH
 # Clone the repo twice with name dev and run.
-mkdir template-project-name
-git clone <HTTPS/SSH> template-project-name/dev
-git clone <HTTPS/SSH> template-project-name/run
+mkdir swiss-alignment
+git clone <HTTPS/SSH> swiss-alignment/dev
+git clone <HTTPS/SSH> swiss-alignment/run
 ```
 
 The rest of the instructions should be performed on the cluster from the dev instance of the project.
 ```bash
-cd $SCRATCH/template-project-name/dev/
+cd $SCRATCH/swiss-alignment/dev/
 # It may also be useful to open a remote code editor on a login node to view the project. (The remote development will happen in another IDE in the container.)
 # Push what you did on your local machine so far (change project name etc) and pull it on the cluster.
 git pull
-cd template-project-name/dev/installation/docker-amd64-cuda
+cd swiss-alignment/dev/installation/docker-amd64-cuda
 ```
 
 ### Note about the examples
@@ -323,7 +323,7 @@ All the directories will be created automatically.
    (something like `/scratch/moalla/jetbrains-server/dist`)
    not in its default location **(use the small "installation options..." link)**.
    For the project directory, it should be in the same location where it was mounted (`${PROJECT_ROOT_AT}`,
-   something like `/scratch/moalla/template-project-name/dev`).
+   something like `/scratch/moalla/swiss-alignment/dev`).
 
 When in the container, locate the name of the PyCharm IDE installed.
 It will be at

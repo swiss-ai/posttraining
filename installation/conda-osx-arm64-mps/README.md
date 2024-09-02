@@ -61,8 +61,8 @@ for your future users (and yourself).
 Clone the git repository.
 
 ```bash
-git clone <HTTPS/SSH> template-project-name
-cd template-project-name
+git clone <HTTPS/SSH> swiss-alignment
+cd swiss-alignment
 ```
 
 We will refer the absolute path to the root of the repository as `PROJECT_ROOT`.
@@ -97,7 +97,7 @@ Install the project with
 
 ```bash
 # Activate the environment
-mamba activate template-project-name
+mamba activate swiss-alignment
 # When in the PROJECT_ROOT directory.
 pip install -e .
 ```
@@ -105,7 +105,7 @@ pip install -e .
 ## Running code in the environment
 
 ```bash
-mamba activate template-project-name
+mamba activate swiss-alignment
 ```
 
 Run scripts from the `PROJECT_ROOT` directory.
@@ -114,7 +114,7 @@ Here are some examples.
 ```bash
 # When in the PROJECT_ROOT directory.
 # template_experiment is an actual script that you can run.
-python -m template_package_name.template_experiment some_arg=some_value
+python -m swiss_alignment.template_experiment some_arg=some_value
 zsh reproducibility-scripts/template-experiment.sh
 ```
 
@@ -170,9 +170,9 @@ After manually editing the `environment.yml` file, you need to recreate the envi
 ```bash
 # When in the PROJECT_ROOT directory.
 mamba deactivate
-mamba env remove --name template-project-name
+mamba env remove --name swiss-alignment
 mamba env create --file installation/conda-osx-arm64-mps/environment.yml
-mamba activate template-project-name
+mamba activate swiss-alignment
 ```
 
 ### Interactively (while developing)

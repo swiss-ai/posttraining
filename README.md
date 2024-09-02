@@ -234,7 +234,7 @@ Otherwise, the runs will be anonymous (you don't need to be logged in).
 We provide scripts to reproduce our work in the `reproducibility-scripts/` directory.
 It has a README at its root describing which scripts reproduce which experiments.
 
-We share our Weights and Biases runs in [this W&B project](https://wandb.ai/claire-labo/template-project-name).
+We share our Weights and Biases runs in [this W&B project](https://wandb.ai/claire-labo/swiss-alignment).
 
 Moreover, we make our trained models available.
 You can follow the instructions in `outputs/README.md` to download and use them.
@@ -257,7 +257,7 @@ Below, we give a description of the main files and directories in this repositor
 
 ```
  └─── src/                              # Source code.
-    └── template_package_name           # Our package.
+    └── swiss_alignment           # Our package.
         ├── configs/                    # Hydra configuration files.
         └── template_experiment.py      # A template experiment.
 ```

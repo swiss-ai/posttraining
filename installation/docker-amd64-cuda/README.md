@@ -113,7 +113,7 @@ for your future users (and yourself).
        the [obtaining/building the environment](#obtainingbuilding-the-environment)
        section of the README.
        (**EPFL Note**: _you can give the link to your generic image on your lab's registry to your teammates
-       e.g., ic-registry.epfl.ch/your-lab/your-gaspar/template-project-name_.)
+       e.g., ic-registry.epfl.ch/your-lab/your-gaspar/swiss-alignment_.)
 
 9. Remove the template sections that you've completed from this file (indicated with **TEMPLATE TODO**)
    to only leave the instructions relevant to the next users.
@@ -248,8 +248,8 @@ We provide the following guides for obtaining/building and running the environme
 Clone the git repository.
 
 ```bash
-git clone <HTTPS/SSH> template-project-name
-cd template-project-name
+git clone <HTTPS/SSH> swiss-alignment
+cd swiss-alignment
 ```
 
 ### Obtain/build the images
@@ -396,7 +396,7 @@ For the runtime service you can run commands directly in independent containers 
 # template_experiment is an actual script that you can run.
 ./template.sh run your_command
 ./template.sh run python --version
-./template.sh run python -m template_package_name.template_experiment some_arg=some_value
+./template.sh run python -m swiss_alignment.template_experiment some_arg=some_value
 # You can pass environment variables to the container with the `-e VAR=VALUE` flag before your command
 ./template.sh run -e FOO=10 bash -c 'echo $FOO'
 # E.g. open a tmux shell, then run containers there
@@ -425,11 +425,11 @@ you're simultaneously developing.
 You could for example
 
 ```bash
-mv template-project-name template-project-name-tmp
-mkdir template-project-name
-mv template-project-name-tmp template-project-name/dev
+mv swiss-alignment swiss-alignment-tmp
+mkdir swiss-alignment
+mv swiss-alignment-tmp swiss-alignment/dev
 # Make sure to rerun your .env so that the new paths are correct.
-git clone <HTTPS/SSH> template-project-name/run
+git clone <HTTPS/SSH> swiss-alignment/run
 # Then you can follow the same steps for .../run to run your experiments.
 # Remember to generate and edit the .env file there as well.
 ```
@@ -577,7 +577,7 @@ You can use your favorite container runtime to run these images.
 They have an entrypoint which installs the project with pip
 and expects it to be mounted in the container and its location specified with the
 environment variable `PROJECT_ROOT_AT`.
-E.g., you can mount it at `/project/template-project-name` and specify `PROJECT_ROOT_AT=/project/template-project-name`.
+E.g., you can mount it at `/project/swiss-alignment` and specify `PROJECT_ROOT_AT=/project/swiss-alignment`.
 The entrypoint can then take any command to run in the container and will run it with PID 1.
 (If you don't specify the `PROJECT_ROOT_AT`, the entrypoint will skip the project installation and warn you about it.)
 It also expects the working directory to be set to `$PROJECT_ROOT_AT`.
@@ -592,14 +592,14 @@ For example, on an HPC system with Apptainer/Singularity you could do
 apptainer pull PULL_IMAGE_NAME:amd64-cuda-root-latest
 
 # Location to mount the project, also used by the entrypoint
-export PROJECT_ROOT_AT=/project/template-project-name
+export PROJECT_ROOT_AT=/project/swiss-alignment
 apptainer run \
     -c \
     -B $(pwd):${PROJECT_ROOT_AT} \
     --cwd ${PROJECT_ROOT_AT} \
     --env PROJECT_ROOT_AT=${PROJECT_ROOT_AT} \
     --env WANDB_API_KEY="" \
-    --nv template-project-name_amd64-cuda-root-latest.sif
+    --nv swiss-alignment_amd64-cuda-root-latest.sif
 # --env PROJECT_ROOT_AT is used by the entrypoint to install the project
 # *.sif is the downloaded image.
 # -c to not mount all the home directory to avoid spoiling reproducibility
