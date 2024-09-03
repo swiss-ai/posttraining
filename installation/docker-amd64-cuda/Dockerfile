@@ -64,6 +64,8 @@ RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-before-pip-install.txt
 COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
 RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
     pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
+    pip install --upgrade bitsandbytes
 # Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
 #RUN pip install -r ${DEPENDENCIES_DIR}/requirements.txt
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-after-pip-install.txt
