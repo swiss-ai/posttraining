@@ -19,7 +19,6 @@ attrs==24.2.0
 audioread==3.0.1
 babel==2.16.0
 beautifulsoup4==4.12.3
-bitsandbytes==0.43.3
 black==24.8.0
 bleach==6.1.0
 blis==0.7.11
