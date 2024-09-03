@@ -3,4 +3,7 @@ tqdm
 wandb
 pre-commit
 black
-trl[dev]
+# Tips for installing dependencies.
+# Install TRL then manually install the dev dependencies following some relaxations
+# Like in https://github.com/skandermoalla/trl/tree/relaxed-deps
+# When reached a set of dependencies that is good and that is not downgrading important packages freeze.
