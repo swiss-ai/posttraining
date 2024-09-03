@@ -63,16 +63,16 @@ ENV PIP_CACHE_DIR=/root/.cache/pip
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-before-pip-install.txt
 COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
 #RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
-#    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+#    pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements.txt
 # Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-RUN pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+RUN pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements.txt
 # Install bitsandbytes from source for CUDA 12.6.
-#RUN git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git
-#RUN cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make
-###RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
-###    pip install ./bitsandbytes && rm -rf ./bitsandbytes
-### Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-#RUN pip install ./bitsandbytes && rm -rf ./bitsandbytes
+RUN git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git
+RUN cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make
+#RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
+#    pip install ./bitsandbytes && rm -rf ./bitsandbytes
+## Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
+RUN pip install ./bitsandbytes && rm -rf ./bitsandbytes
 
 # Optional optimizations.
 # Hack to enable Intel MKL optimizations on AMD CPUs.
