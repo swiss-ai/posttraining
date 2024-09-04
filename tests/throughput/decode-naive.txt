@@ -1,0 +1,8 @@
+# x1 NVIDIA A100-SXM4-40GB, IC Cluster
+"meta-llama/Meta-Llama-3.1-8B"
+38218MiB / 40960MiB
+Throughput: feedforward 560.95 tokens/sec with 512 context size and 1 batch size
+Throughput: feedforward 14984.15 tokens/sec with 512 context size and 1 batch size
+Throughput: feedforward 15245.30 tokens/sec with 512 context size and 1 batch size
+Throughput: feedforward 15118.87 tokens/sec with 512 context size and 1 batch size
+Throughput: feedforward 15243.89 tokens/sec with 512 context size and 1 batch size
