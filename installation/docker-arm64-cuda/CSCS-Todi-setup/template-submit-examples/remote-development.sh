@@ -15,6 +15,7 @@ export JETBRAINS_SERVER_AT=$SCRATCH/jetbrains-server
 export PYCHARM_IDE_AT=744eea3d4045b_pycharm-professional-2024.1.6-aarch64
 # or
 # export VSCODE_SERVER_AT=$SCRATCH/vscode-server
+export HF_HOME=$SCRATCH/huggingface
 
 srun \
   --container-image=$CONTAINER_IMAGES/claire+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh \
