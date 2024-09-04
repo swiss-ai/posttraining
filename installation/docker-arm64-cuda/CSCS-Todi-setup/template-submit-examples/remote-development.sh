@@ -8,10 +8,11 @@
 export PROJECT_ROOT_AT=$SCRATCH/swiss-alignment/dev
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 export WANDB_API_KEY_FILE_AT=$HOME/.wandb-api-key
+export HF_TOKEN_AT=$HOME/.hf-token
 export SSH_SERVER=1
 export NO_SUDO_NEEDED=1
 export JETBRAINS_SERVER_AT=$SCRATCH/jetbrains-server
-# export JETBRAINS_IDE_AT=744eea3d4045b_pycharm-professional-2024.1.6-aarch64
+export PYCHARM_IDE_AT=744eea3d4045b_pycharm-professional-2024.1.6-aarch64
 # or
 # export VSCODE_SERVER_AT=$SCRATCH/vscode-server
 
@@ -19,8 +20,9 @@ srun \
   --container-image=$CONTAINER_IMAGES/claire+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Todi-setup/submit-scripts/edf.toml" \
   --container-mounts=\
-$SCRATCH:$SCRATCH,\
+$SCRATCH,\
 $WANDB_API_KEY_FILE_AT,\
+$HF_TOKEN_AT,\
 $HOME/.gitconfig,\
 $HOME/.ssh/authorized_keys \
   --container-workdir=$PROJECT_ROOT_AT \
