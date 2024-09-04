@@ -3,6 +3,24 @@
 
 ## Go to the end of the file for useful commands and troubleshooting tips.
 
+## Common use cases
+
+runai submit \
+  --name alignment \
+  --image registry.rcp.epfl.ch/claire/moalla/swiss-alignment:amd64-cuda-moalla-latest  \
+  --pvc runai-claire-moalla-scratch:/claire-rcp-scratch \
+  --working-dir /claire-rcp-scratch/home/moalla/alignment/dev \
+  -e PROJECT_ROOT_AT=/claire-rcp-scratch/home/moalla/alignment/dev \
+  -e SSH_SERVER=1 \
+  -e PYCHARM_IDE_AT=e632f2156c14a_pycharm-professional-2024.1.4 \
+  -e WANDB_API_KEY_FILE_AT=/claire-rcp-scratch/home/moalla/.wandb-api-key \
+  -e HF_TOKEN_AT=/claire-rcp-scratch/home/moalla/.hf-token \
+  -e HF_HOME=/claire-rcp-scratch/home/moalla/huggingface \
+  -e JETBRAINS_SERVER_AT=/claire-rcp-scratch/home/moalla/remote-development/jetbrains-server \
+  -e GIT_CONFIG_AT=/claire-rcp-scratch/home/moalla/remote-development/gitconfig \
+  -g 8 --cpu 60 --cpu-limit 60 --memory 500G --memory-limit 500G --allow-privilege-escalation --large-shm --node-pools g10 --interactive --preemptible \
+  -- sleep infinity
+
 ## PyCharm example:
 
 # Option 1. No PyCharm on the remote server. Launch PyCharm from your local machine.
