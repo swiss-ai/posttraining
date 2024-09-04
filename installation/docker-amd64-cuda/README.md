@@ -1,195 +1,6 @@
 # Installation with Docker (or any OCI container engine)
 
-## Template getting started
-
-> [!IMPORTANT]
-> **TEMPLATE TODO:**
-> Follow the instructions, then delete this section.
-
-This template provides a Docker setup to define your environment.
-For detailed information on the setup, refer to the next section [(_More details on the
-setup_)](#more-details-on-the-setup).
-Follow the steps below to get started.
-Some steps will send you to different sections of the document.
-It may feel like jumping back and forth, but everything should read nicely after the setup
-for your future users (and yourself).
-
-1. Choose the platform and hardware acceleration that you will build the image for.
-   You have to pick one as fully specified environment files are not trivially portable across platforms
-   and hardware accelerations.
-   Available packages may differ for different platforms and hardware accelerations,
-   so in general, you cannot freeze an environment used for a platform and create it in another.
-
-   The default platform is Linux (fixed) on AMD64 CPUs `amd64` (can be changed to e.g. `amd64`)
-   with support for NVIDIA GPUs.
-   (reflected in the name of the directory `docker-amd64-cuda` by default).
-   (The EPFL Run:ai and the SCITAS clusters are on `amd64`, the CSCS Todi cluster is on `amd64`.)
-   If this is good for you, you can skip this part.
-   Otherwise, to edit it, run
-   ```bash
-   # When in the PROJECT_ROOT directory.
-   # For examples run:
-   ./installation/edit-platform-and-acceleration.sh
-   # To do the change run:
-   ./installation/edit-platform-and-acceleration.sh change docker CURR_PLATFORM CURR_ACCELERATION NEW_PLATFORM NEW_ACCELERATION
-   # The hardware acceleration will be determined by the packages you install.
-   # E.g. if you install PyTorch with CUDA, set the acceleration to cuda.
-   ```
-   If you plan to support multiple platforms or hardware accelerations,
-   you can duplicate this installation method directory
-   with `./installation/edit-platform-and-acceleration.sh copy ...`
-   then perform the setup again.
-   You could also try to adapt the Docker files to support multiple platforms
-   (in some cases, may just get away with adding a line to the build platforms,
-   and in others may need separate Dockerfiles and environment files.
-   Test them, and ensure your results/conclusions hold across platforms.)
-2. Run the rest of the commands from this `installation/docker-amd64-cuda` directory.
-   ```bash
-   cd installation/docker-amd64-cuda
-   ```
-3. Choose whether you will start your image from an existing image already having a Python environment
-   (recommended)(e.g., the [NGC images](https://catalog.ngc.nvidia.com/containers) which have
-   well-configured hardware-acceleration dependencies)
-   or from scratch (Ubuntu image and new conda environment):
-    - (Recommended) The `from-python` installation assumes that you base your image from an image which
-      already has a Python environment and that this environment is well configured
-      to be extended with pip, independently of how Python is installed
-      (e.g. if with system Python like the NGC Pytorch image, you have nothing to do, but if with conda then
-      the environment must be configured to be activated by default or you have to edit the Dockerfile).
-
-      This is a great option to get started quickly with a well-tuned environment, and only add missing
-      dependencies.
-      However, this comes at the cost of not choosing your Python version and
-      not having a granular choice over your dependencies.
-    - The `from-scratch` installation is based on an Ubuntu image (which you can change if you want), installs
-      conda and manages all the dependencies with it.
-
-      This is a good option if you want full control over your environment, e.g., know exactly which system packages
-      are installed, pick the Python version, pick all the Python dependencies, etc.
-
-   The default base is `from-python` to quickly get started with the NGC images.
-   Run the following if you want to edit it.
-   ```bash
-   # from-base can be from-scratch or from-python
-   ./template.sh edit_from_base <from-base>
-   ```
-   Typically, you would support a single image per platform and hardware acceleration,
-   however, if your use case requires multiple images
-   (say you are using different RL environments with completely different dependencies),
-   you can further duplicate the installation directory (as for supporting multiple platforms)
-   and tag each of them by its specifics.
-   The template doesn't provide helper scripts for this,
-   but you can refer to the [Troubleshooting section](#supporting-multiple-images) for guidance.
-4. Edit `compose-base.yaml` to specify your base image (`BASE_IMAGE`) and its eventual options.
-   E.g., the NGC image you use as a base image and its entrypoint (`BASE_ENTRYPOINT`) in the `from-python` option
-   or the Ubuntu and conda version (`CONDA_URL`) in the `from-scratch` option.
-5. You can try to specify your dependencies if you are sure of how to install them and that they are compatible.
-   Otherwise, you should build with the default dependencies and install them interactively in the running container
-   then freeze them in the dependency files once you are sure of which to include and how to include them.
-   You will find more information in
-   the [instructions to maintain the environment](#from-python-instructions-to-maintain-the-environment).
-   Delete the section of the from-base you are not using.
-
-   If you change the dependency files commit so that you can track what worked and what didn't.
-6. Build the environment following the instructions to [build the environment](#obtainingbuilding-the-environment).
-   (Obviously, you'll have to build the generic image not pull it.)
-   For CSCS todi, steps 6, 7, and 8 are described in `./CSCS-Todi-setup/README.md`.
-   Follow the instructions there.
-7. Follow the instructions to [run the environment](#the-environment) with your target
-   deployment option.
-   If everything goes well (we suggested checking that all your dependencies are there
-   and importing the complex ones), pin your dependencies following the
-   instructions to [freeze the environment](#freeze-the-environment).
-8. Push your generic image (the one with the root user) to some registry if not done already.
-   This will be handy for you, for sharing it with your teammates, and when you open-source your project later.
-    1. Find a public (or private for teammates) repository to push your generic image.
-       E.g., your personal Docker Hub registry has free unlimited public repositories.
-    2. Push the generic image to the registry you chose.
-       ```bash
-       # Don't include the tag. All relevant tags will be pushed (i.e. latest and commit-tagged).
-       ./template.sh push_generic FULL_IMAGE_NAME_WITH_REGISTRY
-       ```
-    3. Add this link to the TODO ADD PULL_IMAGE_NAME in
-       the [obtaining/building the environment](#obtainingbuilding-the-environment)
-       section of the README.
-       (**EPFL Note**: _you can give the link to your generic image on your lab's registry to your teammates
-       e.g., ic-registry.epfl.ch/your-lab/your-gaspar/swiss-alignment_.)
-
-9. Remove the template sections that you've completed from this file (indicated with **TEMPLATE TODO**)
-   to only leave the instructions relevant to the next users.
-10. Go back to the root README for the rest of the instructions to set the template up.
-
-## More details on the setup
-
-> [!IMPORTANT]
-> **TEMPLATE TODO:**
-> Read/skim over this section, then delete it.
-
-The setup is based on Docker and Docker Compose and is adapted from
-the [Cresset template](https://github.com/cresset-template/cresset).
-It is composed of Dockerfiles to build the image containing the runtime environment,
-and Docker Compose files to set build arguments in the Dockerfile and run it locally.
-
-Most of these files are templates that should suit most use cases.
-They read project/user-specific information from the other files such as the project dependencies and user
-configuration.
-Typically, the files you will have to edit are `compose-base.yaml`, `.env`, and the `requirements.txt`
-or `environment.yml` files,
-
-Here's a summary of all the files in this directory.
-
-```
-docker-amd64-cuda/
-├── Dockerfile                       # Dockerfile template. Edit if you are building things manually.
-├── Dockerfile-user                  # Dockerfile template. Adds the dev and user layers.
-├── compose-base.yaml                # Sets the build args for the Dockerfile.
-│                                    # Edit to change the base image or package manager.
-├── compose.yaml                     # Docker Compose template. Edit if you have a custom local deployment or change the hardware acceleration.
-├── template.sh                      # A utility script to help you interact with the template (build, deploy, etc.).
-├── .env                             # Will contain your personal configuration. Edit to specify your personal configuration.
-├── environment.yml                  # If chose the `from-scratch` option. Conda and pip dependencies.
-├── requirements.txt                 # If chose the `from-python` option. pip dependencies.
-├── apt.txt                          # Apt dependencies ("system" dependencies).
-├── update-env-file.sh               # Template file. A utility script to update the environment files.
-├── entrypoints/
-│   ├── entrypoint.sh                # The main entrypoint that install the project and triggers other entrypoints.
-│   ├── pre-entrypoint.sh            # Runs the base entrypoint of the base image if it has one.
-│   ├── logins-setup.sh              # Manages logging into services like wandb.
-│   └── remote-development-setup.sh  # Contains utilities for setting up remote development with VSCode, PyCharm, Jupyter.
-└── *-setup/                         # Template files to deploy on the * cluster.
-    ├── ...
-    └── README.md                    # Instructions to deploy on * cluster.
-```
-
-### Details on the main Dockerfile
-
-The Dockerfile specifies all the steps to build the environment in which your code will run.
-It uses the files `apt.txt`, `requirements.txt`, and `environment.yml` to install the system and Python dependencies.
-You typically don't have to edit the Dockerfile directly, unless you need to install dependencies manually
-(not as a one time install from the dependencies files).
-The `Dockefile-user` is used to build the user layer on top of the generic image for OCI runtimes with limitations
-on user creation at container creation.
-
-### Details on the Docker Compose files
-
-The Docker Compose files are used to configure the build arguments used by the Dockerfile
-when building the images and to configure the container when running it locally.
-
-They support building multiple images corresponding to the runtime and development stages with or without a user
-and running on each with either `cpu` or `cuda` support.
-
-We provide a utility script, `template.sh`, to help you interact with Docker Compose.
-It has a function for each of the main operations you will have to do.
-
-You can always interact directly with `docker` or `docker compose` if you prefer
-and get examples from the `./template.sh` script.
-
 ## The environment
-
-> [!IMPORTANT]
-> **TEMPLATE TODO:**
-> When open-sourcing your project, share the generic image you built on a public registry.
-> Otherwise, delete the last bullet below in the guides for running the environment.
 
 We provide the following guides for obtaining/building and running the environment:
 
@@ -218,11 +29,6 @@ We provide the following guides for obtaining/building and running the environme
   The guide also provides instructions to do remote development on the SCITAS cluster
   with VSCode, PyCharm, and Jupyter Lab.
   Other Slurm + enroot/Apptainer/Singularity cluster users can get inspiration from it too.
-- To run on the CSCS Todi cluster, follow the instructions in `./CSCS-Todi-setup/README.md`.
-
-  The guide also provides instructions to do remote development on the Todi cluster
-  with VSCode, PyCharm, and Jupyter Lab.
-  Other Slurm + enroot cluster users can get inspiration from it too.
 
 - We also provide an image with the dependencies needed to run the environment
   that you can use with your favorite OCI-compatible container runtime.
@@ -231,12 +37,6 @@ We provide the following guides for obtaining/building and running the environme
   We give an example of how to run it with Apptainer/Singularity.
 
 ## Obtaining/building the environment
-
-> [!IMPORTANT]
-> **TEMPLATE TODO:**
-> After pushing your generic image, provide the image name on your private registry to your teammates,
-> or later on a public registry if you open-source your project.
-> Add it below in the TODO ADD PULL_IMAGE_NAME.
 
 ### Prerequisites
 
@@ -291,7 +91,8 @@ cd installation/docker-amd64-cuda
     - Pull the generic image if it's available.
       ```bash
       # Pull the generic image if available.
-      ./template.sh pull_generic TODO ADD PULL_IMAGE_NAME (private or public).
+      # For EPFL users.
+      ./template.sh pull_generic registry.rcp.epfl.ch/claire/moalla/swiss-alignment
       ```
     - Otherwise, build it.
       ```bash
@@ -351,17 +152,6 @@ Push the user-configured image for the Run:ai cluster (`LAB_NAME/USR/PROJECT_NAM
 ```
 
 ## Running locally with Docker Compose
-
-> [!IMPORTANT]
-> **TEMPLATE TODO:** Adapt the compose.yaml file to your local deployment needs.
-> - Add the necessary container options (ipc=host, network, additional mounts, etc)
->   to the run-local and dev-local services in the compose.yaml file.
->
-> - If you change the hardware acceleration:
->   1. change the `compose.yaml` file to adapt the
->      `run-local-cuda` and `dev-local-cuda` to the new hardware acceleration.
->   2. change the supported values of the `ACCELERATION` listed below.
->   3. change the prerequisites for the hardware acceleration.
 
 **Prerequisites**
 
@@ -533,7 +323,6 @@ _Configuration_:
   * the Python in your conda environment with the `from-scratch` option, with the conda binary found at `/opt/conda/condabin/conda`.
 
 
-
 #### Jupyter Lab
 
 With Jupyter Lab you should have the server running directly in the container
@@ -608,9 +397,6 @@ apptainer run \
 
 Return to the root README for the rest of the instructions to run our experiments.
 
-> [!IMPORTANT]
-> **TEMPLATE TODO:**
-> Remove the [FROM-PYTHON] or [FROM-SCRATCH] prefix of the method you use and delete the other method's section.
 
 ## [FROM-PYTHON] Instructions to maintain the environment
 
@@ -697,109 +483,6 @@ For dependencies that require a custom installation or build, edit the `Dockerfi
 If one of these complex dependencies shows in the `requirements.txt` after the freeze,
 you have to remove it, so that pip does not pick it up, and it is installed independently in the `Dockerfile`.
 (Something similar is done in the `update-env-file`.)
-
-For `apt` dependencies add them manually to the `apt-*.txt` files.
-
-## [FROM-SCRATCH] Instructions to maintain the environment
-
-System dependencies are managed by both `apt` and `conda`.
-Python dependencies are managed by both `conda` and `pip`.
-
-- Use `apt` for system programs (e.g. `sudo`, `zsh`, `gcc`),
-  leave libraries (e.g., image libraries etc.) to `conda` whenever possible.
-- Use `conda` for non-Python dependencies needed to run the project code (e.g. `mkl`, `swig`, `imageio`, etc.).
-- Use `conda` for Python dependencies packaged with more than just Python code (e.g. `pytorch`, `numpy`).
-  These will typically be your main dependencies and will likely not change as your project grows.
-- Use `pip` for the rest of the Python dependencies.
-- For more complex dependencies that may require a custom installation or build, use the `Dockerfile` directly.
-
-Here are references and reasons to follow the above claims:
-
-* [A guide for managing `conda` + `pip` environments](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#using-pip-in-an-environment).
-* [Reasons to  use `conda` for not-Python-only dependencies](https://numpy.org/install/#numpy-packages--accelerated-linear-algebra-libraries).
-* [Ways of combining `conda` and `pip`](https://towardsdatascience.com/conda-essential-concepts-and-tricks-e478ed53b5b#42cb).
-
-There are two ways to add dependencies to the environment:
-
-1. **Manually edit the dependency files.**
-   This is used the first time you set up the environment.
-   It will also be useful if you run into conflicts and have to restart from scratch.
-2. **Add/upgrade dependencies interactively** while running a shell in the container to experiment with which
-   dependency is needed.
-   This is probably what you'll be doing after building the image for the first time.
-
-In both cases, after any change, a snapshot of the full environment specification should be written
-to the dependency files.
-We describe how to do so in the Freeze the Environment section.
-
-### Manual editing (before/while building)
-
-- To add `apt` dependencies, edit the `apt.txt` file.
-  Put the dependencies needed to build the environment, e.g., compilers, build tools, etc.
-  and dependencies to run the environment, e.g., image processing libraries,
-  and the utilities that will help you develop in the container, e.g. `htop`, `vim`, etc.
-
-  If you're not familiar with which dependencies are needed, you can start with the minimal set we
-  give.
-  When you encounter errors during the image build, add the missing dependencies to the stage where the error
-  occurred.
-- To edit the `conda` and `pip` dependencies, edit the `environment.yml` file.
-- To edit the more complex dependencies, edit the `Dockerfile`.
-
-When manually editing the dependency files,
-you do not need to specify the specific version of all the dependencies,
-these will be written to the file when you freeze the environment.
-You should just specify the major versions of specific dependencies you need.
-
-### Interactively (while developing)
-
-`conda` dependencies should all be installed before any `pip` dependency.
-This will cause conflicts otherwise as `conda` doesn't track the `pip` dependencies.
-So if you need to add a `conda` dependency after you already installed some `pip` dependencies, you need to recreate
-the environment by manually adding the dependencies before the build as described in the previous section.
-
-* To add `apt`  dependencies run `sudo apt install <package>`
-* To add `conda` dependencies run `mamba install <package>`
-* To add `pip` dependencies run `pip install <package>`
-
-### Freeze the environment
-
-After any change to the dependencies, a snapshot of the full environment specification should be written to the
-dependency files.
-This includes changes during a build and changes made interactively.
-This is to ensure that the environment is reproducible and that the dependencies are tracked at any point in time.
-
-To do so, run the following from a login shell in the container.
-The script overwrites the `environment.yml` file with the current environment specification,
-so it's a good idea to commit the changes to the environment file before/after running it.
-
-The script isn't just a `mamba env export`
-and the file it generates isn't made to recreate the complete environment from scratch,
-it is tightly coupled to the Dockerfile.
-In this sense, packages it installs may depend on system dependencies installed by the Dockerfile
-and dependencies installed at later stages will not be listed.
-
-**Note:** A strict `mamba env export` is recorded
-
-The purpose of the generated `environment.yml` is to be used always at the same stage of the Dockerfile
-to install the initial set of dependencies.
-(and not install dependencies that the Dockerfile will build and install later).
-In any case,
-the Dockerfile also records the snapshots of the dependency files used to generate each stage for debugging that can be
-found in the `/opt/template-dependencies/` directory.
-
-```bash
-update-env-file
-```
-
-The script isn't perfect, and there are some caveats (e.g., packages installed from GitHub with pip),
-so have a look at the output file to make sure it does what you want.
-The `update-env-file.sh` gives some hints for what to do,
-and in any case you can always patch the file manually.
-
-For dependencies that require a custom installation or build, edit the `Dockerfile`.
-If one of these complex dependencies shows in the `environment.yml` after the freeze,
-you have to remove it, so that conda does not pick it up, and it is installed independently in the `Dockerfile`.
 
 For `apt` dependencies add them manually to the `apt-*.txt` files.
 
