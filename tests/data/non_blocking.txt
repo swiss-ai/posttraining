@@ -1,6 +1,12 @@
 # x1 NVIDIA A100-SXM4-40GB, IC Cluster
-"meta-llama/Meta-Llama-3.1-8B"
 copy_to_device(*tensors):  17.6453 ms
 copy_to_device_nonblocking(*tensors):  9.7758 ms
 copy_to_device(*tensors_pinned):  17.7954 ms
 copy_to_device_nonblocking(*tensors_pinned):  9.6278 ms
+
+
+# x1 NVIDIA GH200
+copy_to_device(*tensors):  10.6615 ms
+copy_to_device_nonblocking(*tensors):  6.2746 ms
+copy_to_device(*tensors_pinned):  12.6209 ms
+copy_to_device_nonblocking(*tensors_pinned):  5.6276 ms
