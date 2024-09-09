@@ -16,8 +16,7 @@ export JETBRAINS_SERVER_AT=$SCRATCH/jetbrains-server
 # export JETBRAINS_IDE_AT=744eea3d4045b_pycharm-professional-2024.1.6-aarch64
 # or
 # export VSCODE_SERVER_AT=$SCRATCH/vscode-server
-
-unset PROMT_COMMAND
+unset PROMPT_COMMAND
 
 srun \
   --container-image=$CONTAINER_IMAGES/claire+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh \
