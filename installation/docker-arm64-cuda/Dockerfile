@@ -48,7 +48,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 #    rm -rf /var/lib/apt/lists/*
 
 # Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-RUN apt update && \
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt \
+    apt update && \
     sed -e 's/#.*//g' -e 's/\r//g' ${DEPENDENCIES_DIR}/apt.txt | \
     xargs -t apt-get install -y --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
@@ -64,15 +66,24 @@ RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-before-pip-install.txt
 COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
 #RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
 #    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+
 # Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-RUN pip install -r ${DEPENDENCIES_DIR}/requirements.txt
-# Install bitsandbytes from source for CUDA 12.6.
-RUN git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git
-RUN cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make
+RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
+    pip install -r ${DEPENDENCIES_DIR}/requirements.txt \
+
+# Install bitsandbytes from source
 #RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
-#    pip install ./bitsandbytes && rm -rf ./bitsandbytes
-## Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-RUN pip install ./bitsandbytes && rm -rf ./bitsandbytes
+#    git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git \
+#    && cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make \
+#    && pip install ./bitsandbytes \
+#    && rm -rf ./bitsandbytes
+
+# Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
+RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
+    git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git \
+    && cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make \
+    && pip install ./bitsandbytes \
+    && rm -rf ./bitsandbytes
 
 # Optional optimizations.
 # Hack to enable Intel MKL optimizations on AMD CPUs.
