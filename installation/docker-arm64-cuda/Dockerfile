@@ -82,8 +82,8 @@ RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
 RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
     git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git \
     && cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make \
-    && pip install ./bitsandbytes \
-    && rm -rf ./bitsandbytes
+    && pip install . \
+    && cd .. && rm -rf ./bitsandbytes
 
 # Optional optimizations.
 # Hack to enable Intel MKL optimizations on AMD CPUs.
