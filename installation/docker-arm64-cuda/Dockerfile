@@ -69,7 +69,7 @@ COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
 
 # Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
 RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
-    pip install -r ${DEPENDENCIES_DIR}/requirements.txt \
+    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
 
 # Install bitsandbytes from source
 #RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
