@@ -3,23 +3,8 @@
 # BASE_IMAGE is the image that will be extended by this Dockerfile.
 # It is assumed to a well configured Python installation.
 # The reminaing packages will be installed with pip.
-
 ARG BASE_IMAGE
 ARG GIT_IMAGE
-
-########################################################################
-# Download Z-Shell enhancements.
-
-FROM ${GIT_IMAGE} AS get-pure
-
-ARG PURE_URL=https://github.com/sindresorhus/pure.git
-ARG ZSHA_URL=https://github.com/zsh-users/zsh-autosuggestions.git
-ARG ZSHS_URL=https://github.com/zsh-users/zsh-syntax-highlighting.git
-
-RUN git clone --depth 1 ${PURE_URL} /opt/zsh/pure
-RUN git clone --depth 1 ${ZSHA_URL} /opt/zsh/zsh-autosuggestions
-RUN git clone --depth 1 ${ZSHS_URL} /opt/zsh/zsh-syntax-highlighting
-
 
 ########################################################################
 # Install apt packages.
@@ -62,44 +47,55 @@ FROM runtime-apt-pkgs AS runtime-deps
 
 # Install pip packages.
 ENV PIP_CACHE_DIR=/root/.cache/pip
-RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-before-pip-install.txt
+RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-before-pip-install.txt
+RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-before-pip-install.txt
 COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
 #RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
 #    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
-
 # Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
 RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
     pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-after-pip-install.txt
+RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-after-pip-install.txt
 
-# Install bitsandbytes from source
+# Install bitsandbytes from source.
 #RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
 #    git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git \
 #    && cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make \
-#    && pip install ./bitsandbytes \
-#    && rm -rf ./bitsandbytes
-
-# Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
+#    && pip install . \
+#    && cd .. && rm -rf ./bitsandbytes
+# Podman
 RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
     git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git \
     && cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make \
     && pip install . \
     && cd .. && rm -rf ./bitsandbytes
 
-# Optional optimizations.
-# Hack to enable Intel MKL optimizations on AMD CPUs.
-# https://danieldk.eu/Posts/2020-08-31-MKL-Zen.html
-ARG FAKEINTEL_PATH=/opt/fakeintel/libfakeintel.so
-ENV FAKEINTEL_PATH=${FAKEINTEL_PATH}
-# https://danieldk.eu/Posts/2020-08-31-MKL-Zen.html
-# Build.
-RUN echo 'int mkl_serv_intel_cpu_true() {return 1;}' > /tmp/fakeintel.c && \
-    mkdir -p /opt/fakeintel && \
-    gcc -shared -fPIC -o ${FAKEINTEL_PATH} /tmp/fakeintel.c
-# Enable.
-ENV LD_PRELOAD=${FAKEINTEL_PATH}:${LD_PRELOAD}
+
+# For reproducible requirements use the following after getting the requirements-freeze.txt file from the first build.
+#COPY requirements-freeze.txt ${DEPENDENCIES_DIR}/requirements-freeze.txt
+#RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
+#    pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements-freeze.txt
+# For podman
+#RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
+#    pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements-freeze.txt
 
 ########################################################################
 # Here you can install other software
+
+
+########################################################################
+# Download Z-Shell enhancements.
+
+FROM ${GIT_IMAGE} AS get-pure
+
+ARG PURE_URL=https://github.com/sindresorhus/pure.git
+ARG ZSHA_URL=https://github.com/zsh-users/zsh-autosuggestions.git
+ARG ZSHS_URL=https://github.com/zsh-users/zsh-syntax-highlighting.git
+
+RUN git clone --depth 1 ${PURE_URL} /opt/zsh/pure
+RUN git clone --depth 1 ${ZSHA_URL} /opt/zsh/zsh-autosuggestions
+RUN git clone --depth 1 ${ZSHS_URL} /opt/zsh/zsh-syntax-highlighting
 
 ########################################################################
 # This stage is the final user-agnostic (generic) stage.
@@ -114,7 +110,8 @@ ENV PACKAGE_NAME=${PACKAGE_NAME}
 ENV HYDRA_FULL_ERROR=1
 
 # A final record of the dependencies from pip freeze.
-RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-raw-final.txt
+RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-final.txt
+RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-final.txt
 
 # Shell configuration.
 ENV ZSH_ENHANCE_DIR=/etc/zsh/enhance

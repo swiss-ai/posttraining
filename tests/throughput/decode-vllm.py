@@ -76,8 +76,13 @@ def benchmark(print_output=False):
 # benchmark
 benchmark()
 
-# Latency: takes 23.50 ms/token on average for a total of 8334 tokens
-# Throughput: generates 4254.42 tokens/sec for 100 sequences of 8334 tokens
+# GH200
+# Latency: takes 19.76 ms/token on average for a total of 6899 tokens
+# Throughput: generates 5060.63 tokens/sec for 100 sequences of 6899 tokens
+# Vs with transformers + flash attention
+# Latency: takes 59.78 ms/token on average for a total of 5602 tokens
+# Throughput: generates 1672.92 tokens/sec for 100 sequences of 5602 tokens
+
 
 # Put in a table and print
 res = dict()
@@ -88,9 +93,8 @@ for batch_size in [1, 32, 64]:
 print(res)
 
 
-# Results
-# default on GH200
+# GH200
+# VLLM
 # {(1, 1): (25.48, 39.25), (100, 1): (7.2, 138.85), (1000, 1): (7.02, 142.51), (1, 32): (28.11, 1138.28), (100, 32): (7.96, 4018.86), (1000, 32): (8.43, 3796.11), (1, 64): (33.63, 1903.16), (100, 64): (9.28, 6896.99), (1000, 64): (10.23, 6258.44)}
-
-# transformers with flashattention
+# transformers with flash-attention
 # {(1, 1): (42.77, 23.38), (100, 1): (27.36, 36.55), (1000, 1): (24.98, 40.03), (1, 32): (27.43, 1166.48), (100, 32): (29.54, 1083.15), (1000, 32): (31.73, 1008.44), (1, 64): (32.52, 1967.96), (100, 64): (29.62, 2161.02), (1000, 64): (36.62, 1747.69)}

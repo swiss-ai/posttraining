@@ -1,4 +1,6 @@
 # Template
+hatchling
+editables
 hydra-core
 tqdm
 wandb

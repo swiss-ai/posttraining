@@ -14,3 +14,4 @@ wget                # Useful.
 vim                 # Useful.
 tmux                # Useful.
 tree                # Useful.
+libaio-dev          # For DeepSpeed
