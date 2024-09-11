@@ -5,7 +5,7 @@ services:
         # Pytorch 2.4.0a0+f70bd71a48, NVIDIA CUDA 12.5.0.23, Python 3.10.
         # https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-06.html
         # https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch
-        BASE_IMAGE: docker.io/drikster80/vllm-aarch64-openai:v0.6.0
+        BASE_IMAGE: ddocker.io/skandermoalla/vllm:v0.6.0-d4b57a87-arm64-cuda-gh200
         GIT_IMAGE: docker.io/alpine/git:2.40.1            # https://hub.docker.com/r/alpine/git/tags
         # You can find the entrypoint by running `docker inspect BASE_IMAGE | grep -A 3 Entrypoint`
         # If there is no entrypoint, you can leave it empty.
