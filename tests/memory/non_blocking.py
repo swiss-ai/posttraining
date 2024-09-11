@@ -14,6 +14,7 @@ def timer(cmd):
     print(f"{cmd}: {median: 4.4f} ms")
     return median
 
+
 # A simple loop that copies all tensors to cuda
 def copy_to_device(*tensors):
     result = []
