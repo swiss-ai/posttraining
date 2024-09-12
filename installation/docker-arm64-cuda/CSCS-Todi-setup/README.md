@@ -11,12 +11,6 @@ This guide will show you how to build and run your image on the CSCS Todi cluste
 
 ## Building the environment (skip if already have access to the image)
 
-> [!IMPORTANT]
-> **TEMPLATE TODO:**
-> After saving your generic image, provide the image location to your teammates.
-> Ideally also push it to team registry and later on a public registry if you open-source your project.
-> Add it below in the TODO ADD IMAGE PATH.
-
 ### Prerequisites
 
 * `podman` (Already installed on the CSCS clusters). Configure it as described [here](https://confluence.cscs.ch/display/KB/LLM+Inference)
@@ -120,17 +114,13 @@ We strongly suggest having two instances of your project repository.
 1. One for development, which may have uncommitted changes, be in a broken state, etc.
 2. One for running unattended jobs, which is always referring to a commit at a working state of the code.
 
-The outputs and data directories of those two instances will be symlinked to the scratch storage
-and will be shared anyway.
-This guide includes the steps to do it, and there are general details in `data/README.md` and `outputs/README.md`.
+The outputs and data directories of those two instances can be symlinked to the scratch storage
+and can be shared.
+There are general details to do it in `data/README.md` and `outputs/README.md`.
 
 ```bash
 # SSH to a cluster.
-ssh kuma
-# Somewhere in your home directory on the clusters
-SCRATCH=/scratch/kuma/$USER
-# Or on Izar
-# SCRATCH=/scratch/izar/$USER
+ssh todi
 cd $SCRATCH
 # Clone the repo twice with name dev and run (if you already have one, mv it to a different name)
 mkdir swiss-alignment
@@ -287,7 +277,7 @@ of the host [(ref)](https://linuxcommando.blogspot.com/2008/10/how-to-disable-ss
 which keeps changing every time a job is scheduled,
 so that you don't have to reset it each time.
 
-With this config you can then connect to your container with `ssh kuma-container`.
+With this config you can then connect to your container with `ssh todi-container`.
 
 **Limitations**
 
