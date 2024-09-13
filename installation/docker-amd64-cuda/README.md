@@ -1,78 +1,5 @@
 # Installation with Docker (or any OCI container engine)
 
-## Template getting started
-
-
-6. Build the environment following the instructions to [build the environment](#obtainingbuilding-the-environment).
-   (Obviously, you'll have to build the generic image not pull it.)
-   For CSCS todi, steps 6, 7, and 8 are described in `./CSCS-Todi-setup/README.md`.
-   Follow the instructions there.
-7. Follow the instructions to [run the environment](#the-environment) with your target
-   deployment option.
-   If everything goes well (we suggested checking that all your dependencies are there
-   and importing the complex ones), pin your dependencies following the
-   instructions to [freeze the environment](#freeze-the-environment).
-8. Push your generic image (the one with the root user) to some registry if not done already.
-   This will be handy for you, for sharing it with your teammates, and when you open-source your project later.
-    1. Find a public (or private for teammates) repository to push your generic image.
-       E.g., your personal Docker Hub registry has free unlimited public repositories.
-    2. Push the generic image to the registry you chose.
-       ```bash
-       # Don't include the tag. All relevant tags will be pushed (i.e. latest and commit-tagged).
-       ./template.sh push_generic FULL_IMAGE_NAME_WITH_REGISTRY
-       ```
-    3. Add this link to the TODO ADD PULL_IMAGE_NAME in
-       the [obtaining/building the environment](#obtainingbuilding-the-environment)
-       section of the README.
-       (**EPFL Note**: _you can give the link to your generic image on your lab's registry to your teammates
-       e.g., ic-registry.epfl.ch/your-lab/your-gaspar/swiss-alignment_.)
-
-9. Remove the template sections that you've completed from this file (indicated with **TEMPLATE TODO**)
-   to only leave the instructions relevant to the next users.
-10. Go back to the root README for the rest of the instructions to set the template up.
-
-## More details on the setup
-
-> [!IMPORTANT]
-> **TEMPLATE TODO:**
-> Read/skim over this section, then delete it.
-
-The setup is based on Docker and Docker Compose and is adapted from
-the [Cresset template](https://github.com/cresset-template/cresset).
-It is composed of Dockerfiles to build the image containing the runtime environment,
-and Docker Compose files to set build arguments in the Dockerfile and run it locally.
-
-Most of these files are templates that should suit most use cases.
-They read project/user-specific information from the other files such as the project dependencies and user
-configuration.
-Typically, the files you will have to edit are `compose-base.yaml`, `.env`, and the `requirements.txt`
-or `environment.yml` files,
-
-Here's a summary of all the files in this directory.
-
-```
-docker-amd64-cuda/
-├── Dockerfile                       # Dockerfile template. Edit if you are building things manually.
-├── Dockerfile-user                  # Dockerfile template. Adds the dev and user layers.
-├── compose-base.yaml                # Sets the build args for the Dockerfile.
-│                                    # Edit to change the base image or package manager.
-├── compose.yaml                     # Docker Compose template. Edit if you have a custom local deployment or change the hardware acceleration.
-├── template.sh                      # A utility script to help you interact with the template (build, deploy, etc.).
-├── .env                             # Will contain your personal configuration. Edit to specify your personal configuration.
-├── environment.yml                  # If chose the `from-scratch` option. Conda and pip dependencies.
-├── requirements.txt                 # If chose the `from-python` option. pip dependencies.
-├── apt.txt                          # Apt dependencies ("system" dependencies).
-├── update-env-file.sh               # Template file. A utility script to update the environment files.
-├── entrypoints/
-│   ├── entrypoint.sh                # The main entrypoint that install the project and triggers other entrypoints.
-│   ├── pre-entrypoint.sh            # Runs the base entrypoint of the base image if it has one.
-│   ├── logins-setup.sh              # Manages logging into services like wandb.
-│   └── remote-development-setup.sh  # Contains utilities for setting up remote development with VSCode, PyCharm, Jupyter.
-└── *-setup/                         # Template files to deploy on the * cluster.
-    ├── ...
-    └── README.md                    # Instructions to deploy on * cluster.
-```
-
 ## The environment
 
 > [!IMPORTANT]
@@ -180,7 +107,8 @@ cd installation/docker-amd64-cuda
     - Pull the generic image if it's available.
       ```bash
       # Pull the generic image if available.
-      ./template.sh pull_generic TODO ADD PULL_IMAGE_NAME (private or public).
+      # For EPFL
+      ./template.sh pull_generic registry.rcp.epfl.ch/claire/moalla/swiss-alignment
       ```
     - Otherwise, build it.
       ```bash
