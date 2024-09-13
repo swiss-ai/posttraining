@@ -1,0 +1,15 @@
+# Template
+hatchling
+editables
+hydra-core
+tqdm
+wandb
+pre-commit
+black
+# Alignment
+deepspeed
+peft
+diffusers
+llm-blender
+liger-kernel # trl
+trl
