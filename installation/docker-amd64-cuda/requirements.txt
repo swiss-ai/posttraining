@@ -11,5 +11,4 @@ deepspeed
 peft
 diffusers
 llm-blender
-liger-kernel # trl
 trl
