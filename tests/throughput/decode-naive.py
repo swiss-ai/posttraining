@@ -133,9 +133,17 @@ for context_size in [4096, 8192]:
         time.sleep(1)
         feedforward_no_grad(context_size=context_size, batch_size=1)
 
+# GH200
+# Throughput: feedforward no grad 26226.37 tokens/sec with 4096 context size and 1 batch size
+# Throughput: feedforward no grad 24676.04 tokens/sec with 8192 context size and 1 batch size
+
 for i in range(3):
     backward(context_size=1, batch_size=1)
 
+# GH200
+# Throughput: feedforward 17.66 tokens/sec with 1 context size and 1 batch size
+# Throughput: backward 16.63 tokens/sec with 1 context size and 1 batch size
+# Throughput: total 8.56 tokens/sec with 1 context size and 1 batch size
 
 for context_size in [16384]:
     for i in range(3):
@@ -144,3 +152,9 @@ for context_size in [16384]:
 
 for i in range(3):
     backward(context_size=2048, batch_size=1)
+
+
+# GH200
+# Throughput: feedforward 15009.23 tokens/sec with 2048 context size and 1 batch size
+# Throughput: backward 14764.77 tokens/sec with 2048 context size and 1 batch size
+# Throughput: total 7442.45 tokens/sec with 2048 context size and 1 batch size
