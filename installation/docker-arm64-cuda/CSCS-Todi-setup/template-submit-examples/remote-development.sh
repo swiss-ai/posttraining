@@ -19,7 +19,7 @@ export JETBRAINS_SERVER_AT=$SCRATCH/jetbrains-server
 unset PROMPT_COMMAND
 
 srun \
-  --container-image=$CONTAINER_IMAGES/claire+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh \
+  --container-image=$CONTAINER_IMAGES/swiss-alignment+arm64-cuda-root-latest.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Todi-setup/submit-scripts/edf.toml" \
   --container-mounts=\
 $SCRATCH,\

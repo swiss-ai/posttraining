@@ -102,7 +102,7 @@ Copy it or create a symlink to it where you keep your images. E.g.,
 # Add it to your bashrc as it'll be used often
 CONTAINER_IMAGES=$SCRATCH/container-images
 mkdir -p $CONTAINER_IMAGES
-ln -s ln -s /store/swissai/a10/container-images/swiss-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/ADAPTED_NAME.sqsh
+ln -s /store/swissai/a10/container-images/swiss-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/swiss-alignment+arm64-cuda-root-latest.sqsh
 ```
 
 #### From a registry (TODO)

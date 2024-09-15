@@ -152,12 +152,6 @@ Push the generic image if you built it (`LAB_NAME/USR/PROJECT_NAME:PLATFORM-root
 Pro-tip: it will also push them with the git commit hash as a tag if the build is at the latest commit.
 You can rebuild the images with `./template.sh build` to tag them with the latest commit hash.
 
-> [!IMPORTANT]
-> **TEMPLATE TODO:**
-> Give the generic image name you just pushed
-> (e.g., `ic-registry.epfl.ch/LAB_NAME/USR/PROJECT_NAME`)
-> to your teammates so that they can directly build their user-configured images on top of it.
-> Replace the _TODO ADD PULL_IMAGE_NAME_ above with this name.
 
 Push the user-configured image for the Run:ai cluster (`LAB_NAME/USR/PROJECT_NAME:PLATFORM-USR-latest`)
 
@@ -168,17 +162,6 @@ Push the user-configured image for the Run:ai cluster (`LAB_NAME/USR/PROJECT_NAM
 ```
 
 ## Running locally with Docker Compose
-
-> [!IMPORTANT]
-> **TEMPLATE TODO:** Adapt the compose.yaml file to your local deployment needs.
-> - Add the necessary container options (ipc=host, network, additional mounts, etc)
->   to the run-local and dev-local services in the compose.yaml file.
->
-> - If you change the hardware acceleration:
->   1. change the `compose.yaml` file to adapt the
->      `run-local-cuda` and `dev-local-cuda` to the new hardware acceleration.
->   2. change the supported values of the `ACCELERATION` listed below.
->   3. change the prerequisites for the hardware acceleration.
 
 **Prerequisites**
 
