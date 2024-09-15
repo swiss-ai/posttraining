@@ -25,14 +25,6 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
 
 ARG DEBIAN_FRONTEND=noninteractive
 # sed is only used as a hack to remove comments from the file apt.txt.
-#RUN --mount=type=cache,target=/var/cache/apt,sharing=private \
-#    --mount=type=cache,target=/var/lib/apt,sharing=private \
-#    apt update && \
-#    sed -e 's/#.*//g' -e 's/\r//g' ${DEPENDENCIES_DIR}/apt.txt | \
-#    xargs -t apt-get install -y --no-install-recommends && \
-#    rm -rf /var/lib/apt/lists/*
-
-# Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
 RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt \
     apt update && \
@@ -49,28 +41,11 @@ FROM runtime-apt-pkgs AS runtime-deps
 ENV PIP_CACHE_DIR=/root/.cache/pip
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-before-pip-install.txt
 RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-before-pip-install.txt
-#COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
-#RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
-#    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
-# Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-#RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
-#    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+
+RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
+    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
 
 # For reproducible requirements use the following after getting the requirements-freeze.txt file from the first build.
-COPY requirements-freeze.txt ${DEPENDENCIES_DIR}/requirements-freeze.txt
-RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
-    pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements-freeze.txt
-# For podman
-RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
-    pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements-freeze.txt
-
-# Install bitsandbytes from source.
-#RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
-#    git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git \
-#    && cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make \
-#    && pip install . \
-#    && cd .. && rm -rf ./bitsandbytes
-# Podman
 RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
     git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git \
     && cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make \
