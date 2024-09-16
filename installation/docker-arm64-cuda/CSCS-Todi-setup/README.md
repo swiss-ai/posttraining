@@ -2,7 +2,7 @@
 
 ## Overview
 
-At this point, you should have edited the environment files and are ready to build or run the image.
+At this point, you should be ready to build the image (based on the environment file you edited) or have the image already and can run it.
 This guide will show you how to build and run your image on the CSCS Todi cluster and use it for
 
 1. Remote development.
