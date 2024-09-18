@@ -3,8 +3,7 @@
 
 ## Go to the end of the file for useful commands and troubleshooting tips.
 
-# 8 GPU job with logins etc. This is expensive be careful.
-# PyCharm with Logins to HF and W&B.
+# PyCharm with Logins to HF and W&B. You need to create the necessary .hf-token and .wandb-api-key files.
 # For IC add --allow-privilege-escalation
 # For RCP remove --allow-privilege-escalation
 # For IC add --node-pools g10 to access A100s.
@@ -18,6 +17,9 @@ runai submit \
   -e SSH_SERVER=1 \
   -e JETBRAINS_SERVER_AT=/claire-rcp-scratch/home/moalla/remote-development/jetbrains-server \
   -e GIT_CONFIG_AT=/claire-rcp-scratch/home/moalla/remote-development/gitconfig \
+  -e WANDB_API_KEY_FILE_AT=/claire-rcp-scratch/home/moalla/.wandb-api-key \
+  -e HF_TOKEN_AT=/claire-rcp-scratch/home/moalla/.hf-token \
+  -e HF_HOME=/claire-rcp-scratch/home/moalla/huggingface \
   -g 1 --cpu 8 --cpu-limit 8 --memory 64G --memory-limit 64G --allow-privilege-escalation --large-shm --node-pools g10 \
   -- sleep infinity
 
