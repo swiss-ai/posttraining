@@ -34,7 +34,7 @@ def generate_from_scratch(n_tokens=100, batch_size=1, print_output=False):
             generated_text = output.outputs[0].text
             print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
     throughput = batch_size * n_tokens / (end - start)
-    avg_latency = (end - start) / n_tokens
+    avg_latency = (end - start) / n_tokens / batch_size
     print(
         f"Latency: takes {avg_latency*1000:.2f} ms/token on average for a sequence of {n_tokens} tokens"
     )
@@ -67,9 +67,17 @@ def benchmark(print_output=False):
     print(
         f"Latency: takes {avg_latency*1000:.2f} ms/token on average for a total of {n_tokens} tokens"
     )
+
+    print("The reference number for the latency is 30 +- 15 ms/token")
+
     print(
         f"Throughput: generates {throughput:.2f} tokens/sec for {batch_size} sequences of {n_tokens} tokens"
     )
+
+    print(
+        f"The reference number for the throughput is {40 * batch_size} +- {20 * batch_size} tokens/sec"
+    )
+
     return throughput, avg_latency
 
 
