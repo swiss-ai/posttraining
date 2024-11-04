@@ -11,7 +11,7 @@ accelerate >= 1.0
 deepspeed
 peft
 transformers >= 4.46.1
-trl >= 1.12
+trl >= 0.12
 # TRL extensions
 llm-blender
 diffusers
