@@ -41,21 +41,23 @@ FROM runtime-apt-pkgs AS runtime-deps
 ENV PIP_CACHE_DIR=/root/.cache/pip
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-before-pip-install.txt
 RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-before-pip-install.txt
+
 COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
 RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
     pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+
+# Install Liger Kernel
+#RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
+#    pip install --no-deps --no-build-isolation git+https://github.com/linkedin/Liger-Kernel.git
+#
+## Install Unsloth
+#RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
+#    pip install --no-deps --no-build-isolation git+https://github.com/unslothai/unsloth.git
 
 # For reproducible requirements use the following after getting the requirements-freeze.txt file from the first build.
 #COPY requirements-freeze.txt ${DEPENDENCIES_DIR}/requirements-freeze.txt
 #RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
 #    pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements-freeze.txt
-
-# Install bitsandbytes from source.
-RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
-    git clone --depth 1 --branch "0.43.3" https://github.com/bitsandbytes-foundation/bitsandbytes.git \
-    && cd bitsandbytes && cmake -DCOMPUTE_BACKEND=cuda -S . && make \
-    && pip install . \
-    && cd .. && rm -rf ./bitsandbytes
 
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-after-pip-install.txt
 RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-after-pip-install.txt
