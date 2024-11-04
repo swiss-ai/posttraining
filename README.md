@@ -19,8 +19,7 @@ We support the following methods and platforms for installing the project depend
   Follow the instructions in `installation/docker-amd64-cuda/README.md` to install the environment
   then get back here for the rest of the instructions to run the experiments.
 
-  We ran our experiments on TODO: FILL IN THE HARDWARE YOU USED.
-  To run them, you should have at least TODO: FILL IN THE MINIMUM HARDWARE REQS IF APPLICABLE.
+  We run our experiments on 4/8xH100-80GB nodes and 8xA100-80GB nodes.
 
 - **Docker/OCI-container for ARM64 machines (+ NVIDIA GPUs)**:
   Like the option above but for machines with ARM64 CPUs and NVIDIA GPUs.
@@ -29,17 +28,8 @@ We support the following methods and platforms for installing the project depend
   Follow the instructions in `installation/docker-amd64-cuda/README.md` to install the environment
   then get back here for the rest of the instructions to run the experiments.
 
-  We ran our experiments on TODO: FILL IN THE HARDWARE YOU USED.
-  To run them, you should have at least TODO: FILL IN THE MINIMUM HARDWARE REQS IF APPLICABLE.
+  We run our experiments on 4xGH200-96GB nodes.
 
-- **TODO: Conda for osx-arm64**
-  This option works for macOS machines with Apple Silicon and can leverage MPS acceleration.
-
-  Follow the instructions in `installation/conda-osx-arm64-mps/README.md` to install the environment
-  then get back here for the rest of the instructions to run the experiments.
-
-  We ran our experiments on TODO: FILL IN THE HARDWARE YOU USED.
-  To run them, you should have at least TODO: FILL IN THE MINIMUM HARDWARE REQS IF APPLICABLE.
 
 ### Data
 
