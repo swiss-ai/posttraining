@@ -8,7 +8,7 @@ pre-commit
 black
 # Alignment
 accelerate
-deepspeed
+deepspeed<=0.15.4
 peft
 transformers
 trl
