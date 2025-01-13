@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "template-project-name"
+name = "swiss-alignment"
 readme = "README.md"
 license = { file = "LICENSE" }
 version = "0.0.1"
 requires-python = ">=3.10"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/template_package_name"]
+packages = ["src/swiss_alignment"]
 
 [tool.isort]
 known_third_party = ["wandb"]

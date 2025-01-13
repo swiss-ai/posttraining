@@ -84,16 +84,16 @@ SSH to the machine anc clone your repository in your PVC / shared storage.
    to have the latest state of your repo.)
    ```bash
    # Somewhere in your PVC, say your personal directory there.
-   mkdir template-project-name
-   git clone <HTTPS/SSH> template-project-name/dev
-   git clone <HTTPS/SSH> template-project-name/run
+   mkdir swiss-alignment
+   git clone <HTTPS/SSH> swiss-alignment/dev
+   git clone <HTTPS/SSH> swiss-alignment/run
    ```
 
    We also recommend that you make Git ignore the executable bit as the repo is moved across filesystems.
    You can do so by running `git config core.filemode false` in both repositories.
 
    ```bash
-   cd template-project-name/dev && git config core.filemode false
+   cd swiss-alignment/dev && git config core.filemode false
    cd ../run && git config core.filemode false
    ```
 
@@ -127,19 +127,19 @@ You should expect to see something like:
 ```text
 $ runai logs example-minimal
 ...
-[TEMPLATE INFO] PROJECT_ROOT_AT is set to /claire-rcp-scratch/home/moalla/template-project-name/dev.
-[TEMPLATE INFO] Expecting workdir to be /claire-rcp-scratch/home/moalla/template-project-name/dev.
+[TEMPLATE INFO] PROJECT_ROOT_AT is set to /claire-rcp-scratch/home/moalla/swiss-alignment/dev.
+[TEMPLATE INFO] Expecting workdir to be /claire-rcp-scratch/home/moalla/swiss-alignment/dev.
 [TEMPLATE INFO] Installing the project with pip.
-[TEMPLATE INFO] Expecting /claire-rcp-scratch/home/moalla/template-project-name/dev to be a Python project.
+[TEMPLATE INFO] Expecting /claire-rcp-scratch/home/moalla/swiss-alignment/dev to be a Python project.
 [TEMPLATE INFO] To skip this installation use the env variable SKIP_INSTALL_PROJECT=1.
-Obtaining file:///claire-rcp-scratch/home/moalla/template-project-name/dev
+Obtaining file:///claire-rcp-scratch/home/moalla/swiss-alignment/dev
   Installing build dependencies: started
   ...
-  Building editable for template-project-name (pyproject.toml): started
+  Building editable for swiss-alignment (pyproject.toml): started
   ...
-Successfully built template-project-name
-Installing collected packages: template-project-name
-Successfully installed template-project-name-0.0.1
+Successfully built swiss-alignment
+Installing collected packages: swiss-alignment
+Successfully installed swiss-alignment-0.0.1
 [TEMPLATE INFO] Testing that the package can be imported.
 [TEMPLATE INFO] Package imported successfully.
 [TEMPLATE INFO] Executing the command sleep infinity
@@ -351,7 +351,7 @@ All the directories will be created automatically.
    (something like `/claire-rcp-scratch/home/moalla/remote-development/jetbrains-server/dist`)
    not in its default location **(use the small "installation options..." link)**.
    For the project directory, it should be in the same location as your PVC (`${PROJECT_ROOT_AT}`.
-   something like `/claire-rcp-scratch/home/moalla/template-project-name/dev`).
+   something like `/claire-rcp-scratch/home/moalla/swiss-alignment/dev`).
 
 When in the container, locate the name of the PyCharm IDE installed.
 It will be at
@@ -377,7 +377,7 @@ You can find an example in `submit-scripts/remote-development.sh`.
    The link looks like:
 
    ```bash
-    Gateway link: jetbrains-gateway://connect#idePath=%2Fclaire-rcp-scratch%2Fhome%2Fmoalla%2Fremote-development%2Fpycharm&projectPath=%2Fclaire-rcp-scratch%2Fhome%2Fmoalla%2Ftemplate-project-name%2Fdev&host=127.0.0.1&port=2223&user=moalla&type=ssh&deploy=false&newUi=true
+    Gateway link: jetbrains-gateway://connect#idePath=%2Fclaire-rcp-scratch%2Fhome%2Fmoalla%2Fremote-development%2Fpycharm&projectPath=%2Fclaire-rcp-scratch%2Fhome%2Fmoalla%2Fswiss-alignment%2Fdev&host=127.0.0.1&port=2223&user=moalla&type=ssh&deploy=false&newUi=true
     ```
    Use it in Gateway to connect to the IDE.
 

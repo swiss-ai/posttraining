@@ -1,4 +1,4 @@
-name: template-project-name
+name: swiss-alignment
 channels:
   - conda-forge
 dependencies:
@@ -12,4 +12,4 @@ dependencies:
       - wandb
       - pre-commit
       - black
-prefix: /opt/conda/envs/template-project-name
+prefix: /opt/conda/envs/swiss-alignment

@@ -13,7 +13,7 @@ import hydra
 import wandb
 from omegaconf import DictConfig, OmegaConf, omegaconf
 
-from template_package_name import utils
+from swiss_alignment import utils
 
 # Refers to utils for a description of resolvers
 utils.config.register_resolvers()

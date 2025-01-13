@@ -17,12 +17,12 @@
 
 # Variables used by the entrypoint script
 # Change this to the path of your project (can be the /dev or /run copy)
-export PROJECT_ROOT_AT=$SCRATCH/template-project-name/run
+export PROJECT_ROOT_AT=$SCRATCH/swiss-alignment/run
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 export WANDB_API_KEY_FILE_AT=$HOME/.wandb-api-key
 
 srun \
-  --container-image=$CONTAINER_IMAGES/claire+moalla+template-project-name+amd64-cuda-root-latest.sqsh \
+  --container-image=$CONTAINER_IMAGES/claire+moalla+swiss-alignment+amd64-cuda-root-latest.sqsh \
   --container-mounts=\
 /etc/slurm,\
 $SCRATCH,\
@@ -33,7 +33,7 @@ $WANDB_API_KEY_FILE_AT \
   --no-container-entrypoint \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
-  bash -c 'sleep 60; python -m template_package_name.template_experiment some_arg=LOCALID-$SLURM_LOCALID-PROCID-$SLURM_PROCID'
+  bash -c 'sleep 60; python -m swiss_alignment.template_experiment some_arg=LOCALID-$SLURM_LOCALID-PROCID-$SLURM_PROCID'
 
 # Sleep to wait for the installation of the project.
 

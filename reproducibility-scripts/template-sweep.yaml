@@ -1,7 +1,7 @@
 # Run `wandb sweep reproducibility-scripts/template-sweep.yaml` to generate a sweep.
 # Run `wandb agent template-sweep-id` to run the sweep.
 
-project: template-project-name
+project: swiss-alignment
 name: template-sweep
 method: grid
 metric:
@@ -24,5 +24,5 @@ parameters:
 command:
   - python
   - "-m"
-  - "template_package_name.template_experiment"
+  - "swiss_alignment.template_experiment"
   - ${args_no_hyphens}
