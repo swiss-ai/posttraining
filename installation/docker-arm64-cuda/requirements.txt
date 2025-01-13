@@ -1,7 +1,17 @@
-hatchling # To build the package without isolation in edit mode for faster startup.
-editables # Same as above.
+# Template
+hatchling
+editables
 hydra-core
 tqdm
 wandb
 pre-commit
 black
+# Alignment
+accelerate
+deepspeed
+peft
+transformers
+trl
+# TRL extensions
+llm-blender
+diffusers

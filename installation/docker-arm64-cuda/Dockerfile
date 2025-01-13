@@ -25,20 +25,12 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
 
 ARG DEBIAN_FRONTEND=noninteractive
 # sed is only used as a hack to remove comments from the file apt.txt.
-RUN --mount=type=cache,target=/var/cache/apt,sharing=private \
-    --mount=type=cache,target=/var/lib/apt,sharing=private \
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt \
     apt update && \
     sed -e 's/#.*//g' -e 's/\r//g' ${DEPENDENCIES_DIR}/apt.txt | \
     xargs -t apt-get install -y --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
-
-# Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-#RUN --mount=type=cache,target=/var/cache/apt \
-#    --mount=type=cache,target=/var/lib/apt \
-#    apt update && \
-#    sed -e 's/#.*//g' -e 's/\r//g' ${DEPENDENCIES_DIR}/apt.txt | \
-#    xargs -t apt-get install -y --no-install-recommends && \
-#    rm -rf /var/lib/apt/lists/*
 
 ########################################################################
 # Install dependencies.
@@ -49,35 +41,17 @@ FROM runtime-apt-pkgs AS runtime-deps
 ENV PIP_CACHE_DIR=/root/.cache/pip
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-before-pip-install.txt
 RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-before-pip-install.txt
+
 COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
-RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
+RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
     pip install -r ${DEPENDENCIES_DIR}/requirements.txt
-# Podman: Comment the above and use this instead with podman as it doesn't support sharing mount modes.
-#RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
-#    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-after-pip-install.txt
 RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-after-pip-install.txt
 
 # For reproducible requirements use the following after getting the requirements-freeze.txt file from the first build.
 #COPY requirements-freeze.txt ${DEPENDENCIES_DIR}/requirements-freeze.txt
-#RUN --mount=type=cache,target=${PIP_CACHE_DIR},sharing=private \
-#    pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements-freeze.txt
-# For podman
 #RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
 #    pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements-freeze.txt
-
-# Optional optimizations.
-# Hack to enable Intel MKL optimizations on AMD CPUs.
-# https://danieldk.eu/Posts/2020-08-31-MKL-Zen.html
-# ARG FAKEINTEL_PATH=/opt/fakeintel/libfakeintel.so
-# ENV FAKEINTEL_PATH=${FAKEINTEL_PATH}
-# https://danieldk.eu/Posts/2020-08-31-MKL-Zen.html
-# Build.
-# RUN echo 'int mkl_serv_intel_cpu_true() {return 1;}' > /tmp/fakeintel.c && \
-#    mkdir -p /opt/fakeintel && \
-#    gcc -shared -fPIC -o ${FAKEINTEL_PATH} /tmp/fakeintel.c
-# Enable.
-# ENV LD_PRELOAD=${FAKEINTEL_PATH}:${LD_PRELOAD}
 
 ########################################################################
 # Here you can install other software
