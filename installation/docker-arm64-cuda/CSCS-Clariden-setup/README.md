@@ -117,7 +117,7 @@ Copy it or create a symlink to it where you keep your images. E.g.,
 # Add it to your bashrc as it'll be used often
 CONTAINER_IMAGES=$SCRATCH/container-images
 mkdir -p $CONTAINER_IMAGES
-ln -s /store/swissai/a10/container-images/swiss-alignment+TODOCOMMIT.sqsh $CONTAINER_IMAGES/swiss-alignment+TODOCOMMIT.sqsh
+ln -s /capstor/store/swissai/a10/container-images/swiss-alignment+0aa0617.sqsh $CONTAINER_IMAGES/swiss-alignment+0aa0617.sqsh
 ```
 
 #### From a registry (TODO)
