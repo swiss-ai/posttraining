@@ -117,7 +117,7 @@ Copy it or create a symlink to it where you keep your images. E.g.,
 # Add it to your bashrc as it'll be used often
 CONTAINER_IMAGES=$SCRATCH/container-images
 mkdir -p $CONTAINER_IMAGES
-ln -s _TODO ADD IMAGE_PATH_ $CONTAINER_IMAGES/ADAPTED_NAME.sqsh
+ln -s /store/swissai/a10/container-images/swiss-alignment+TODOCOMMIT.sqsh $CONTAINER_IMAGES/swiss-alignment+TODOCOMMIT.sqsh
 ```
 
 #### From a registry (TODO)
@@ -274,17 +274,17 @@ Host clariden-job
     User smoalla
     ProxyJump clariden
     StrictHostKeyChecking no
-	  UserKnownHostsFile=/dev/null
-	  ForwardAgent yes
+	UserKnownHostsFile=/dev/null
+	ForwardAgent yes
 
 Host clariden-container
     HostName localhost
     ProxyJump clariden-job
     Port 2223
     User smoalla
-	  StrictHostKeyChecking no
-	  UserKnownHostsFile=/dev/null
-	  ForwardAgent yes
+	StrictHostKeyChecking no
+	UserKnownHostsFile=/dev/null
+	ForwardAgent yes
 ```
 
 The `StrictHostKeyChecking no` and `UserKnownHostsFile=/dev/null` allow bypass checking the identity
