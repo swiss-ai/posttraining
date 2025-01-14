@@ -7,6 +7,7 @@
 # Change this to the path of your project (can be the /dev or /run copy)
 export PROJECT_ROOT_AT=$SCRATCH/swiss-alignment/run
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
+# For wandb, huggingface, etc. look at the remote-development.sh
 
 srun \
   --container-image=$CONTAINER_IMAGES/claire+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh \

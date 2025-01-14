@@ -2,12 +2,16 @@
 
 #SBATCH -J template-remote-development
 #SBATCH -t 12:00:00
+#SBATCH -A a-a10
+#SBATCH --output=template-remote-development-%j.out
 
 # Variables used by the entrypoint script
 # Change this to the path of your project (can be the /dev or /run copy)
 export PROJECT_ROOT_AT=$SCRATCH/swiss-alignment/dev
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 export WANDB_API_KEY_FILE_AT=$HOME/.wandb-api-key
+export HF_TOKEN_AT=$HOME/.hf-token
+export HF_HOME=$SCRATCH/huggingface
 export SSH_SERVER=1
 export NO_SUDO_NEEDED=1
 export JETBRAINS_SERVER_AT=$SCRATCH/jetbrains-server

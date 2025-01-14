@@ -117,7 +117,8 @@ Copy it or create a symlink to it where you keep your images. E.g.,
 # Add it to your bashrc as it'll be used often
 CONTAINER_IMAGES=$SCRATCH/container-images
 mkdir -p $CONTAINER_IMAGES
-ln -s /capstor/store/swissai/a10/container-images/swiss-alignment+0aa0617.sqsh $CONTAINER_IMAGES/swiss-alignment+0aa0617.sqsh
+# Replace smoalla with your username (it will be readily-usable by the submit scripts)
+ln -s /capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh
 ```
 
 #### From a registry (TODO)
@@ -352,10 +353,10 @@ All the directories will be created automatically.
 2. Enable port forwarding for the SSH port.
 3. Then follow the instructions [here](https://www.jetbrains.com/help/pycharm/remote-development-a.html#gateway) and
    install the IDE in your `${JETBRAINS_SERVER_AT}/dist`
-   (something like `/scratch/moalla/jetbrains-server/dist`)
+   (something like `/iopsstor/scratch/cscs/smoalla/jetbrains-server/dist`)
    not in its default location **(use the small "installation options..." link)**.
    For the project directory, it should be in the same location where it was mounted (`${PROJECT_ROOT_AT}`,
-   something like `/scratch/moalla/swiss-alignment/dev`).
+   something like `/iopsstor/scratch/cscs/smoalla/swiss-alignment/dev`).
 
 When in the container, locate the name of the PyCharm IDE installed.
 It will be at
