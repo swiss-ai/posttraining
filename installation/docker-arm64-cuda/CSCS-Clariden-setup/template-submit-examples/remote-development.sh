@@ -38,6 +38,8 @@ $HOME/.ssh/authorized_keys \
 # additional options
 # --container-env to override environment variables defined in the container
 
+# You may also want to mount $HOME/.ssh/config if you bypass the proxy for GitHub.
+
 # Draft.
 # Here can connect to the container with
 # Get the job id (and node id if multinode)
