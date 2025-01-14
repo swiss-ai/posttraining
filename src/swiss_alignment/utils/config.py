@@ -42,8 +42,8 @@ def maybe_save_config(config, path):
             OmegaConf.resolve(new_config)
             OmegaConf.resolve(existing_config)
             assert new_config == existing_config
-        except AssertionError:
-            logger.error(f"Config to resume is different from the one saved in {path}")
+        except AssertionError as e:
+            logger.error(f"Config to resume is different from the one saved in {path}", exc_info=e)
             raise AssertionError
 
 
@@ -53,11 +53,14 @@ def remove_excluded_keys(config: DictConfig, exclude_keys: list[str]):
     """
     with omegaconf.open_dict(config):
         for key in exclude_keys:
-            keys = key.split(".")
-            val = config
-            for key_ in keys[:-1]:
-                val = val[key_]
-            del val[keys[-1]]
+            try:
+                keys = key.split(".")
+                val = config
+                for key_ in keys[:-1]:
+                    val = val[key_]
+                del val[keys[-1]]
+            except KeyError:
+                logger.warning(f"Key {key} not found in {config} when trying to exclude {keys}.")
 
 
 def setup_resuming_dir(config):

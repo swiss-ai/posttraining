@@ -15,7 +15,7 @@ export HF_HOME=$SCRATCH/huggingface
 export SSH_SERVER=1
 export NO_SUDO_NEEDED=1
 export JETBRAINS_SERVER_AT=$SCRATCH/jetbrains-server
-#export PYCHARM_IDE_AT=744eea3d4045b_pycharm-professional-2024.1.6-aarch64
+#export PYCHARM_IDE_AT=9cd12b7762067_pycharm-professional-2024.3.1.1-aarch64
 # or
 # export VSCODE_SERVER_AT=$SCRATCH/vscode-server
 
