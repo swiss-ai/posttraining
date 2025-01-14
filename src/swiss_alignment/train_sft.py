@@ -7,13 +7,9 @@ from pathlib import Path
 
 import hydra
 import wandb
-from omegaconf import DictConfig, OmegaConf, omegaconf
-
-from swiss_alignment import utils
-
 from datasets import load_dataset
+from omegaconf import DictConfig, OmegaConf, omegaconf
 from transformers import AutoTokenizer
-
 from trl import (
     ModelConfig,
     ScriptArguments,
@@ -23,6 +19,8 @@ from trl import (
     get_peft_config,
     get_quantization_config,
 )
+
+from swiss_alignment import utils
 
 utils.config.register_resolvers()
 logger = logging.getLogger(__name__)
@@ -39,7 +37,9 @@ def main(config: DictConfig) -> None:
 
     # full_config is a merge with the TRL arg dataclasses
     # The args dataclasses are used by the HF classes, and the full_config by the template.
-    full_config, script_args, training_args, model_args = postprocess_and_save_config(config)
+    full_config, script_args, training_args, model_args = postprocess_and_save_config(
+        config
+    )
 
     wandb_run_id = config.wandb.run_id
     if wandb_run_id is None:
@@ -70,7 +70,9 @@ def main(config: DictConfig) -> None:
 
     # Code here from https://github.com/huggingface/trl/edit/main/trl/scripts/sft.py
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.model_name_or_path, trust_remote_code=model_args.trust_remote_code, use_fast=True
+        model_args.model_name_or_path,
+        trust_remote_code=model_args.trust_remote_code,
+        use_fast=True,
     )
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -87,7 +89,9 @@ def main(config: DictConfig) -> None:
         model=model_args.model_name_or_path,
         args=training_args,
         train_dataset=dataset[script_args.dataset_train_split],
-        eval_dataset=dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None,
+        eval_dataset=dataset[script_args.dataset_test_split]
+        if training_args.eval_strategy != "no"
+        else None,
         processing_class=tokenizer,
         peft_config=get_peft_config(model_args),
     )
@@ -102,6 +106,7 @@ def main(config: DictConfig) -> None:
     )
     trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     trainer.save_model(resuming_dir)
+
 
 def postprocess_and_save_config(config):
     """Here you can make some computations with the config to add new keys, correct some values, etc.
@@ -135,11 +140,13 @@ def postprocess_and_save_config(config):
 
     utils.config.maybe_save_config(config, "config/config-resolved.yaml")
 
-    full_config = OmegaConf.create({
-        "script_args": dataclasses.asdict(script_args),
-        "training_args": training_args.to_dict(),
-        "model_args": dataclasses.asdict(model_args),
-    })
+    full_config = OmegaConf.create(
+        {
+            "script_args": dataclasses.asdict(script_args),
+            "training_args": training_args.to_dict(),
+            "model_args": dataclasses.asdict(model_args),
+        }
+    )
     full_config = OmegaConf.merge(full_config, config)
 
     utils.config.maybe_save_config(full_config, "config/full-config-resolved.yaml")

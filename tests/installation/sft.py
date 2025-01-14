@@ -51,7 +51,6 @@ import argparse
 
 from datasets import load_dataset
 from transformers import AutoTokenizer
-
 from trl import (
     ModelConfig,
     ScriptArguments,
@@ -80,7 +79,9 @@ def main(script_args, training_args, model_args):
     )
     training_args.model_init_kwargs = model_kwargs
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.model_name_or_path, trust_remote_code=model_args.trust_remote_code, use_fast=True
+        model_args.model_name_or_path,
+        trust_remote_code=model_args.trust_remote_code,
+        use_fast=True,
     )
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -96,7 +97,9 @@ def main(script_args, training_args, model_args):
         model=model_args.model_name_or_path,
         args=training_args,
         train_dataset=dataset[script_args.dataset_train_split],
-        eval_dataset=dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None,
+        eval_dataset=dataset[script_args.dataset_test_split]
+        if training_args.eval_strategy != "no"
+        else None,
         processing_class=tokenizer,
         peft_config=get_peft_config(model_args),
     )
@@ -107,7 +110,9 @@ def main(script_args, training_args, model_args):
 def make_parser(subparsers: argparse._SubParsersAction = None):
     dataclass_types = (ScriptArguments, SFTConfig, ModelConfig)
     if subparsers is not None:
-        parser = subparsers.add_parser("sft", help="Run the SFT training script", dataclass_types=dataclass_types)
+        parser = subparsers.add_parser(
+            "sft", help="Run the SFT training script", dataclass_types=dataclass_types
+        )
     else:
         parser = TrlParser(dataclass_types)
     return parser

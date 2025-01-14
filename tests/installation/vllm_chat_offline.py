@@ -1,8 +1,7 @@
 # https://github.com/vllm-project/vllm/blob/main/examples/offline_inference_chat.py
 from vllm import LLM, SamplingParams
 
-llm = LLM(model="meta-llama/Meta-Llama-3.1-8B-Instruct",
-          gpu_memory_utilization=0.5)
+llm = LLM(model="meta-llama/Meta-Llama-3.1-8B-Instruct", gpu_memory_utilization=0.5)
 sampling_params = SamplingParams(temperature=0.5)
 
 

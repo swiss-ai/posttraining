@@ -3,12 +3,7 @@
 import time
 
 import torch
-from peft import (
-    AutoPeftModelForCausalLM,
-    LoraConfig,
-    TaskType,
-    get_peft_model,
-)
+from peft import AutoPeftModelForCausalLM, LoraConfig, TaskType, get_peft_model
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 
@@ -24,7 +19,7 @@ def backward(model, context_size=128, batch_size=1):
     start = time.time()
     output = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
     end = time.time()
-    duration = (end - start)
+    duration = end - start
     throughput = context_size * batch_size / (end - start)
     print(
         f"Time: feedforward {duration:.2f} s with {context_size} context size and {batch_size} batch size\n"
@@ -34,7 +29,7 @@ def backward(model, context_size=128, batch_size=1):
     start2 = time.time()
     loss.backward()
     end2 = time.time()
-    duration2 = (end2 - start2)
+    duration2 = end2 - start2
     throughput = context_size * batch_size / (end2 - start2)
     print(
         f"Time: backward {duration2:.2f} ms with {context_size} context size and {batch_size} batch size\n"

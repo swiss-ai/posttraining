@@ -99,7 +99,6 @@ benchmark()
 # Time: takes 20.66 seconds to generate 100 sequences of 101.0 tokens
 
 
-
 # Put in a table and print
 res = dict()
 for batch_size in [1, 32, 64]:
