@@ -11,6 +11,8 @@ This guide will show you how to build and run your image on the CSCS Clariden cl
 
 ## Building the environment (skip if already have access to the image)
 
+You can reuse the swiss--alignment image for your project if you don't need to edit the environment.
+
 > [!IMPORTANT]
 > **TEMPLATE TODO:**
 > After saving your generic image, provide the image location to your teammates.
@@ -110,7 +112,7 @@ There is a great documentation provided by the SwissAI initiative [here](https:/
 
 #### From a file
 
-You will find the image to use for this project in _TODO ADD IMAGE_PATH_.
+You will find the image to use for this project at `/capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-<remove-me>-alignment+arm64-cuda-root-latest.sqsh`.
 Copy it or create a symlink to it where you keep your images. E.g.,
 ```bash
 # Make a directory where you store your images
@@ -118,7 +120,7 @@ Copy it or create a symlink to it where you keep your images. E.g.,
 CONTAINER_IMAGES=$SCRATCH/container-images
 mkdir -p $CONTAINER_IMAGES
 # Replace smoalla with your username (it will be readily-usable by the submit scripts)
-ln -s /capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh
+cp /capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-<remove-me>-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh
 ```
 
 #### From a registry (TODO)

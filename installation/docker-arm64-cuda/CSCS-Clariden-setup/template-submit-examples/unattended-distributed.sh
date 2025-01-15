@@ -13,6 +13,8 @@
 # Variables used by the entrypoint script
 # Change this to the path of your project (can be the /dev or /run copy)
 export PROJECT_ROOT_AT=$SCRATCH/swiss-alignment/run
+export PROJECT_NAME=swiss-alignment
+export PACKAGE_NAME=swiss_alignment
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 export WANDB_API_KEY_FILE_AT=$HOME/.wandb-api-key
 
@@ -23,6 +25,7 @@ srun \
 $SCRATCH,\
 $WANDB_API_KEY_FILE_AT \
   --container-workdir=$PROJECT_ROOT_AT \
+  --container-env=PROJECT_NAME,PACKAGE_NAME \
   --no-container-mount-home \
   --no-container-remap-root \
   --no-container-entrypoint \
