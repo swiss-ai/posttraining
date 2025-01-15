@@ -25,6 +25,7 @@ srun \
   --container-mounts=\
 $SCRATCH,\
 $WANDB_API_KEY_FILE_AT,\
+$HF_TOKEN_AT,\
 $HOME/.gitconfig,\
 $HOME/.ssh/authorized_keys \
   --container-workdir=$PROJECT_ROOT_AT \
