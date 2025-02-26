@@ -27,6 +27,7 @@ from swiss_alignment.utils import utils_for_trl
 from swiss_alignment.utils.utils_for_dataset import DatasetConfig, get_dataset
 from swiss_alignment.utils.utils_for_plw import PLWDataCollator
 
+
 utils.config.register_resolvers()
 acc_state = PartialState()
 acc_logger = get_logger(__name__)
