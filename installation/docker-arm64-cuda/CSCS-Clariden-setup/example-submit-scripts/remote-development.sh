@@ -7,7 +7,7 @@
 
 # Variables used by the entrypoint script
 # Change this to the path of your project (can be the /dev or /run copy)
-export PROJECT_ROOT_AT=$SCRATCH/swiss-alignment/dev
+export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/dev
 export PROJECT_NAME=swiss-alignment
 export PACKAGE_NAME=swiss_alignment
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
@@ -16,20 +16,21 @@ export HF_TOKEN_AT=$HOME/.hf-token
 export HF_HOME=$SCRATCH/huggingface
 export SSH_SERVER=1
 export NO_SUDO_NEEDED=1
-export JETBRAINS_SERVER_AT=$SCRATCH/jetbrains-server
+export JETBRAINS_SERVER_AT=$HOME/jetbrains-server
 #export PYCHARM_IDE_AT=9cd12b7762067_pycharm-professional-2024.3.1.1-aarch64
 # or
 # export VSCODE_SERVER_AT=$SCRATCH/vscode-server
 
 srun \
-  --container-image=$CONTAINER_IMAGES/claire+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh \
+  --container-image=$CONTAINER_IMAGES/$(id -gn)+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/submit-scripts/edf.toml" \
   --container-mounts=\
 $SCRATCH,\
 $WANDB_API_KEY_FILE_AT,\
 $HF_TOKEN_AT,\
 $HOME/.gitconfig,\
-$HOME/.ssh/authorized_keys \
+$JETBRAINS_SERVER_AT,\
+$HOME/.ssh \
   --container-workdir=$PROJECT_ROOT_AT \
   --container-env=PROJECT_NAME,PACKAGE_NAME \
   --no-container-mount-home \

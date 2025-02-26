@@ -1,0 +1,25 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="train_sft" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+    <module name="dev" />
+    <option name="ENV_FILES" value="" />
+    <option name="INTERPRETER_OPTIONS" value="" />
+    <option name="PARENT_ENVS" value="true" />
+    <envs>
+      <env name="PYTHONUNBUFFERED" value="1" />
+    </envs>
+    <option name="SDK_HOME" value="" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="IS_MODULE_SDK" value="true" />
+    <option name="ADD_CONTENT_ROOTS" value="false" />
+    <option name="ADD_SOURCE_ROOTS" value="false" />
+    <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+    <option name="SCRIPT_NAME" value="accelerate.commands.launch" />
+    <option name="PARAMETERS" value="--config-file src/swiss_alignment/configs/accelerate/ds1-acc1-4xN.yaml --num_processes 4 -m swiss_alignment.trl.train_sft model=mistralai-mistral-7b-instruct dataset=magpieair outputs_subdir=shared job_subdir=sft-dev wandb.run_name=dev-sft resuming.resume=False training_args.gradient_accumulation_steps=1 training_args.logging_steps=1 training_args.eval_on_start=false training_args.average_tokens_across_devices=true" />
+    <option name="SHOW_COMMAND_LINE" value="false" />
+    <option name="EMULATE_TERMINAL" value="false" />
+    <option name="MODULE_MODE" value="true" />
+    <option name="REDIRECT_INPUT" value="false" />
+    <option name="INPUT_FILE" value="" />
+    <method v="2" />
+  </configuration>
+</component>

@@ -23,7 +23,7 @@ GRP=$(id -gn)
 PASSWD=$(id -un)
 # LAB_NAME will be the first component in the image path.
 # It must be lowercase.
-LAB_NAME=$(id -un | tr "[:upper:]" "[:lower:]")
+LAB_NAME=$(id -gn | tr "[:upper:]" "[:lower:]")
 
 #### For running locally
 # You can find the acceleration options in the compose.yaml file
@@ -31,6 +31,7 @@ LAB_NAME=$(id -un | tr "[:upper:]" "[:lower:]")
 PROJECT_ROOT_AT=$(realpath "$(pwd)"/../..)
 ACCELERATION=cuda
 WANDB_API_KEY=
+HF_TOKEN=
 # PyCharm-related. Fill after installing the IDE manually the first time.
 PYCHARM_IDE_AT=
 
@@ -325,17 +326,6 @@ get_scitas_scripts() {
   done
 }
 
-get_cscs_scripts() {
-  # Rename the scitas examples.
-  # ./template.sh get_scitas_scripts
-  check
-  cp -r "./CSCS-Clariden-setup/template-submit-examples/" "./CSCS-Clariden-setup/submit-scripts"
-  for file in $(find "./CSCS-Clariden-setup/submit-scripts" -type f); do
-    sed -i.deleteme "s/smoalla/${USR}/g" "$file" && rm "${file}.deleteme"
-    sed -i.deleteme "s/claire/${LAB_NAME}/g" "$file" && rm "${file}.deleteme"
-  done
-}
-
 usage() {
   echo "Usage: $0 {env|pull_generic|build_generic|build_user|build|push_generic|push_user|push|list_env|empty_interactive|run|dev|get_runai_scripts}"
 
@@ -355,7 +345,6 @@ usage() {
   echo "dev -e VAR1=VAL1 -e VAR2=VAL2 ... COMMAND: Run a command in a new development container."
   echo "get_runai_scripts: Rename the runai examples."
   echo "get_scitas_scripts: Rename the scitas examples."
-  echo "get_cscs_scripts: Rename the cscs examples."
 }
 
 if [ $# -eq 0 ]; then

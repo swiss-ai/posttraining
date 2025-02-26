@@ -6,12 +6,7 @@ A starting point for Swiss AI Initiative alignment projects,
 adapted from the [Python Machine Learning Research Project Template](https://github.com/CLAIRE-Labo/python-ml-research-template)
 featuring
 
-- Reproducible environments on major platforms with hardware acceleration with a great development experience
-  covering multiple use cases:
-    - local machines, e.g., macOS (+ Apple Silicon/MPS) and Linux/Windows WSL (+ NVIDIA GPU).
-    - Remote Linux servers with GPUs, e.g., VMs on cloud providers and IC and RCP HaaS at EPFL.
-    - Managed clusters supporting OCI containers with GPUs, e.g., the EPFL IC and RCP Run:ai (Kubernetes) clusters
-      and the SCITAS Slurm clusters.
+- Deployment on the CSCS cluster, and a description to deploy on other platforms with similar architectures.
 - Python project packaging following the
   [PyPA packaging guidelines](https://packaging.python.org/en/latest/tutorials/packaging-projects/) to avoid hacky
   imports.
@@ -29,57 +24,59 @@ at the [ML Reproducibility Challenge 2022](https://paperswithcode.com/rc2022).
 
 ## Getting started with the repo for a new project
 
-Fork the repo, give it a lowercase hyphen-separated name (we will refer to this name as `PROJECT_NAME`),
-then follow the instructions below to set up your project.
-You can also give your GitHub repo another name format if you prefer, but for the template, you will have to pick
-a `PROJECT_NAME` as well.
+You can directly fork the repo, keep the same name and environment/dependencies, and move to the getting started section below.
 
-1. Clone the repo with destination `PROJECT_NAME`.
+Or if you want details on how to modify the template, project name, and dependencies step by step follow the instructions below.
+1. Fork the repo and give it a lowercase hyphen-separated name
+(we will refer to this name as `PROJECT_NAME`). You can also give your GitHub repo another name format if you prefer,
+ but for the template, you will have to pick a `PROJECT_NAME` with the format specified above as well.
+2. Clone the repo with destination `PROJECT_NAME` in your local machine.
    We will refer to the absolute path to the root of the repository as `PROJECT_ROOT`.
-2. Fill the template variables in `template/template-variables.env` by
+3. Fill the template variables in `template/template-variables.env` by
    editing the ones with the `$NEW_` prefix, then run the script
    ```bash
    # After filling the template variables in template/template-variables.env.
    ./template/change-project-name.sh
    ```
    Commit.
-3. Initialize the pre-commit hooks as described in the [contributing](#contributing) section.
-4. Edit the `LICENSE` file, or delete it and remember to add one when open-sourcing your code.
+4. Initialize the pre-commit hooks as described in the [contributing](#contributing) section.
+5. Edit the `LICENSE` file, or delete it and remember to add one when open-sourcing your code.
    [(Some help here).](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository)
    A simple change if you're fine with the MIT license is to replace the `2022 Skander Moalla` with your year and name.
-5. Edit this `README.md` file.
+6. Edit this `README.md` file.
    1. Edit the title with the name of your project.
-   Replace the [Overview](#overview) section with a description of your project.
-   2. Have a look at the last paragraph below describing how to keep your project in good shape,
-      then delete this getting started, to only keep the project [Getting Started](#getting-started) section.
+   2. Replace the [Overview](#overview) section with a description of your project.
+7. Commit and push your changes.
+8. Setup the project on CSCS following the getting started instructions below (code and development environment).
+   These include instructions to change the environment as well.
+   Make sure to rebuild the image if needed, and replace the image names with your new image.
+9. Have a look at the paragraph below describing how to keep your project in good shape for the future,
+   then delete this template getting started section, to only keep the [Getting Started](#getting-started) section below.
 
-You're off to a good start! If you made it here, give the template a star!
-Here are a few tips for keeping your project in good shape.
-
-- Keep this README up to date.
-  Fill in the rest of the sections after the Getting Started section when releasing your project.
-  We give a structure and some templates for those.
-
-  If you use datasets, follow `data/README.md` to set them and write the instructions
-  for the subsequent users there.
-  Otherwise, delete the [data](#data) section.
-
-  Similarly, you can use the `outputs/README.md` file to share your trained models, logs, etc.
-- Remember to pin your dependencies whenever you install new ones.
-  This is well described in the Maintaining the environment section of the installation instructions.
-- Keep your `reproducibility-scripts/` directory up to date.
-  Commit it regularly and run your jobs with those scripts.
-  More on this in the [reproducibility](#reproducing-our-results) section.
-- Maintain good commit hooks. More on this in the [Contributing](#contributing) section.
-- Have a look at the [ML Code Completeness Checklist](https://github.com/paperswithcode/releasing-research-code).
-  This template facilitates meeting all the checklist items, with a different design.
-  Have a look at the checklist when you ship your project.
+    Here are a few tips for keeping your project in good shape.
+    
+    - Keep this README up to date.
+      Fill in the rest of the sections after the Getting Started section when releasing your project.
+      We give a structure and some templates for those.
+    
+      If you use datasets, follow `data/README.md` to set them and write the instructions
+      for the subsequent users there.
+      Otherwise, delete the [data](#data) section.
+    
+      Similarly, you can use the `outputs/README.md` file to share your trained models, logs, etc.
+      - Remember to pin your dependencies whenever you install new ones.
+        This is well described in the Maintaining the environment section of the installation instructions.
+      - Keep your `reproducibility-scripts/` directory up to date.
+        Commit it regularly and run your jobs with those scripts.
+        More on this in the [reproducibility](#reproducing-our-results) section.
+      - Maintain good commit hooks. More on this in the [Contributing](#contributing) section.
+      - Have a look at the [ML Code Completeness Checklist](https://github.com/paperswithcode/releasing-research-code).
 
 ## Getting started
 
 ### Code and development environment
 
-We support the following methods and platforms for installing the project dependencies and running the code.
+We support deployment on the CSCS cluster and the following platforms:
 
 - **Docker/OCI-container for arm64 machines + NVIDIA GPUs**:
 

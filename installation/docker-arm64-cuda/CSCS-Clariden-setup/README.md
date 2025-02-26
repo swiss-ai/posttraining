@@ -2,16 +2,56 @@
 
 ## Overview
 
-At this point, you should have edited the environment files and are ready to build or run the image.
-This guide will show you how to build and run your image on the CSCS Clariden cluster and use it for
+This guide will show you how to build (or import) and run your image on the CSCS Clariden cluster and use it for
 
 1. Remote development.
 2. Running unattended jobs.
 
+## Prerequisites
 
-## Building the environment (skip if already have access to the image)
+**CSCS and Slurm**:
 
-You can reuse the swiss--alignment image for your project if you don't need to edit the environment.
+1. You should have access to the Clariden cluster.
+2. You should have some knowledge of Slurm.
+
+There is a great documentation provided by the SwissAI initiative [here](https://github.com/swiss-ai/documentation).
+
+## Clone your repository in your home directory
+
+We strongly suggest having two instances of your project repository.
+
+1. One for development, which may have uncommitted changes, be in a broken state, etc.
+2. One for running unattended jobs, which is always referring to a commit at a working state of the code.
+
+The outputs and data directories of those two instances will be symlinked to the scratch storage
+and will be shared anyway.
+This guide includes the steps to do it, and there are general details in `data/README.md` and `outputs/README.md`.
+
+```bash
+# SSH to a cluster.
+ssh clariden
+# Clone the repo twice with name dev and run (if you already have one, mv it to a different name)
+mkdir -p $HOME/projects/swiss-alignment
+cd $HOME/projects/swiss-alignment
+git clone <HTTPS/SSH> dev
+git clone <HTTPS/SSH> run
+```
+
+The rest of the instructions should be performed on the cluster from the dev instance of the project.
+```bash
+cd dev
+# It may also be useful to open a remote code editor on a login node to view the project. (The remote development will happen in another IDE in the container.)
+# Push what you did on your local machine so far (change project name etc) and pull it on the cluster.
+git pull
+cd installation/docker-amd64-cuda
+```
+
+## Building the environment (skip to First steps if you do not need to change the image)
+
+You can reuse the `swiss-alignment` image for your project if you don't need to edit the environment.
+Otherwise, it's better to still get started with the `swiss--alignment` image, understand what dependencies you're missing
+when developing, then read the `Instructions to maintain the environment` section in the `docker-arm64-cuda/README.md` file
+to undersntand how to change the environment, then follow the steps below
 
 > [!IMPORTANT]
 > **TEMPLATE TODO:**
@@ -28,10 +68,11 @@ You can reuse the swiss--alignment image for your project if you don't need to e
 
 ```bash
 # Install Miniconda
+cd $HOME
 curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
 bash Miniforge3-$(uname)-$(uname -m).sh
 # Follow the instructions
-# Close and reopen your terminal
+# Reopen your shell
 bash
 # Create a new conda environment
 mamba create -n podman python=3.10
@@ -48,7 +89,7 @@ All commands should be run from the `installation/docker-arm64-cuda/` directory.
 You should be on a compute node. If not already, get one.
 ```bash
 # Request a compute node
-sbatch -N  --time 4:00:00 -A a-a10 --wrap "sleep infinity" --output=/dev/null --error=/dev/null
+sbatch --time 4:00:00 -A a-a10 --wrap "sleep infinity" --output=/dev/null --error=/dev/null
 # Connect to it
 srun --overlap --pty --jobid=GET_THE_JOB_ID bash
 tmux
@@ -66,15 +107,10 @@ cd installation/docker-arm64-cuda
    ```
    This creates a `.env` file with pre-filled values.
     - Edit the `DOCKER` variable to `podman` and the `COMPOSE` variable to `podman-compose`.
-    - You can ignore the variables `USR, USRID, GRP, GRPID, and PASSW`.
-    - `LAB_NAME` will be the first element in name of the local images you get.
-      (**EPFL Note:** _If pushing to the IC or RCP registries this should be the name of your lab's project
-      in the registry. CLAIRE members should use `claire`._)
+    - The rest of the variables are set correctly. (`USR, USRID, GRP, GRPID, and PASSW`,
+      e.g.`LAB_NAME` will be the first element in name of the local images you get, it's by default your horizontal/vertical)
     - You can ignore the rest of the variables after `## For running locally`.
-2. Edit the Dockerfile to make it compatible with Podman:
-   There are commented lines starting with `# Podman` which should be uncommented
-   and replace the corresponding lines above them.
-3. Build the generic image.
+2. Build the generic image.
    This is the image with root as user.
    It will be named according to the image name in your `.env`.
    It will be tagged with `<platform>-root-latest` and if you're building it,
@@ -97,76 +133,21 @@ cd installation/docker-arm64-cuda
 5. You can run quick checks on the image to check it that it has what you expect it to have.
    When the example scripts are described later, run the `test-interactive.sh` example script before the other scripts.
 
-## First steps
+## Getting your image (if already built, or just built)
 
-### Prerequisites
-
-**CSCS and Slurm**:
-
-1. You should have access to the Clariden cluster.
-2. You should have some knowledge of Slurm.
-
-There is a great documentation provided by the SwissAI initiative [here](https://github.com/swiss-ai/documentation).
-
-### Getting your image
-
-#### From a file
-
-You will find the image to use for this project at `/capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-<remove-me>-alignment+arm64-cuda-root-latest.sqsh`.
+You will find the image to use for this project at `/capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh`.
 Copy it or create a symlink to it where you keep your images. E.g.,
 ```bash
 # Make a directory where you store your images
 # Add it to your bashrc as it'll be used often
 CONTAINER_IMAGES=$SCRATCH/container-images
 mkdir -p $CONTAINER_IMAGES
-# Replace smoalla with your username (it will be readily-usable by the submit scripts)
-cp /capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-<remove-me>-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh
+cp /capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/a10+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh
 ```
 
-#### From a registry (TODO)
-
-### Clone your repository in your scratch directory
-
-We strongly suggest having two instances of your project repository.
-
-1. One for development, which may have uncommitted changes, be in a broken state, etc.
-2. One for running unattended jobs, which is always referring to a commit at a working state of the code.
-
-The outputs and data directories of those two instances will be symlinked to the scratch storage
-and will be shared anyway.
-This guide includes the steps to do it, and there are general details in `data/README.md` and `outputs/README.md`.
-
-```bash
-# SSH to a cluster.
-ssh clariden
-cd $SCRATCH
-# Clone the repo twice with name dev and run (if you already have one, mv it to a different name)
-mkdir swiss-alignment
-git clone <HTTPS/SSH> swiss-alignment/dev
-git clone <HTTPS/SSH> swiss-alignment/run
-```
-
-The rest of the instructions should be performed on the cluster from the dev instance of the project.
-```bash
-cd $SCRATCH/swiss-alignment/dev/
-# It may also be useful to open a remote code editor on a login node to view the project. (The remote development will happen in another IDE in the container.)
-# Push what you did on your local machine so far (change project name etc) and pull it on the cluster.
-git pull
-cd swiss-alignment/dev/installation/docker-arm64-cuda
-```
-
-### Note about the examples
-
-The example files were made with username `smoalla` and lab-name `claire`.
-Adapt them accordingly to your username and lab name.
-Run
-```bash
-./template.sh env
-# Edit the .env file with your lab name (you can ignore the rest).
-./template.sh get_cscs_scripts
-```
-to get a copy of the examples in this guide with your username, lab name, etc.
-They will be in `./EPFL-SCITAS-setup/submit-scripts`.
+Example submit scripts are provided in the `example-submit-scripts` directory and are used in the following examples.
+You can copy them to the directory `submit-scripts` which is not tracked by git and edit them to your needs.
+Otherwise, we use shared scripts with shared configurations (including IDE, and shell setups) in `shared-submit-scripts`.
 
 ### A quick test to understand how the template works
 
@@ -177,7 +158,7 @@ and the [`pyxis`](https://github.com/NVIDIA/pyxis) plugin directly integrated in
 
 Run the script to see how the template works.
 ```bash
-cd installation/docker-arm64-cuda//CSCS-Clariden-setup/submit-scripts
+cd installation/docker-arm64-cuda/CSCS-Clariden-setup/submit-scripts
 bash minimal.sh
 ```
 
@@ -230,6 +211,37 @@ chmod 600 $HOME/.wandb-api-key
 ```
 
 Then `export WANDB_API_KEY_FILE_AT=$HOME/.wandb-api-key` in the submit script.
+You should also mount the file in the container.
+
+### Hugging Face
+
+Your HF API key should be exposed as the `HF_TOKEN` environment variable.
+You can export it or if you're sharing the script with others export a location to a file containing it with
+`export HF_TOKEN_AT` and let the template handle it.
+
+E.g.,
+
+```bash
+echo <my-huggingface-api-key> > $HOME/.hf-token
+chmod 600 $HOME/.hf-token
+```
+
+Then `export HF_TOKEN_AT=$HOME/.hf-token` in the submit script.
+You should also mount the file in the container.
+
+### OpenAI
+
+You should export the location to your key `export OPENAI_API_KEY_AT` in the submit scripts.
+
+E.g.,
+
+```bash
+echo <my-openai-api-key> > $HOME/.openai-api-key
+$HOME/.openai-api-key
+```
+
+Then `export HF_TOKEN_AT=$HOME/.hf-token` in the submit script.
+You should also mount the file in the container.
 
 ### Remote development
 
@@ -273,12 +285,12 @@ Host clariden
 
 # EDIT THIS HOSTNAME WITH EVERY NEW JOB
 Host clariden-job
-    HostName nid005105
+    HostName nid007545
     User smoalla
     ProxyJump clariden
     StrictHostKeyChecking no
-	UserKnownHostsFile=/dev/null
-	ForwardAgent yes
+    UserKnownHostsFile=/dev/null
+    ForwardAgent yes
 
 Host clariden-container
     HostName localhost
@@ -288,6 +300,31 @@ Host clariden-container
 	StrictHostKeyChecking no
 	UserKnownHostsFile=/dev/null
 	ForwardAgent yes
+	
+```
+
+To update the hostname of the `clariden-job` you can add this to your `~/.bashrc` or equivalent:
+
+```bash
+# Tested on macos with zsh
+function update-ssh-config() {
+  local config_file="$HOME/.ssh/config"  # Adjust this path if needed
+  local host="$1"
+  local new_hostname="$2"
+
+  if [[ -z "$host" || -z "$new_hostname" ]]; then
+    echo "Usage: update-ssh-config <host> <new-hostname>"
+    return 1
+  fi
+
+  # Use sed in a range that starts at the line matching `Host <host>` 
+  # and goes until the next `Host ` line. Within that range, replace
+  # the line that begins with 'HostName'.
+  sed -i '' '/Host '"$host"'/,/Host / s/^[[:space:]]*HostName.*/    HostName '"$new_hostname"'/' "$config_file"
+
+
+  echo "Updated HostName for '${host}' to '${new_hostname}' in ~/.ssh/config"
+}
 ```
 
 The `StrictHostKeyChecking no` and `UserKnownHostsFile=/dev/null` allow bypass checking the identity

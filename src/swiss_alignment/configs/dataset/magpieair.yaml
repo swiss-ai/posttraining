@@ -1,0 +1,19 @@
+# @package _global_
+
+
+dataset_name: Magpie-Align/Magpie-Air-DPO-100K-v0.1
+# TODO: create another dataset for magpieair sft and rename this to magpieair-dpo or give it a better identifier
+dataset_args:
+  dataset_name: ${data_dir}/shared/datasets/magpieair
+  train_split:
+    name: train
+    start: 0
+    end: 98000
+  eval_split:
+    name: test
+    end: 2000
+    start: 0
+
+training_args:
+  eval_steps: 160
+  save_steps: 160
