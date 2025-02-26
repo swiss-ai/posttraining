@@ -22,6 +22,7 @@ from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
 from swiss_alignment.trl.trainers import CustomSFTTrainer
 from swiss_alignment.utils import utils_for_trl
 
+
 utils.config.register_resolvers()
 acc_state = PartialState()
 acc_logger = get_logger(__name__)
@@ -93,7 +94,6 @@ def main(config: DictConfig) -> None:
             if extra_key in ds["eval"].column_names:
                 ds["eval"] = ds["eval"].remove_columns([extra_key])
     if config.dataset_args.debug_oom:
-
         def add_debug_max_len(row):
             chat_tokens = tokenizer.apply_chat_template(row["messages"], tokenize=True)
             return {"debug_max_len": len(chat_tokens)}
