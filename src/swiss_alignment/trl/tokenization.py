@@ -119,6 +119,7 @@ class TokenizerConfig:
     model_name_or_path: str
     trust_remote_code: bool = True
     chat_template_name: Optional[str] = None
+    add_bos: bool = False
     model_pad_token_id: Optional[int] = None
     model_eos_token_id: Optional[int] = None
 
@@ -138,6 +139,16 @@ def get_tokenizer(tc: TokenizerConfig):
             tokenizer.chat_template = AutoTokenizer.from_pretrained(tc.model_name_or_path).chat_template
         except Exception:
             raise ValueError(f"Could not find chat template for {tc.model_name_or_path}.")
+
+    if tc.add_bos:
+        if tokenizer.chat_template.startswith("{{ bos_token }}") or (
+                tokenizer.bos_token is not None and tokenizer.chat_template.startswith(tokenizer.bos_token)
+        ):
+            raise ValueError(
+                "You specified add_bos=True, but the chat template already has a bos_token at the beginning."
+            )
+        # also add bos in the chat template if not already there
+        tokenizer.chat_template = "{{ bos_token }}" + tokenizer.chat_template
 
     # Update special tokens.
     if tc.model_pad_token_id is not None:

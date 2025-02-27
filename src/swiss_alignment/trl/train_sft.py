@@ -84,7 +84,8 @@ def main(config: DictConfig) -> None:
         model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
         model_pad_token_id=config.tokenizer_args.model_pad_token_id,
         model_eos_token_id=config.tokenizer_args.model_eos_token_id,
-        chat_template_name=config.tokenizer_args.chat_template_name,
+        chat_template_name=config.dataset_args.chat_template_name,
+        add_bos=False,
         trust_remote_code=model_args.trust_remote_code,
     )
     tokenizer = get_tokenizer(tc)

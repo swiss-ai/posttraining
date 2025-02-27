@@ -4,6 +4,7 @@ dataset_name: allenai/tulu-3-sft-mixture-split
 
 dataset_args:
   dataset_name: ${data_dir}/shared/datasets/tulu-3-sft-mixture-split
+  chat_template_name: simple_chat
   # TODO
   train_split:
     name: train
