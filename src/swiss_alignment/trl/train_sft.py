@@ -19,7 +19,7 @@ from trl import (
 )
 
 from swiss_alignment import utils
-from swiss_alignment.trl.dataset_transformation import get_tokenizer, TokenizerConfig
+from swiss_alignment.trl.tokenization import get_tokenizer, TokenizerConfig
 from swiss_alignment.utils import utils_for_trl
 
 
