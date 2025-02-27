@@ -89,7 +89,6 @@ def main(config: DictConfig) -> None:
     )
     tokenizer = get_tokenizer(tc)
 
-
     ############################ Dataset Setup ############################
 
     # Make sure to download the dataset before.
