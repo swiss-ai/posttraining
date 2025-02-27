@@ -5,6 +5,7 @@ dataset_name: Magpie-Align/Magpie-Air-DPO-100K-v0.1
 # TODO: create another dataset for magpieair sft and rename this to magpieair-dpo or give it a better identifier
 dataset_args:
   dataset_name: ${data_dir}/shared/datasets/magpieair
+  chat_template_name: null
   train_split:
     name: train
     start: 0
