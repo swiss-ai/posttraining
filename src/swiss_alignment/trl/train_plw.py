@@ -1,4 +1,5 @@
 import logging
+from functools import partial
 from pathlib import Path
 
 import accelerate
@@ -18,10 +19,9 @@ from trl import (
 )
 
 from swiss_alignment import utils
-from swiss_alignment.trl.tokenization import get_tokenizer, TokenizerConfig
-from swiss_alignment.utils import utils_for_trl
+from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
 from swiss_alignment.trl.trainers import PLWTrainer, preprocess_logits_for_plw_metrics
-from functools import partial
+from swiss_alignment.utils import utils_for_trl
 
 utils.config.register_resolvers()
 acc_state = PartialState()
@@ -29,24 +29,27 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
-from datasets import DatasetDict, Sequence, Value, load_from_disk, Dataset
-import numpy as np
-from queue import PriorityQueue
-from itertools import chain
 import random
+from itertools import chain
+from queue import PriorityQueue
+
+import numpy as np
+from datasets import Dataset, DatasetDict, Sequence, Value, load_from_disk
+
 
 # shortest pack first histogram packing
 def spfhp(seq_lens, chunk_length=2048):
     q = PriorityQueue()
-    q.put((0,[]))
+    q.put((0, []))
     idx = seq_lens.argsort()[::-1]
     for i in idx:
         n, pack = seq_lens[i], q.get()
-        if n+pack[0] > chunk_length:
+        if n + pack[0] > chunk_length:
             q.put(pack)
-            pack = (0,[])
-        q.put((n+pack[0], pack[1]+[i]))
+            pack = (0, [])
+        q.put((n + pack[0], pack[1] + [i]))
     return list(q.queue)
+
 
 # pack sequences into chunks
 def pack(sample, chunk_length=2048, pad_token_id=0):
@@ -61,23 +64,30 @@ def pack(sample, chunk_length=2048, pad_token_id=0):
         result[k] = []
         pad_id = pad_token_id if k == "input_ids" else 0
         for chunk in chunks:
-            item = list(chain(*[sample[k][i] for i in chunk[1]], [pad_id]*(chunk_length-chunk[0])))
+            item = list(
+                chain(
+                    *[sample[k][i] for i in chunk[1]],
+                    [pad_id] * (chunk_length - chunk[0]),
+                )
+            )
             result[k].append(item)
 
     # add labels (same as input_ids!)
     result["labels"] = result["input_ids"].copy()
     return result
 
+
 # draw simple ascii histogram
 def ascii_hist(x, nb=10, maxlen=100):
-    w = np.ptp(x)/nb  # get bin width from num bins
-    min_val, max_val = np.min(x), np.max(x)     # get min/max vals
-    bins = np.arange(min_val, max_val + 1, w)   # create bins
-    hist, _ = np.histogram(x, bins)     # get histogram sizes
-    scale = maxlen/hist.max()
+    w = np.ptp(x) / nb  # get bin width from num bins
+    min_val, max_val = np.min(x), np.max(x)  # get min/max vals
+    bins = np.arange(min_val, max_val + 1, w)  # create bins
+    hist, _ = np.histogram(x, bins)  # get histogram sizes
+    scale = maxlen / hist.max()
     # draw histogram
     for i in range(len(hist)):
         print(f"{bins[i]:0.0f} - {bins[i]+w:0.0f}\t{'#' * int(scale*hist[i])}")
+
 
 # Function to tokenize and encode a batch of samples, and creates prompt/completion masks.
 # Note: This function assumes a single user/asst chat exchange (i.e. prompt + completion).
@@ -85,11 +95,15 @@ def ascii_hist(x, nb=10, maxlen=100):
 # here: https://github.com/huggingface/trl/issues/632#issuecomment-1972630547
 def tokenize_batch(batch, tokenizer):
     # tokenize and encode text
-    tokenized_text = tokenizer(batch["text"], add_special_tokens=False, return_offsets_mapping=True,)
+    tokenized_text = tokenizer(
+        batch["text"],
+        add_special_tokens=False,
+        return_offsets_mapping=True,
+    )
     data = {k: tokenized_text[k] for k in tokenized_text.keys()}
 
     # use offset_mappings to make prompt/completion masks (idx marks the start of each completion)
-    prompt_masks, completion_masks = [],[]
+    prompt_masks, completion_masks = [], []
     for offset_mapping, idx in zip(data["offset_mapping"], batch["idx"]):
         prompt_masks.append([1 if o[1] < idx else 0 for o in offset_mapping])
         completion_masks.append([0 if o[1] < idx else 1 for o in offset_mapping])
@@ -99,25 +113,36 @@ def tokenize_batch(batch, tokenizer):
     del data["offset_mapping"]
     return data
 
+
 # tokenize and pack dataset
 def tokenize_and_pack(dataset, tokenizer, config):
     # Tokenize dataset, remove original columns
-    tokenized = dataset.map(partial(tokenize_batch, tokenizer=tokenizer), batched=True, remove_columns=list(dataset.features))
+    tokenized = dataset.map(
+        partial(tokenize_batch, tokenizer=tokenizer),
+        batched=True,
+        remove_columns=list(dataset.features),
+    )
 
     # Cast mask columns to int8
     for col in ["prompt_mask", "completion_mask"]:
         tokenized = tokenized.cast_column(col, Sequence(Value("int8")))
 
     # Filter sequences longer than max_seq_length
-    tokenized = tokenized.filter(lambda x: len(x["input_ids"]) <= config.training_args.max_seq_length)
+    tokenized = tokenized.filter(
+        lambda x: len(x["input_ids"]) <= config.training_args.max_seq_length
+    )
 
     # Print sample count
     print(f"Number of samples: {len(tokenized)}")
 
     # Pack sequences
     packed = tokenized.map(
-        lambda x: pack(x, chunk_length=config.training_args.max_seq_length, pad_token_id=tokenizer.pad_token_id),
-        batched=True
+        lambda x: pack(
+            x,
+            chunk_length=config.training_args.max_seq_length,
+            pad_token_id=tokenizer.pad_token_id,
+        ),
+        batched=True,
     )
     packed = packed.cast_column("labels", Sequence(Value("int32")))
 
@@ -127,6 +152,7 @@ def tokenize_and_pack(dataset, tokenizer, config):
     print(f"Packing density:     {100 * sum(seq_lens) / total_packed:.1f}%")
     print(f"Packing compression: {100 * len(packed) / len(tokenized):.1f}%")
     return packed
+
 
 def prepare_dataset(dataset, tokenizer, config):
     # Helper function to format each sample
@@ -199,10 +225,12 @@ def main(config: DictConfig) -> None:
     ############################ Dataset Setup ############################
     # Make sure to download the dataset before.
     ds = load_from_disk(script_args.dataset_name)
-    ds = DatasetDict({
-        "train": ds[config.script_args.dataset_train_split],
-        "eval": ds[config.script_args.dataset_test_split],
-    })
+    ds = DatasetDict(
+        {
+            "train": ds[config.script_args.dataset_train_split],
+            "eval": ds[config.script_args.dataset_test_split],
+        }
+    )
 
     if config.dataset_args.debug_subsample.train > 0:
         ds["train"] = ds["train"].select(
@@ -238,7 +266,7 @@ def main(config: DictConfig) -> None:
             training_args.eval_on_start = False
 
     trainer = PLWTrainer(
-        prompt_loss_weight=0.1, # script_args.prompt_loss_weight
+        prompt_loss_weight=0.1,  # script_args.prompt_loss_weight
         model=model_args.model_name_or_path,
         args=training_args,
         train_dataset=ds["train"],

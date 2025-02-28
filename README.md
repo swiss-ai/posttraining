@@ -54,15 +54,15 @@ Or if you want details on how to modify the template, project name, and dependen
    then delete this template getting started section, to only keep the [Getting Started](#getting-started) section below.
 
     Here are a few tips for keeping your project in good shape.
-    
+
     - Keep this README up to date.
       Fill in the rest of the sections after the Getting Started section when releasing your project.
       We give a structure and some templates for those.
-    
+
       If you use datasets, follow `data/README.md` to set them and write the instructions
       for the subsequent users there.
       Otherwise, delete the [data](#data) section.
-    
+
       Similarly, you can use the `outputs/README.md` file to share your trained models, logs, etc.
       - Remember to pin your dependencies whenever you install new ones.
         This is well described in the Maintaining the environment section of the installation instructions.

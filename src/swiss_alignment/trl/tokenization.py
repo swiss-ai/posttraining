@@ -136,13 +136,18 @@ def get_tokenizer(tc: TokenizerConfig):
         tokenizer.chat_template = CHAT_TEMPLATES[tc.chat_template_name]
     else:
         try:
-            tokenizer.chat_template = AutoTokenizer.from_pretrained(tc.model_name_or_path).chat_template
+            tokenizer.chat_template = AutoTokenizer.from_pretrained(
+                tc.model_name_or_path
+            ).chat_template
         except Exception:
-            raise ValueError(f"Could not find chat template for {tc.model_name_or_path}.")
+            raise ValueError(
+                f"Could not find chat template for {tc.model_name_or_path}."
+            )
 
     if tc.add_bos:
         if tokenizer.chat_template.startswith("{{ bos_token }}") or (
-                tokenizer.bos_token is not None and tokenizer.chat_template.startswith(tokenizer.bos_token)
+            tokenizer.bos_token is not None
+            and tokenizer.chat_template.startswith(tokenizer.bos_token)
         ):
             raise ValueError(
                 "You specified add_bos=True, but the chat template already has a bos_token at the beginning."
@@ -153,14 +158,10 @@ def get_tokenizer(tc: TokenizerConfig):
     # Update special tokens.
     if tc.model_pad_token_id is not None:
         tokenizer.pad_token_id = tc.model_pad_token_id
-        acc_logger.info(
-            f"Overriding tokenizer pad token id to {tc.model_pad_token_id}"
-        )
+        acc_logger.info(f"Overriding tokenizer pad token id to {tc.model_pad_token_id}")
     if tc.model_eos_token_id is not None:
         tokenizer.eos_token_id = tc.model_eos_token_id
-        acc_logger.info(
-            f"Overriding tokenizer eos token id to {tc.model_eos_token_id}"
-        )
+        acc_logger.info(f"Overriding tokenizer eos token id to {tc.model_eos_token_id}")
     # TODO also update the generation config.
 
     # Perform checks
