@@ -1,9 +1,10 @@
 import logging
 from pathlib import Path
 
-
+import torch
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
+from thunder.core.dtypes import dtype
 from trl import (
     SFTTrainer,
 )
@@ -32,14 +33,14 @@ class PLWTrainer(SFTTrainer):
         super().__init__(*args, **kwargs)
         self.plw = prompt_loss_weight
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         # get outputs without computing loss (by not passing in labels)
         outputs = model(input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"])
         logits = outputs.get("logits")
         labels = inputs.pop("labels")
 
         # compute per-token weights
-        weights = self.plw * inputs["prompt_mask"] + inputs["completion_mask"]
+        weights = torch.tensor(self.plw, dtype=logits.dtype, device=logits.device) * inputs["prompt_mask"] + inputs["completion_mask"]
 
         # Shift-by-1 so that tokens < n predict n
         shift_logits = logits[..., :-1, :].contiguous()

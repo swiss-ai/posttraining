@@ -36,6 +36,8 @@ training_args:
   warmup_ratio: 0.1
   num_train_epochs: 1
   packing: false
+  #skip_prepare_dataset: true # TODO
+  remove_unused_columns: false # Makes custom fields (like 'completion_mask') available inside compute_loss function
   dataloader_drop_last: true
   per_device_train_batch_size: 2
   gradient_accumulation_steps: 16

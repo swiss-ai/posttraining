@@ -94,12 +94,10 @@ def main(config: DictConfig) -> None:
 
     # Make sure to download the dataset before.
     ds = load_from_disk(script_args.dataset_name)
-    ds = DatasetDict(
-        {
-            "train": ds[config.script_args.dataset_train_split],
-            "eval": ds[config.script_args.dataset_test_split],
-        }
-    )
+    ds = DatasetDict({
+        "train": ds[config.script_args.dataset_train_split],
+        "eval": ds[config.script_args.dataset_test_split],
+    })
     # Handle preference datasets:
     if "chosen" in ds["train"].column_names:
         ds = ds.map(lambda row: {"messages": row["chosen"]})

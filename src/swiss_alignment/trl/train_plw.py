@@ -149,7 +149,7 @@ def prepare_dataset(dataset, tokenizer, config):
         processed[k] = split
         print(f"Total count of {k} packed sequences: {len(split)}")
 
-    return dataset
+    return processed
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="trl-sft")
@@ -199,7 +199,10 @@ def main(config: DictConfig) -> None:
     ############################ Dataset Setup ############################
     # Make sure to download the dataset before.
     ds = load_from_disk(script_args.dataset_name)
-    ds = DatasetDict({ "train": ds[config.script_args.dataset_train_split], "eval": ds[config.script_args.dataset_test_split], })
+    ds = DatasetDict({
+        "train": ds[config.script_args.dataset_train_split],
+        "eval": ds[config.script_args.dataset_test_split],
+    })
 
     if config.dataset_args.debug_subsample.train > 0:
         ds["train"] = ds["train"].select(
@@ -243,7 +246,7 @@ def main(config: DictConfig) -> None:
         processing_class=tokenizer,
         peft_config=peft_config,
         # compute_metrics=prepare_compute_metrics(ds, tokenizer),
-        preprocess_logits_for_metrics=preprocess_logits_for_plw_metrics,
+        # preprocess_logits_for_metrics=preprocess_logits_for_plw_metrics,
     )
 
     # Apply the token patches to the model

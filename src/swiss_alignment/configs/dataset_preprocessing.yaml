@@ -6,8 +6,12 @@ defaults:
 
 dataset_args:
   dataset_name: ${data_dir}/shared/datasets/tulu-3-sft-mixture # allenai/tulu-3-sft-mixture
-  val_ratio: 0.05
-  stratify_by_column: source
   output_path: ${data_dir}/shared/datasets/tulu-3-sft-mixture-split
+  train_split:
+    name: train
+  eval_split:
+    name: validation
+    ratio: 0.05
+  stratify_by_column: source
 
 seed: 42
