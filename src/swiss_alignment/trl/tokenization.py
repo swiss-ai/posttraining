@@ -13,6 +13,7 @@ acc_state = PartialState()
 acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
+
 CHAT_TEMPLATES = {
     "simple_concat_with_space": (
         "{% for message in messages %}"
