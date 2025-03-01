@@ -103,7 +103,6 @@ def main(config: DictConfig) -> None:
         hydra_logger.info(
             "Dataset already has validation/test split or no train split."
         )
-        return
 
 
 if __name__ == "__main__":

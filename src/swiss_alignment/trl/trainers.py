@@ -25,9 +25,8 @@ class PLWTrainer(SFTTrainer):
             }
         )
         super().__init__(*args, **kwargs)
-        # self.model.dtype
         self.plw = torch.tensor(
-            prompt_loss_weight, dtype=torch.bfloat16, device=self.args.device
+            prompt_loss_weight, dtype=self.model.dtype, device=self.args.device
         )
 
         # Store eval masks as tensors if eval_dataset is provided
@@ -66,20 +65,6 @@ class PLWTrainer(SFTTrainer):
         )
         loss = token_losses @ shift_weights.view(-1) / shift_weights.sum()
 
-        # Accuracy on non-padding tokens
-        # https://github.com/huggingface/trl/blob/main/trl/trainer/sft_trainer.py#L466
-        predictions = shift_logits.argmax(dim=-1)
-        mask = shift_labels != -100
-        correct = (predictions == shift_labels) & mask
-        correct_tokens = self.accelerator.gather_for_metrics(correct.sum())
-        total_tokens = self.accelerator.gather_for_metrics(mask.sum())
-        accuracy = (
-            (correct_tokens.sum() / total_tokens.sum()).item()
-            if total_tokens.sum() > 0
-            else 0.0
-        )
-        self._metrics["mean_token_accuracy"].append(accuracy)
-
         return (loss, outputs) if return_outputs else loss
 
     # uses PyTorch tensors (on GPU)
@@ -113,10 +98,27 @@ class PLWTrainer(SFTTrainer):
             / shift_comp_mask.sum()
         )
 
+        # Compute total/prompt/completion accuracies
+        def compute_accuracy(preds, labels, mask):
+            correct_tokens = ((preds == labels) & mask).sum()
+            total_tokens = mask.sum()
+            return correct_tokens / total_tokens if total_tokens > 0 else 0.0
+
+        pad_mask = shift_labels != -100
+        total_accuracy = compute_accuracy(token_preds, shift_labels, pad_mask)
+        prompt_accuracy = compute_accuracy(
+            token_preds, shift_labels, pad_mask & shift_prompt_mask.astype(bool)
+        )
+        completion_accuracy = compute_accuracy(
+            token_preds, shift_labels, pad_mask & shift_comp_mask.astype(bool)
+        )
+
         return {
-            "completion_loss": completion_loss,
             "prompt_loss": prompt_loss,
-            # "mean_token_accuracy": accuracy,
+            "completion_loss": completion_loss,
+            "mean_token_accuracy": total_accuracy,
+            "prompt_token_accuracy": prompt_accuracy,
+            "completion_token_accuracy": completion_accuracy,
         }
 
     def evaluate(

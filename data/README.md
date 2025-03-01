@@ -58,3 +58,6 @@ python -c "import datasets; datasets.load_dataset('Magpie-Align/Magpie-Air-DPO-1
 ```
 
 ## Instructions to process the data
+
+### Creating an eval set
+The `swiss_alignment.trl.dataset_preprocessing` module can be used to subsample a train and eval set from a single dataset object.

@@ -28,7 +28,7 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="trl-sft")
+@hydra.main(version_base=None, config_path="../configs", config_name="trl-plw")
 def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
 
@@ -116,7 +116,7 @@ def main(config: DictConfig) -> None:
             training_args.eval_on_start = False
 
     trainer = PLWTrainer(
-        prompt_loss_weight=0.1,  # script_args.prompt_loss_weight
+        prompt_loss_weight=config.plw_args.prompt_loss_weight,
         model=model_args.model_name_or_path,
         args=training_args,
         train_dataset=ds["train"],
