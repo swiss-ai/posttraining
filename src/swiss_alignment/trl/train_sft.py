@@ -85,7 +85,7 @@ def main(config: DictConfig) -> None:
         model_eos_token_id=config.tokenizer_args.model_eos_token_id,
         chat_template_name=config.dataset_args.chat_template_name,
         add_bos=False,
-        trust_remote_code=model_args.trust_remote_code,
+        trust_remote_code=config.tokenizer_args.trust_remote_code,
     )
     tokenizer = get_tokenizer(tc)
 
@@ -95,8 +95,8 @@ def main(config: DictConfig) -> None:
     ds = load_from_disk(script_args.dataset_name)
     ds = DatasetDict(
         {
-            "train": ds[config.script_args.dataset_train_split],
-            "eval": ds[config.script_args.dataset_test_split],
+            "train": ds[script_args.dataset_train_split],
+            "eval": ds[script_args.dataset_test_split],
         }
     )
     # Handle preference datasets:

@@ -2,15 +2,8 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
-from accelerate.logging import get_logger
-from accelerate.state import PartialState
 from transformers import AutoTokenizer
 
-from swiss_alignment import utils
-
-utils.config.register_resolvers()
-acc_state = PartialState()
-acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
@@ -159,10 +152,14 @@ def get_tokenizer(tc: TokenizerConfig):
     # Update special tokens.
     if tc.model_pad_token_id is not None:
         tokenizer.pad_token_id = tc.model_pad_token_id
-        acc_logger.info(f"Overriding tokenizer pad token id to {tc.model_pad_token_id}")
+        hydra_logger.info(
+            f"Overriding tokenizer pad token id to {tc.model_pad_token_id}"
+        )
     if tc.model_eos_token_id is not None:
         tokenizer.eos_token_id = tc.model_eos_token_id
-        acc_logger.info(f"Overriding tokenizer eos token id to {tc.model_eos_token_id}")
+        hydra_logger.info(
+            f"Overriding tokenizer eos token id to {tc.model_eos_token_id}"
+        )
     # TODO also update the generation config.
 
     # Perform checks
