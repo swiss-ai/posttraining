@@ -1,0 +1,13 @@
+defaults:
+  # Common setup.
+  - setup
+  # This file.
+  - _self_
+
+dataset_args:
+  dataset_name: ${data_dir}/shared/datasets/tulu-3-sft-mixture # or equivalently allenai/tulu-3-sft-mixture
+  val_ratio: 0.05 # ratio of the training dataset to be used for validation
+  stratify_by_column: source # If set, ensures the distribution of this column is preserved across splits
+  output_path: ${data_dir}/shared/datasets/tulu-3-sft-mixture-split
+
+seed: 42

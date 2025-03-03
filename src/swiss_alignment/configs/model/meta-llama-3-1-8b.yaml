@@ -1,0 +1,17 @@
+# @package _global_
+
+model_args:
+  torch_dtype: bfloat16
+  model_name_or_path: meta-llama/Llama-3.1-8B
+  attn_implementation: flash_attention_2
+  trust_remote_code: true
+  use_peft: false
+
+tokenizer_args:
+  tokenizer_name_or_path: meta-llama/Llama-3.1-8B
+  chat_template_name: simple_chat
+  trust_remote_code: true
+  padding_side: right
+  add_bos: false
+  model_pad_token_id: 0  # <unk>
+  model_eos_token_id: null # keep default. (128001)

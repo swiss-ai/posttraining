@@ -8,7 +8,6 @@ from accelerate.logging import get_logger
 from accelerate.state import PartialState
 from datasets import DatasetDict, load_from_disk
 from omegaconf import DictConfig, OmegaConf
-from transformers import AutoTokenizer
 from trl import (
     ModelConfig,
     ScriptArguments,
@@ -20,6 +19,7 @@ from trl import (
 )
 
 from swiss_alignment import utils
+from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
 from swiss_alignment.utils import utils_for_trl
 
 utils.config.register_resolvers()
@@ -57,6 +57,15 @@ def main(config: DictConfig) -> None:
         **OmegaConf.to_container(config.training_args), output_dir=str(Path.cwd())
     )
     model_args = ModelConfig(**OmegaConf.to_container(config.model_args))
+    tokenizer_args = TokenizerConfig(
+        model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
+        padding_side=config.tokenizer_args.padding_side,
+        add_bos=config.tokenizer_args.add_bos,
+        trust_remote_code=model_args.trust_remote_code,
+        chat_template_name=config.tokenizer_args.chat_template_name,
+        model_pad_token_id=config.tokenizer_args.model_pad_token_id,
+        model_eos_token_id=config.tokenizer_args.model_eos_token_id,
+    )
 
     quantization_config = get_quantization_config(model_args)
     model_kwargs = dict(
@@ -79,35 +88,7 @@ def main(config: DictConfig) -> None:
     utils.seeding.seed_everything(config)
 
     ############################ Tokenizer Setup ############################
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_args.model_name_or_path,
-        trust_remote_code=model_args.trust_remote_code,
-        padding_side="right",
-    )
-
-    # TODO update chat template.
-
-    # Update special tokens.
-    if getattr(config, "model_pad_token_id") is not None:
-        tokenizer.pad_token_id = config.model_pad_token_id
-        acc_logger.info(
-            f"Overriding tokenizer pad token id to {config.model_pad_token_id}"
-        )
-    if getattr(config, "model_eos_token_id") is not None:
-        tokenizer.eos_token_id = config.model_eos_token_id
-        acc_logger.info(
-            f"Overriding tokenizer eos token id to {config.model_eos_token_id}"
-        )
-    # TODO also update the generation config.
-
-    # Perform checks
-    if tokenizer.pad_token is None:
-        raise ValueError("Tokenizer must have a pad token.")
-    if tokenizer.pad_token == tokenizer.eos_token:
-        raise ValueError(
-            "Tokenizer pad token is the same as the eos token. The eos will be masked as if it was a pad."
-        )
+    tokenizer = get_tokenizer(tokenizer_args)
 
     ############################ Dataset Setup ############################
 
@@ -179,10 +160,12 @@ def main(config: DictConfig) -> None:
     )
 
     # Apply the token patches to the model
-    if getattr(config, "model_eos_token_id") is not None:
-        trainer.model.config.eos_token_id = config.model_eos_token_id
-        trainer.model.generation_config.eos_token_id = config.model_eos_token_id
-        acc_logger.info(f"Overriding model eos token id to {config.model_eos_token_id}")
+    if tokenizer_args.model_eos_token_id is not None:
+        trainer.model.config.eos_token_id = tokenizer_args.model_eos_token_id
+        trainer.model.generation_config.eos_token_id = tokenizer_args.model_eos_token_id
+        acc_logger.info(
+            f"Overriding model eos token id to {tokenizer_args.model_eos_token_id}"
+        )
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")

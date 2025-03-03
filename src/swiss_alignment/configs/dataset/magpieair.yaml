@@ -11,8 +11,8 @@ dataset_args:
     end: 98000
   eval_split:
     name: test
-    end: 2000
     start: 0
+    end: 2000
 
 training_args:
   eval_steps: 160

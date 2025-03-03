@@ -25,7 +25,9 @@ def main(config: DictConfig) -> None:
     # Using the template provides utilities for experiments:
 
     # 1. Setting up experiment and resuming directories
-    config = utils.config.setup_config_and_resuming(config, postprocess_func=lambda x: x)
+    config = utils.config.setup_config_and_resuming(
+        config, postprocess_func=lambda x: x
+    )
     # The current working directory is a new directory unique to this run made by hydra, accessible by config.run_dir.
     # A resuming directory uniquely identified by the config (and optionally the git sha)
     # for storing checkpoints of the same experiment can be accessed via config.resuming.dir.

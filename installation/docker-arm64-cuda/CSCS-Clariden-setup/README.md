@@ -300,7 +300,7 @@ Host clariden-container
 	StrictHostKeyChecking no
 	UserKnownHostsFile=/dev/null
 	ForwardAgent yes
-	
+
 ```
 
 To update the hostname of the `clariden-job` you can add this to your `~/.bashrc` or equivalent:
@@ -317,7 +317,7 @@ function update-ssh-config() {
     return 1
   fi
 
-  # Use sed in a range that starts at the line matching `Host <host>` 
+  # Use sed in a range that starts at the line matching `Host <host>`
   # and goes until the next `Host ` line. Within that range, replace
   # the line that begins with 'HostName'.
   sed -i '' '/Host '"$host"'/,/Host / s/^[[:space:]]*HostName.*/    HostName '"$new_hostname"'/' "$config_file"
