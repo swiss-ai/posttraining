@@ -14,8 +14,10 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 # chat templates taken from: https://github.com/allenai/open-instruct/blob/main/open_instruct/dataset_transformation.py#L105
+# E.g. for [{"role": "user", "content": "What is 2 + 2?"}, {"role": "assistant", "content": "The result is 4"}]
+# with add_generation_prompt=False
 CHAT_TEMPLATES = {
-    # E.g. '' + 'What is 2 + 2' + ' ' + 'The result is 4' + eos_token
+    # 'What is 2 + 2? The result is 4<|end_of_text|>'
     "simple_concat_with_space": (
         "{% for message in messages %}"
         "{{ ' ' if not loop.first else '' }}"
@@ -23,7 +25,7 @@ CHAT_TEMPLATES = {
         "{% if loop.last and not add_generation_prompt %}{{ eos_token }}{% endif %}"
         "{% endfor %}"
     ),
-    # E.g. '' + 'What is 2 + 2' + '\n' + 'The result is 4' + eos_token
+    # 'What is 2 + 2?\nThe result is 4<|end_of_text|>'
     "simple_concat_with_new_line": (
         "{% for message in messages %}"
         "{{ '\n' if not loop.first else '' }}"
@@ -31,7 +33,7 @@ CHAT_TEMPLATES = {
         "{% if loop.last and not add_generation_prompt %}{{ eos_token }}{% endif %}"
         "{% endfor %}"
     ),
-    # E.g. '' + 'User: What is 2 + 2' + '\n\n' + 'Assistance: The result is 4' + eos_token
+    # 'User: What is 2 + 2?\n\nAssistant: The result is 4<|end_of_text|>'
     "simple_chat": (
         "{% for message in messages %}"
         "{{ '\n\n' if not loop.first else '' }}"
@@ -39,7 +41,7 @@ CHAT_TEMPLATES = {
         "{% if loop.last and not add_generation_prompt %}{{ eos_token }}{% endif %}"
         "{% endfor %}"
     ),
-    # E.g. 'The result is 4'
+    # 'The result is 4'
     "assistant_message_only": (
         "{% for message in messages %}"
         "{% if message['role'] == 'assistant' %}"
@@ -47,8 +49,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
-    # E.g. '' + '<|user|>\n' + 'What is 2 + 2' + eos_token + '\n'
-    # + '<|assistant|>\n' + 'The result is 4' + eos_token + '\n' + '<|assistant|>\n'
+    # '<|user|>\nWhat is 2 + 2?<|end_of_text|>\n<|assistant|>\nThe result is 4<|end_of_text|>\n'
     "zephyr": (
         "{% for message in messages %}"
         "{% if message['role'] == 'user' %}"
@@ -63,8 +64,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
-    # E.g. '' + '<|user|>\n' + 'What is 2 + 2' + '\n'
-    # + '<|assistant|>\n' + 'The result is 4' + eos_token + '<|assistant|>\n'
+    # '<|user|>\nWhat is 2 + 2?\n<|assistant|>\nThe result is 4<|end_of_text|>'
     "tulu": (
         "{% for message in messages %}"
         "{% if message['role'] == 'system' %}"
@@ -83,8 +83,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
-    # E.g. 'A conversation between User and Assistant. The user asks a question ...' +
-    # '\n\n' + 'User: What is 2 + 2?' + '\n' + '\n\nAssistant: The result is 4\n'
+    # 'A conversation between User and Assistant. The user asks a question ... <answer> answer here </answer>.\n\nUser: What is 2 + 2?\n\n\nAssistant: The result is 4\n'
     "r1_simple_chat": (
         "A conversation between User and Assistant. "
         "The user asks a question, and the Assistant solves it. "
@@ -103,8 +102,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
-    # E.g. 'A conversation between User and Assistant. The user asks a question ...' +
-    # '\n\n' + 'User: What is 2 + 2?' + '\n' + '\n\nAssistant: <think>The result is 4\n'
+    #' A conversation between User and Assistant. The user asks a question ... <answer> answer here </answer>.\n\nUser: What is 2 + 2?\n\n\nAssistant: The result is 4\n'
     "r1_simple_chat_postpend_think": (
         "A conversation between User and Assistant. "
         "The user asks a question, and the Assistant solves it. "
