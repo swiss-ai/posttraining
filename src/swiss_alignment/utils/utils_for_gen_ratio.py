@@ -32,7 +32,6 @@ def compute_generation_ratios(dataset, tokenizer):
 
     # apply instruction template and chat template to each sample
     def format_sample(sample):
-        # print(sample)
         # Apply chat template to full conversation
         sample["text"] = tokenizer.apply_chat_template(
             sample["messages"], tokenize=False, add_generation_prompt=False
