@@ -45,6 +45,7 @@ def main(config: DictConfig) -> None:
     ############################ Dataset Split ###########################
     # Loads datasets from both local paths and huggingface
     ds = load_dataset_flexible(config.dataset_args.dataset_name)
+
     train_split_name = config.dataset_args.train_split.name
     eval_split_name = config.dataset_args.eval_split.name
 

@@ -11,7 +11,7 @@ dataset_args:
     name: train
   eval_split:
     name: validation
-    ratio: 0.05
+    ratio: 0.05 # ratio of the training dataset to be used for validation
   stratify_by_column: source
 
 seed: 42

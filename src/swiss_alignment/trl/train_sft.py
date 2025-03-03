@@ -12,7 +12,6 @@ from trl import (
     ModelConfig,
     ScriptArguments,
     SFTConfig,
-    SFTTrainer,
     get_kbit_device_map,
     get_peft_config,
     get_quantization_config,
@@ -20,29 +19,13 @@ from trl import (
 
 from swiss_alignment import utils
 from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
+from swiss_alignment.trl.trainers import CustomSFTTrainer
 from swiss_alignment.utils import utils_for_trl
 
 utils.config.register_resolvers()
 acc_state = PartialState()
 acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
-
-
-class CustomSFTTrainer(SFTTrainer):
-    def evaluate(
-        self,
-        eval_dataset=None,
-        ignore_keys=None,
-        metric_key_prefix: str = "eval",
-    ) -> dict[str, float]:
-        """Saves eval metrics to files"""
-        acc_state = PartialState()
-        acc_logger = get_logger(__name__)
-        acc_logger.info("\nEvaluating model\n")
-        metrics = super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
-        self.log_metrics(f"eval_{self.state.global_step}", metrics)
-        self.save_metrics(f"eval_{self.state.global_step}", metrics, combined=False)
-        return metrics
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="trl-sft")
@@ -57,6 +40,15 @@ def main(config: DictConfig) -> None:
         **OmegaConf.to_container(config.training_args), output_dir=str(Path.cwd())
     )
     model_args = ModelConfig(**OmegaConf.to_container(config.model_args))
+    tokenizer_args = TokenizerConfig(
+        model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
+        padding_side=config.tokenizer_args.padding_side,
+        add_bos=config.tokenizer_args.add_bos,
+        trust_remote_code=model_args.trust_remote_code,
+        chat_template_name=config.tokenizer_args.chat_template_name,
+        model_pad_token_id=config.tokenizer_args.model_pad_token_id,
+        model_eos_token_id=config.tokenizer_args.model_eos_token_id,
+    )
 
     quantization_config = get_quantization_config(model_args)
     model_kwargs = dict(
@@ -79,15 +71,7 @@ def main(config: DictConfig) -> None:
     utils.seeding.seed_everything(config)
 
     ############################ Tokenizer Setup ############################
-    tc = TokenizerConfig(
-        model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
-        model_pad_token_id=config.tokenizer_args.model_pad_token_id,
-        model_eos_token_id=config.tokenizer_args.model_eos_token_id,
-        chat_template_name=config.dataset_args.chat_template_name,
-        add_bos=False,
-        trust_remote_code=config.tokenizer_args.trust_remote_code,
-    )
-    tokenizer = get_tokenizer(tc)
+    tokenizer = get_tokenizer(tokenizer_args)
 
     ############################ Dataset Setup ############################
 
@@ -95,8 +79,8 @@ def main(config: DictConfig) -> None:
     ds = load_from_disk(script_args.dataset_name)
     ds = DatasetDict(
         {
-            "train": ds[script_args.dataset_train_split],
-            "eval": ds[script_args.dataset_test_split],
+            "train": ds[config.script_args.dataset_train_split],
+            "eval": ds[config.script_args.dataset_test_split],
         }
     )
     # Handle preference datasets:
@@ -159,10 +143,12 @@ def main(config: DictConfig) -> None:
     )
 
     # Apply the token patches to the model
-    if tc.model_eos_token_id is not None:
-        trainer.model.config.eos_token_id = tc.model_eos_token_id
-        trainer.model.generation_config.eos_token_id = tc.model_eos_token_id
-        acc_logger.info(f"Overriding model eos token id to {tc.model_eos_token_id}")
+    if tokenizer_args.model_eos_token_id is not None:
+        trainer.model.config.eos_token_id = tokenizer_args.model_eos_token_id
+        trainer.model.generation_config.eos_token_id = tokenizer_args.model_eos_token_id
+        acc_logger.info(
+            f"Overriding model eos token id to {tokenizer_args.model_eos_token_id}"
+        )
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")

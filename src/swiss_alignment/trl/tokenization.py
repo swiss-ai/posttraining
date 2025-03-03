@@ -2,12 +2,22 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
+from accelerate.logging import get_logger
+from accelerate.state import PartialState
 from transformers import AutoTokenizer
 
+from swiss_alignment import utils
+
+utils.config.register_resolvers()
+acc_state = PartialState()
+acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
-
+# chat templates taken from: https://github.com/allenai/open-instruct/blob/main/open_instruct/dataset_transformation.py#L105
+# E.g. for [{"role": "user", "content": "What is 2 + 2?"}, {"role": "assistant", "content": "The result is 4"}]
+# with add_generation_prompt=False
 CHAT_TEMPLATES = {
+    # 'What is 2 + 2? The result is 4<|end_of_text|>'
     "simple_concat_with_space": (
         "{% for message in messages %}"
         "{{ ' ' if not loop.first else '' }}"
@@ -15,6 +25,7 @@ CHAT_TEMPLATES = {
         "{% if loop.last and not add_generation_prompt %}{{ eos_token }}{% endif %}"
         "{% endfor %}"
     ),
+    # 'What is 2 + 2?\nThe result is 4<|end_of_text|>'
     "simple_concat_with_new_line": (
         "{% for message in messages %}"
         "{{ '\n' if not loop.first else '' }}"
@@ -22,6 +33,7 @@ CHAT_TEMPLATES = {
         "{% if loop.last and not add_generation_prompt %}{{ eos_token }}{% endif %}"
         "{% endfor %}"
     ),
+    # 'User: What is 2 + 2?\n\nAssistant: The result is 4<|end_of_text|>'
     "simple_chat": (
         "{% for message in messages %}"
         "{{ '\n\n' if not loop.first else '' }}"
@@ -29,6 +41,7 @@ CHAT_TEMPLATES = {
         "{% if loop.last and not add_generation_prompt %}{{ eos_token }}{% endif %}"
         "{% endfor %}"
     ),
+    # 'The result is 4'
     "assistant_message_only": (
         "{% for message in messages %}"
         "{% if message['role'] == 'assistant' %}"
@@ -36,6 +49,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
+    # '<|user|>\nWhat is 2 + 2?<|end_of_text|>\n<|assistant|>\nThe result is 4<|end_of_text|>\n'
     "zephyr": (
         "{% for message in messages %}"
         "{% if message['role'] == 'user' %}"
@@ -50,6 +64,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
+    # '<|user|>\nWhat is 2 + 2?\n<|assistant|>\nThe result is 4<|end_of_text|>'
     "tulu": (
         "{% for message in messages %}"
         "{% if message['role'] == 'system' %}"
@@ -68,7 +83,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
-    # template is taken from https://arxiv.org/abs/2501.12948.
+    # 'A conversation between User and Assistant. The user asks a question ... <answer> answer here </answer>.\n\nUser: What is 2 + 2?\n\n\nAssistant: The result is 4\n'
     "r1_simple_chat": (
         "A conversation between User and Assistant. "
         "The user asks a question, and the Assistant solves it. "
@@ -87,6 +102,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
+    #' A conversation between User and Assistant. The user asks a question ... <answer> answer here </answer>.\n\nUser: What is 2 + 2?\n\n\nAssistant: The result is 4\n'
     "r1_simple_chat_postpend_think": (
         "A conversation between User and Assistant. "
         "The user asks a question, and the Assistant solves it. "
@@ -111,9 +127,10 @@ CHAT_TEMPLATES = {
 @dataclass
 class TokenizerConfig:
     model_name_or_path: str
+    padding_side: str = "right"
     trust_remote_code: bool = True
-    chat_template_name: Optional[str] = None
     add_bos: bool = False
+    chat_template_name: Optional[str] = None
     model_pad_token_id: Optional[int] = None
     model_eos_token_id: Optional[int] = None
 
@@ -121,7 +138,7 @@ class TokenizerConfig:
 def get_tokenizer(tc: TokenizerConfig):
     tokenizer = AutoTokenizer.from_pretrained(
         tc.model_name_or_path,
-        padding_side="right",
+        padding_side=tc.padding_side,
         trust_remote_code=tc.trust_remote_code,
     )
 
@@ -152,15 +169,10 @@ def get_tokenizer(tc: TokenizerConfig):
     # Update special tokens.
     if tc.model_pad_token_id is not None:
         tokenizer.pad_token_id = tc.model_pad_token_id
-        hydra_logger.info(
-            f"Overriding tokenizer pad token id to {tc.model_pad_token_id}"
-        )
+        acc_logger.info(f"Overriding tokenizer pad token id to {tc.model_pad_token_id}")
     if tc.model_eos_token_id is not None:
         tokenizer.eos_token_id = tc.model_eos_token_id
-        hydra_logger.info(
-            f"Overriding tokenizer eos token id to {tc.model_eos_token_id}"
-        )
-    # TODO also update the generation config.
+        acc_logger.info(f"Overriding tokenizer eos token id to {tc.model_eos_token_id}")
 
     # Perform checks
     if tokenizer.pad_token is None:

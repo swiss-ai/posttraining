@@ -21,7 +21,10 @@ model_args:
 
 tokenizer_args:
   tokenizer_name_or_path: mistralai/Mistral-7B-Instruct-v0.2
+  chat_template_name: null
   trust_remote_code: true
+  padding_side: right
+  add_bos: false
   model_pad_token_id: 0  # <unk>
   model_eos_token_id: null # keep default.
 
