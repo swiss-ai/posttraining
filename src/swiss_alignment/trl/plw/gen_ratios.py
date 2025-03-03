@@ -24,18 +24,20 @@ def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
     config = utils_for_trl.setup_config_and_resuming(config, acc_state, acc_logger)
     script_args = ScriptArguments(**OmegaConf.to_container(config.script_args))
+    tokenizer_args = TokenizerConfig(
+        model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
+        padding_side=config.tokenizer_args.padding_side,
+        add_bos=config.tokenizer_args.add_bos,
+        trust_remote_code=config.tokenizer_args.trust_remote_code,
+        chat_template_name=config.tokenizer_args.chat_template_name,
+        model_pad_token_id=config.tokenizer_args.model_pad_token_id,
+        model_eos_token_id=config.tokenizer_args.model_eos_token_id,
+    )
+
     utils.seeding.seed_everything(config)
 
     ############################ Tokenizer Setup ############################
-    tc = TokenizerConfig(
-        model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
-        model_pad_token_id=config.tokenizer_args.model_pad_token_id,
-        model_eos_token_id=config.tokenizer_args.model_eos_token_id,
-        chat_template_name=config.dataset_args.chat_template_name,
-        add_bos=False,
-        trust_remote_code=config.tokenizer_args.trust_remote_code,
-    )
-    tokenizer = get_tokenizer(tc)
+    tokenizer = get_tokenizer(tokenizer_args)
 
     ############################ Dataset Setup ############################
     # Make sure to download the dataset before.

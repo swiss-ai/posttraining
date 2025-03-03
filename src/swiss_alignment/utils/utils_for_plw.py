@@ -17,6 +17,7 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
+# Adapted from: https://github.com/davidsvaughn/prompt-loss-weight/blob/main/run_plw.py
 # shortest pack first histogram packing
 def spfhp(seq_lens, chunk_length=2048):
     q = PriorityQueue()

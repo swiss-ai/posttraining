@@ -7,7 +7,7 @@ defaults:
   # This file.
   - _self_
   # Model (from the configs/model/ directory).
-  - model: mistralai-mistral-7b-instruct
+  - model: meta-llama-3-1-8b
   # Dataset (from the configs/dataset/ directory).
   - dataset: magpieair
   # Optional preset for training parameters.

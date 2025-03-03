@@ -44,7 +44,7 @@ def main(config: DictConfig) -> None:
         model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
         padding_side=config.tokenizer_args.padding_side,
         add_bos=config.tokenizer_args.add_bos,
-        trust_remote_code=model_args.trust_remote_code,
+        trust_remote_code=config.tokenizer_args.trust_remote_code,
         chat_template_name=config.tokenizer_args.chat_template_name,
         model_pad_token_id=config.tokenizer_args.model_pad_token_id,
         model_eos_token_id=config.tokenizer_args.model_eos_token_id,
@@ -127,10 +127,12 @@ def main(config: DictConfig) -> None:
     )
 
     # Apply the token patches to the model
-    if tc.model_eos_token_id is not None:
-        trainer.model.config.eos_token_id = tc.model_eos_token_id
-        trainer.model.generation_config.eos_token_id = tc.model_eos_token_id
-        acc_logger.info(f"Overriding model eos token id to {tc.model_eos_token_id}")
+    if tokenizer_args.model_eos_token_id is not None:
+        trainer.model.config.eos_token_id = tokenizer_args.model_eos_token_id
+        trainer.model.generation_config.eos_token_id = tokenizer_args.model_eos_token_id
+        acc_logger.info(
+            f"Overriding model eos token id to {tokenizer_args.model_eos_token_id}"
+        )
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")

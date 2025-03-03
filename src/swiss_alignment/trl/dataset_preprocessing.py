@@ -2,7 +2,7 @@ import logging
 import os
 
 import hydra
-from datasets import ClassLabel, DatasetDict, load_dataset, load_from_disk
+from datasets import ClassLabel, load_dataset, load_from_disk
 from omegaconf import DictConfig
 
 from swiss_alignment import utils

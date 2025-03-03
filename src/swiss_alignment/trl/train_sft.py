@@ -44,7 +44,7 @@ def main(config: DictConfig) -> None:
         model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
         padding_side=config.tokenizer_args.padding_side,
         add_bos=config.tokenizer_args.add_bos,
-        trust_remote_code=model_args.trust_remote_code,
+        trust_remote_code=config.tokenizer_args.trust_remote_code,
         chat_template_name=config.tokenizer_args.chat_template_name,
         model_pad_token_id=config.tokenizer_args.model_pad_token_id,
         model_eos_token_id=config.tokenizer_args.model_eos_token_id,
