@@ -4,12 +4,10 @@ dataset_name: allenai/tulu-3-sft-mixture-split
 
 dataset_args:
   dataset_name: ${data_dir}/shared/datasets/tulu-3-sft-mixture-split
-  chat_template_name: simple_chat
   train_split:
     name: train
   eval_split:
     name: validation
-
 
 training_args:
   eval_steps: 160
