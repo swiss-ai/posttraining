@@ -25,15 +25,15 @@ commands = [
     command_template.format(
         ds_config="ds1-acc1-4xN.yaml", num_processes=2, batch_size=2, train_loss_dir="out/exp_np_2_bs_2"
     ),
-    # command_template.format(
-    #     ds_config="ds1-acc1-4xN.yaml", num_processes=2, batch_size=4, train_loss_dir="out/exp_np_2_bs_4"
-    # ),
-    # command_template.format(
-    #     ds_config="ds1-acc1-4xN.yaml", num_processes=4, batch_size=2, train_loss_dir="out/exp_np_4_bs_2"
-    # ),
-    # command_template.format(
-    #     ds_config="ds1-acc1-4xN.yaml", num_processes=4, batch_size=4, train_loss_dir="out/exp_np_4_bs_4"
-    # )
+    command_template.format(
+        ds_config="ds1-acc1-4xN.yaml", num_processes=2, batch_size=4, train_loss_dir="out/exp_np_2_bs_4"
+    ),
+    command_template.format(
+        ds_config="ds1-acc1-4xN.yaml", num_processes=4, batch_size=2, train_loss_dir="out/exp_np_4_bs_2"
+    ),
+    command_template.format(
+        ds_config="ds1-acc1-4xN.yaml", num_processes=4, batch_size=4, train_loss_dir="out/exp_np_4_bs_4"
+    )
 ]
 
 for cmd in commands:
