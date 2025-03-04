@@ -17,7 +17,7 @@ command_template = (
     "training_args.logging_steps=1 "
     "training_args.eval_on_start=false "
     "training_args.average_tokens_across_devices=true "
-    "training_args.per_device_eval_batch_size={batch_size} "
+    "training_args.per_device_train_batch_size={batch_size} "
     "+train_loss_dir={train_loss_dir}"
 )
 
