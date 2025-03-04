@@ -28,7 +28,7 @@ for dataset in datasets:
                     f"training_args.learning_rate={lr} "
                     "outputs_subdir=shared "
                     f"job_subdir={run_name}/{model_config} "
-                    f"wandb.run_name={model_config}-plw-{run_name} "
+                    f"wandb.run_name={model_config}-{run_name} "
                     "'wandb.tags=[prod,plw]' "
                     "resuming.resume=True "
                 )
