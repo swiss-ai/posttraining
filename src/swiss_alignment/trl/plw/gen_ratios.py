@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import hydra
 import matplotlib.pyplot as plt
@@ -62,11 +63,16 @@ def main(config: DictConfig) -> None:
     gen_ratios = utils_for_gen_ratio.compute_generation_ratios(ds, tokenizer)
 
     # Computing mean value across dataset
-    Rg = np.mean(gen_ratios)
-    hydra_logger.info(f"{script_args.dataset_name} Rg\t= {Rg:.4g}")
+    mean_gen_ratio = np.mean(gen_ratios)
+    hydra_logger.info(f"{config.dataset_name} Rg\t= {mean_gen_ratio:.4g}")
 
     # Plotting distribution
+    resuming_dir = Path.cwd()
+    output_dir = resuming_dir.joinpath(config.dataset_name)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     plt.hist(gen_ratios, bins=50)
+    plt.savefig(fname=output_dir.joinpath("gen_ratio.png"))
     plt.show()
 
 

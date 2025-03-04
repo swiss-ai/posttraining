@@ -15,8 +15,25 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
+class CustomSFTTrainer(SFTTrainer):
+    def evaluate(
+        self,
+        eval_dataset=None,
+        ignore_keys=None,
+        metric_key_prefix: str = "eval",
+    ) -> dict[str, float]:
+        """Saves eval metrics to files"""
+        acc_state = PartialState()
+        acc_logger = get_logger(__name__)
+        acc_logger.info("\nEvaluating model\n")
+        metrics = super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
+        self.log_metrics(f"eval_{self.state.global_step}", metrics)
+        self.save_metrics(f"eval_{self.state.global_step}", metrics, combined=False)
+        return metrics
+
+
 # Adapted from: https://github.com/davidsvaughn/prompt-loss-weight/blob/main/run_plw.py
-class PLWTrainer(SFTTrainer):
+class PLWTrainer(CustomSFTTrainer):
     def __init__(self, *args, prompt_loss_weight=1.0, **kwargs):
         kwargs.update(
             {
@@ -120,35 +137,3 @@ class PLWTrainer(SFTTrainer):
             "prompt_token_accuracy": prompt_accuracy,
             "completion_token_accuracy": completion_accuracy,
         }
-
-    def evaluate(
-        self,
-        eval_dataset=None,
-        ignore_keys=None,
-        metric_key_prefix: str = "eval",
-    ) -> dict[str, float]:
-        """Saves eval metrics to files"""
-        acc_state = PartialState()
-        acc_logger = get_logger(__name__)
-        acc_logger.info("\nEvaluating model\n")
-        metrics = super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
-        self.log_metrics(f"eval_{self.state.global_step}", metrics)
-        self.save_metrics(f"eval_{self.state.global_step}", metrics, combined=False)
-        return metrics
-
-
-class CustomSFTTrainer(SFTTrainer):
-    def evaluate(
-        self,
-        eval_dataset=None,
-        ignore_keys=None,
-        metric_key_prefix: str = "eval",
-    ) -> dict[str, float]:
-        """Saves eval metrics to files"""
-        acc_state = PartialState()
-        acc_logger = get_logger(__name__)
-        acc_logger.info("\nEvaluating model\n")
-        metrics = super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
-        self.log_metrics(f"eval_{self.state.global_step}", metrics)
-        self.save_metrics(f"eval_{self.state.global_step}", metrics, combined=False)
-        return metrics

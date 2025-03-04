@@ -4,34 +4,26 @@ import numpy as np
 from datasets import DatasetDict
 
 
-# Adapted from https://github.com/davidsvaughn/prompt-loss-weight/blob/main/gen_ratios.py
+# All adapted from: https://github.com/davidsvaughn/prompt-loss-weight/blob/main/gen_ratios.py
 def compute_generation_ratios(dataset, tokenizer):
+    """
+    Computes Rg - generation ratios based on  prompt and completion lengths for a single dataset.
+
+    Args:
+        dataset (DatasetDict): Dictionary of datasets (e.g., train, validation) with 'messages' field.
+        tokenizer: Tokenizer object to encode the text.
+
+    Returns:
+        np.ndarray: Sorted array of generation ratios with top and bottom 0.25% trimmed.
+    """
     # print splits and number of samples
     dataset_keys = list(dataset.keys())
 
-    # tokenize and encode batch of samples
-    def tokenize_batch(batch):
-        tokenized_text = tokenizer(
-            batch["text"],
-            add_special_tokens=False,
-            return_offsets_mapping=True,
-        )
-        data = {k: tokenized_text[k] for k in tokenized_text.keys()}
-
-        # use offset_mappings to find the index of the last token of the prompt
-        gen_ratio = []
-        for offset_mapping, idx in zip(data["offset_mapping"], batch["idx"]):
-            num_prompt_tokens = bisect.bisect_right(offset_mapping, (idx,)) - 1
-            gen_ratio += [
-                (len(offset_mapping) - num_prompt_tokens) / num_prompt_tokens
-            ]  # compute Rg with token counts
-
-        data["gen_ratio"] = gen_ratio
-        del data["offset_mapping"]
-        return data
-
     # apply instruction template and chat template to each sample
     def format_sample(sample):
+        """
+        Formats a sample by applying chat templates and computing generation ratio with character counts.
+        """
         # Apply chat template to full conversation
         sample["text"] = tokenizer.apply_chat_template(
             sample["messages"], tokenize=False, add_generation_prompt=False
@@ -48,9 +40,6 @@ def compute_generation_ratios(dataset, tokenizer):
 
     # format each sample
     dataset = DatasetDict({k: dataset[k].map(format_sample) for k in dataset_keys})
-    dataset = DatasetDict(
-        {k: dataset[k].map(tokenize_batch, batched=True) for k in dataset_keys}
-    )
 
     # collect generation ratios over all splits
     gen_ratios = np.sort(

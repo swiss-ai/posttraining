@@ -17,9 +17,18 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
-# Adapted from: https://github.com/davidsvaughn/prompt-loss-weight/blob/main/run_plw.py
-# shortest pack first histogram packing
+# All adapted from: https://github.com/davidsvaughn/prompt-loss-weight/blob/main/run_plw.py
 def spfhp(seq_lens, chunk_length=2048):
+    """
+    Packs sequences into chunks using a shortest-pack-first histogram packing algorithm.
+
+    Args:
+        seq_lens (np.ndarray): Array of sequence lengths to pack.
+        chunk_length (int, optional): Maximum length of each chunk (defaults to 2048).
+
+    Returns:
+        list: List of tuples where each tuple contains (total_length, [indices]) representing packed chunks.
+    """
     q = PriorityQueue()
     q.put((0, []))
     idx = seq_lens.argsort()[::-1]
@@ -32,8 +41,17 @@ def spfhp(seq_lens, chunk_length=2048):
     return list(q.queue)
 
 
-# pack sequences into chunks
 def pack(sample, chunk_length=2048, pad_token_id=0):
+    """Packs tokenized sequences into fixed-length chunks with padding.
+
+    Args:
+        sample (dict): Dictionary with keys like 'input_ids' containing lists of sequences.
+        chunk_length (int, optional): Maximum length of each chunk (defaults to 2048).
+        pad_token_id (int, optional): Token ID used for padding (defaults to 0).
+
+    Returns:
+        dict: Dictionary with packed sequences for each key in the sample, including 'labels'.
+    """
     # compute packing arrangement
     seq_lens = np.array([len(t) for t in sample["input_ids"]])
     chunks = spfhp(seq_lens, chunk_length=chunk_length)
@@ -58,8 +76,16 @@ def pack(sample, chunk_length=2048, pad_token_id=0):
     return result
 
 
-# Function to tokenize and encode a batch of samples, and creates prompt/completion masks.
 def tokenize_batch(batch, tokenizer):
+    """Tokenizes a batch of text samples (+ creates prompt/completion masks).
+
+    Args:
+        batch (dict): Dictionary with 'text' (list of strings) and 'idx' (list of completion start indices).
+        tokenizer: Tokenizer object to encode the text.
+
+    Returns:
+        dict: Tokenized data including input_ids (+ prompt_mask and completion_mask).
+    """
     # tokenize and encode text
     tokenized_text = tokenizer(
         batch["text"],
@@ -80,8 +106,18 @@ def tokenize_batch(batch, tokenizer):
     return data
 
 
-# tokenize and pack dataset
 def tokenize_and_pack(dataset, tokenizer, config):
+    """
+    Tokenizes a dataset, filter sequences, and pack them into chunks.
+
+    Args:
+        dataset: Dataset object.
+        tokenizer: Tokenizer object to encode the text.
+        config: Configuration object (with attributes like training_args.max_seq_length).
+
+    Returns:
+        Dataset: Processed dataset with packed sequences and metadata.
+    """
     # Tokenize dataset, remove original columns
     tokenized = dataset.map(
         partial(tokenize_batch, tokenizer=tokenizer),
@@ -121,6 +157,18 @@ def tokenize_and_pack(dataset, tokenizer, config):
 
 
 def prepare_dataset(dataset, tokenizer, config):
+    """
+    Prepares a dataset by formatting, tokenizing, and packing it for training.
+
+    Args:
+        dataset (DatasetDict): Dictionary of datasets (e.g., train, validation) with 'messages' field.
+        tokenizer: Tokenizer object to encode the text.
+        config: Configuration object with training parameters.
+
+    Returns:
+        DatasetDict: Processed dataset dictionary with packed sequences for each split.
+    """
+
     # Helper function to format each sample
     def format_sample(sample):
         # Apply chat template to full conversation
