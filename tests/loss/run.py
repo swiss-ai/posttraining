@@ -1,4 +1,6 @@
+import json
 import logging
+import os.path
 from pathlib import Path
 
 import accelerate
@@ -114,9 +116,13 @@ def main(config: DictConfig) -> None:
     trainer.train(resume_from_checkpoint=False)
     acc_logger.info("Training completed.")
 
-    if training_args.num_train_epochs == 0:
-        acc_logger.info("Training skipped. Saving the model.")
-        trainer.save_model()
+    if acc_state.is_main_process:
+        output_path = os.path.join(os.path.dirname(__file__), config.train_loss_dir)
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+        with open(os.path.join(output_path, "log_history.json"), "w") as f:
+            json.dump(trainer.state.log_history, f)
 
     acc_state.wait_for_everyone()
     accelerate.Accelerator().end_training()
