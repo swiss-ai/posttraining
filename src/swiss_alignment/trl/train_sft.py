@@ -80,7 +80,7 @@ def main(config: DictConfig) -> None:
     training_args.model_init_kwargs = model_kwargs
     peft_config = get_peft_config(model_args)
 
-    full_config = utils_for_trl.postprocess_and_save_config(
+    full_config = utils_for_trl.merge_and_save_config(
         config, script_args, training_args, model_args, acc_state
     )
     if acc_state.is_main_process:

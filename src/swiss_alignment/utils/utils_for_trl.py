@@ -11,9 +11,7 @@ from omegaconf import OmegaConf
 from swiss_alignment import utils
 
 
-def postprocess_and_save_config(
-    config, script_args, training_args, model_args, acc_state
-):
+def merge_and_save_config(config, script_args, training_args, model_args, acc_state):
     # Full config will be different between processes as it contains the process index.
     full_config = OmegaConf.create(
         {
