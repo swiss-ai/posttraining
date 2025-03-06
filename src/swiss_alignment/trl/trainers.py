@@ -48,11 +48,28 @@ class PLWTrainer(CustomSFTTrainer):
 
         # Store eval masks as tensors if eval_dataset is provided
         if self.eval_dataset is not None:
-            self.prompt_mask = np.array(self.eval_dataset["prompt_mask"])
-            self.completion_mask = np.array(self.eval_dataset["completion_mask"])
+            prompt_masks = self.eval_dataset["prompt_mask"]
+            completion_masks = self.eval_dataset["completion_mask"]
+
+            max_length = min(
+                self.args.max_seq_length,
+                max([len(tokens) for tokens in self.eval_dataset["input_ids"]]),
+            )
+            dataset_size = len(self.eval_dataset)
+
+            self.prompt_mask = np.zeros((dataset_size, max_length), dtype=np.int8)
+            self.completion_mask = np.zeros((dataset_size, max_length), dtype=np.int8)
+
+            for i in range(dataset_size):
+                p_len = min(len(prompt_masks[i]), max_length)
+                c_len = min(len(completion_masks[i]), max_length)
+
+                self.prompt_mask[i, :p_len] = prompt_masks[i][:p_len]
+                self.completion_mask[i, :c_len] = completion_masks[i][:c_len]
         else:
             self.prompt_mask = self.completion_mask = None
 
+    # TODO: try changing this to compute_loss_func
     def compute_loss(
         self, model, inputs, return_outputs=False, num_items_in_batch=None
     ):
@@ -77,10 +94,8 @@ class PLWTrainer(CustomSFTTrainer):
 
         # Compute weighted average of losses
         loss_fct = CrossEntropyLoss(reduction="none")
-        token_losses = loss_fct(
-            shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1)
-        )
-        loss = token_losses @ shift_weights.view(-1) / shift_weights.sum()
+        token_losses = loss_fct(shift_logits.transpose(1, 2), shift_labels)
+        loss = (token_losses * shift_weights).sum() / shift_weights.sum()
 
         return (loss, outputs) if return_outputs else loss
 
@@ -99,21 +114,13 @@ class PLWTrainer(CustomSFTTrainer):
         shift_labels = data.label_ids[..., 1:]
 
         # Align masks with processed dataset (due to dataloader_drop_last)
-        dataset_len = token_losses.shape[0]
-        shift_prompt_mask = self.prompt_mask[:dataset_len, 1:]
-        shift_comp_mask = self.completion_mask[:dataset_len, 1:]
+        dataset_size = token_losses.shape[0]
+        shift_prompt_mask = self.prompt_mask[:dataset_size, 1:]
+        shift_comp_mask = self.completion_mask[:dataset_size, 1:]
 
         # Compute prompt/completion average loss
-        prompt_loss = (
-            token_losses.reshape(-1)
-            @ shift_prompt_mask.reshape(-1)
-            / shift_prompt_mask.sum()
-        )
-        completion_loss = (
-            token_losses.reshape(-1)
-            @ shift_comp_mask.reshape(-1)
-            / shift_comp_mask.sum()
-        )
+        prompt_loss = (token_losses * shift_prompt_mask).sum() / shift_prompt_mask.sum()
+        completion_loss = (token_losses * shift_comp_mask).sum() / shift_comp_mask.sum()
 
         # Compute total/prompt/completion accuracies
         def compute_accuracy(preds, labels, mask):

@@ -9,9 +9,9 @@ model_args:
 
 tokenizer_args:
   tokenizer_name_or_path: meta-llama/Llama-3.1-8B
-  chat_template_name: simple_chat
+  chat_template_name: tulu
   trust_remote_code: true
   padding_side: right
-  add_bos: false
+  add_bos: true
   model_pad_token_id: 0  # <unk>
   model_eos_token_id: null # keep default. (128001)

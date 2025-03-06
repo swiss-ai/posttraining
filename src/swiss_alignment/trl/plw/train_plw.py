@@ -92,7 +92,7 @@ def main(config: DictConfig) -> None:
             range(min(len(ds["eval"]), config.dataset_args.debug_subsample.eval))
         )
 
-    ds = utils_for_plw.prepare_dataset(ds, tokenizer, config)
+    ds = utils_for_plw.prepare_dataset(ds, tokenizer)
 
     # Shuffle at the end to preserve previous cache across seeds.
     ds = ds.shuffle(seed=config.seed)
@@ -123,6 +123,7 @@ def main(config: DictConfig) -> None:
         train_dataset=ds["train"],
         eval_dataset=ds["eval"] if training_args.eval_strategy != "no" else None,
         processing_class=tokenizer,
+        data_collator=utils_for_plw.PLWDataCollator(tokenizer=tokenizer, mlm=False),
         peft_config=peft_config,
     )
 

@@ -1,13 +1,11 @@
 import logging
-import random
 from functools import partial
-from itertools import chain
-from queue import PriorityQueue
 
 import numpy as np
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
 from datasets import DatasetDict, Sequence, Value
+from transformers.data.data_collator import DataCollatorForLanguageModeling
 
 from swiss_alignment import utils
 
@@ -17,75 +15,53 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
+class PLWDataCollator(DataCollatorForLanguageModeling):
+    def __init__(self, tokenizer, mlm=False, pad_to_multiple_of=None):
+        super(PLWDataCollator, self).__init__(
+            tokenizer=tokenizer, mlm=mlm, pad_to_multiple_of=pad_to_multiple_of
+        )
+
+    def __call__(self, features, return_tensors=None):
+        if return_tensors is None:
+            return_tensors = self.return_tensors
+
+        # Delegate to parent __call__ for standard fields
+        standard_fields = [
+            {"input_ids": ex["input_ids"], "attention_mask": ex["attention_mask"]}
+            for ex in features
+        ]
+        batch = super(PLWDataCollator, self).__call__(
+            standard_fields, return_tensors=return_tensors
+        )
+
+        # Custom fields to pad separately
+        max_length = batch["input_ids"].shape[1]  # Match length of padded input_ids
+
+        # Pad and tensorize custom fields with framework-appropriate tensors
+        for field_name in ["prompt_mask", "completion_mask"]:
+            # First create as numpy array (neutral format)
+            padded_field = np.zeros((len(features), max_length), dtype=np.int8)
+            for i, ex in enumerate(features):
+                length = min(len(ex[field_name]), max_length)
+                padded_field[i, :length] = ex[field_name][:length]
+
+            # Convert to appropriate tensor type
+            if return_tensors == "pt":
+                import torch
+
+                batch[field_name] = torch.tensor(padded_field)
+            elif return_tensors == "tf":
+                import tensorflow as tf
+
+                batch[field_name] = tf.convert_to_tensor(padded_field)
+            elif return_tensors == "np":
+                batch[field_name] = padded_field
+
+        return batch
+
+
 # All adapted from: https://github.com/davidsvaughn/prompt-loss-weight/blob/main/run_plw.py
-def spfhp(seq_lens, chunk_length=2048):
-    """
-    Packs sequences into chunks using a shortest-pack-first histogram packing algorithm.
-
-    Args:
-        seq_lens (np.ndarray): Array of sequence lengths to pack.
-        chunk_length (int, optional): Maximum length of each chunk (defaults to 2048).
-
-    Returns:
-        list: List of tuples where each tuple contains (total_length, [indices]) representing packed chunks.
-    """
-    q = PriorityQueue()
-    q.put((0, []))
-    idx = seq_lens.argsort()[::-1]
-    for i in idx:
-        n, pack = seq_lens[i], q.get()
-        if n + pack[0] > chunk_length:
-            q.put(pack)
-            pack = (0, [])
-        q.put((n + pack[0], pack[1] + [i]))
-    return list(q.queue)
-
-
-def pack(sample, chunk_length=2048, pad_token_id=0):
-    """Packs tokenized sequences into fixed-length chunks with padding.
-
-    Args:
-        sample (dict): Dictionary with keys like 'input_ids' containing lists of sequences.
-        chunk_length (int, optional): Maximum length of each chunk (defaults to 2048).
-        pad_token_id (int, optional): Token ID used for padding (defaults to 0).
-
-    Returns:
-        dict: Dictionary with packed sequences for each key in the sample, including 'labels'.
-    """
-    # compute packing arrangement
-    seq_lens = np.array([len(t) for t in sample["input_ids"]])
-    chunks = spfhp(seq_lens, chunk_length=chunk_length)
-    random.shuffle(chunks)
-
-    # pack sequences according to arrangement
-    result = {}
-    for k in sample.keys():
-        result[k] = []
-        pad_id = pad_token_id if k == "input_ids" else 0
-        for chunk in chunks:
-            item = list(
-                chain(
-                    *[sample[k][i] for i in chunk[1]],
-                    [pad_id] * (chunk_length - chunk[0]),
-                )
-            )
-            result[k].append(item)
-
-    # add labels (same as input_ids!)
-    result["labels"] = result["input_ids"].copy()
-    return result
-
-
 def tokenize_batch(batch, tokenizer):
-    """Tokenizes a batch of text samples (+ creates prompt/completion masks).
-
-    Args:
-        batch (dict): Dictionary with 'text' (list of strings) and 'idx' (list of completion start indices).
-        tokenizer: Tokenizer object to encode the text.
-
-    Returns:
-        dict: Tokenized data including input_ids (+ prompt_mask and completion_mask).
-    """
     # tokenize and encode text
     tokenized_text = tokenizer(
         batch["text"],
@@ -106,18 +82,7 @@ def tokenize_batch(batch, tokenizer):
     return data
 
 
-def tokenize_and_pack(dataset, tokenizer, config):
-    """
-    Tokenizes a dataset, filter sequences, and pack them into chunks.
-
-    Args:
-        dataset: Dataset object.
-        tokenizer: Tokenizer object to encode the text.
-        config: Configuration object (with attributes like training_args.max_seq_length).
-
-    Returns:
-        Dataset: Processed dataset with packed sequences and metadata.
-    """
+def tokenize(dataset, tokenizer):
     # Tokenize dataset, remove original columns
     tokenized = dataset.map(
         partial(tokenize_batch, tokenizer=tokenizer),
@@ -129,46 +94,10 @@ def tokenize_and_pack(dataset, tokenizer, config):
     for col in ["prompt_mask", "completion_mask"]:
         tokenized = tokenized.cast_column(col, Sequence(Value("int8")))
 
-    # Filter sequences longer than max_seq_length
-    tokenized = tokenized.filter(
-        lambda x: len(x["input_ids"]) <= config.training_args.max_seq_length
-    )
-
-    # Print sample count
-    acc_logger.info(f"Number of samples: {len(tokenized)}")
-
-    # Pack sequences
-    packed = tokenized.map(
-        lambda x: pack(
-            x,
-            chunk_length=config.training_args.max_seq_length,
-            pad_token_id=tokenizer.pad_token_id,
-        ),
-        batched=True,
-    )
-    packed = packed.cast_column("labels", Sequence(Value("int32")))
-
-    # Calculate and print packing stats
-    seq_lens = [len(x) for x in tokenized["input_ids"]]
-    total_packed = len(packed) * config.training_args.max_seq_length
-    acc_logger.info(f"Packing density:     {100 * sum(seq_lens) / total_packed:.1f}%")
-    acc_logger.info(f"Packing compression: {100 * len(packed) / len(tokenized):.1f}%")
-    return packed
+    return tokenized
 
 
-def prepare_dataset(dataset, tokenizer, config):
-    """
-    Prepares a dataset by formatting, tokenizing, and packing it for training.
-
-    Args:
-        dataset (DatasetDict): Dictionary of datasets (e.g., train, validation) with 'messages' field.
-        tokenizer: Tokenizer object to encode the text.
-        config: Configuration object with training parameters.
-
-    Returns:
-        DatasetDict: Processed dataset dictionary with packed sequences for each split.
-    """
-
+def prepare_dataset(dataset, tokenizer):
     # Helper function to format each sample
     def format_sample(sample):
         # Apply chat template to full conversation
@@ -185,8 +114,7 @@ def prepare_dataset(dataset, tokenizer, config):
     processed = DatasetDict({})
     for k in dataset.keys():
         split = dataset[k].map(format_sample)
-        split = tokenize_and_pack(split, tokenizer, config)
+        split = tokenize(split, tokenizer)
         processed[k] = split
-        acc_logger.info(f"Total count of {k} packed sequences: {len(split)}")
 
     return processed

@@ -11,6 +11,4 @@ plw_args:
 
 training_args:
   dataloader_drop_last: true
-  dataset_kwargs:
-    skip_prepare_dataset: true # For PLW: Requires custom dataset preprocessing
   remove_unused_columns: false # For PLW: makes custom fields (like 'completion_mask') available inside compute_loss function

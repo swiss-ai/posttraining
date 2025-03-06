@@ -3,8 +3,10 @@ from datetime import datetime
 models = ["meta-llama-3-1-8b.yaml"]
 datasets = ["tulu-3-sft-mixture-split"]
 
-prompt_loss_weight = [0.0, 0.01, 0.1, 0.2, 0.5, 1.0]
-learning_rates = [5e-6, 1e-5, 2e-5]
+prompt_loss_weight = [0.0, 0.01, 0.1, 0.5, 1.0]
+learning_rates = [
+    5.0e-6,
+]
 ds_accumulation_steps = 8
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
