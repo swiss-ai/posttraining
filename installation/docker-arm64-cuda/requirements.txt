@@ -15,3 +15,14 @@ trl
 # TRL extensions
 llm-blender
 diffusers
+lm_eval==0.4.3 # Pin this to review changes, but will try to update to latest version
+ai2-olmo>=0.5.1  # To run "hf-oldstyle" OLMo models
+pygsheets
+langdetect # For IFEval
+immutabledict # For IFEval
+alpaca_eval
+litellm  # For LLM judges
+tenacity
+tree-sitter
+tree-sitter-python
+gradio-client
