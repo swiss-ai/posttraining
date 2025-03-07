@@ -2,6 +2,7 @@ import logging
 
 import numpy as np
 import torch
+import torch.nn as nn
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
 from torch.nn import CrossEntropyLoss
@@ -69,7 +70,6 @@ class PLWTrainer(CustomSFTTrainer):
         else:
             self.prompt_mask = self.completion_mask = None
 
-    # TODO: try changing this to compute_loss_func
     def compute_loss(
         self, model, inputs, return_outputs=False, num_items_in_batch=None
     ):
@@ -77,7 +77,7 @@ class PLWTrainer(CustomSFTTrainer):
         outputs = model(
             input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"]
         )
-        logits = outputs.get("logits")
+        logits = outputs.get("logits").float()
         labels = inputs.pop("labels")
 
         # compute per-token weights
@@ -89,13 +89,21 @@ class PLWTrainer(CustomSFTTrainer):
         shift_weights = weights[..., 1:].contiguous()
 
         # Enable model parallelism
-        shift_labels = shift_labels.to(shift_logits.device)
-        shift_weights = shift_weights.to(shift_logits.device)
+        shift_labels = shift_labels.to(logits.device)
+        shift_weights = shift_weights.to(logits.device)
 
         # Compute weighted average of losses
         loss_fct = CrossEntropyLoss(reduction="none")
         token_losses = loss_fct(shift_logits.transpose(1, 2), shift_labels)
-        loss = (token_losses * shift_weights).sum() / shift_weights.sum()
+
+        if num_items_in_batch is not None:
+            # TODO: clarify
+            # loss = (token_losses * shift_weights).sum() / shift_weights.sum()
+            loss = (token_losses * shift_weights).sum() / num_items_in_batch
+            loss *= self.accelerator.num_processes
+        else:
+            # TODO: verify this, because here the "mean" is per mini-batch and does not consider num_items_in_batch
+            loss = (token_losses * shift_weights).mean()
 
         return (loss, outputs) if return_outputs else loss
 
@@ -118,9 +126,15 @@ class PLWTrainer(CustomSFTTrainer):
         shift_prompt_mask = self.prompt_mask[:dataset_size, 1:]
         shift_comp_mask = self.completion_mask[:dataset_size, 1:]
 
-        # Compute prompt/completion average loss
-        prompt_loss = (token_losses * shift_prompt_mask).sum() / shift_prompt_mask.sum()
-        completion_loss = (token_losses * shift_comp_mask).sum() / shift_comp_mask.sum()
+        # TODO: clarify this
+        # Compute total/prompt/completion average loss
+        # do we want this? it depends on the compute_loss function when num_items_in_batch is set to None
+        # total_loss = (token_losses * (self.plw.to(dtype=torch.float32).cpu().numpy() * shift_prompt_mask + shift_comp_mask)).mean()
+        prompt_loss = (token_losses * shift_prompt_mask).mean()
+        completion_loss = (token_losses * shift_comp_mask).mean()
+        # or
+        # prompt_loss = (token_losses * shift_prompt_mask).sum() / shift_prompt_mask.sum()
+        # completion_loss = (token_losses * shift_comp_mask).sum() / shift_comp_mask.sum()
 
         # Compute total/prompt/completion accuracies
         def compute_accuracy(preds, labels, mask):
