@@ -1,0 +1,1 @@
+accelerate launch --config-file config.yaml ds_gradnorm.py

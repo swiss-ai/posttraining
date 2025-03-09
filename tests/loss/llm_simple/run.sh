@@ -1,0 +1,1 @@
+accelerate launch --config-file config.yaml run.py
