@@ -9,7 +9,7 @@ eval_losses = {}
 fig, axs = plt.subplots(3, 1, figsize=(20, 30))
 
 for dir in os.listdir(os.getcwd()):
-    if dir.startswith("FFT") and os.path.isdir(dir):
+    if dir.startswith("DS_FFT") and os.path.isdir(dir):
         batch_size = int(dir.split("_")[-2])
         grad_acc = int(dir.split("_")[-1])
 
@@ -47,5 +47,5 @@ axs[2].legend()
 
 
 
-plt.savefig('report.png')
+plt.savefig('report_llama_3_2_1b_np4_deepspeed1.png')
 

@@ -1,46 +1,35 @@
 import os
 import subprocess
 
-# Template for the accelerate launch command
-command_template = (
-    "accelerate launch --num_processes {num_processes} "
-    "run.py "
-    "--batch_size {batch_size} "
-    "--gradient_accumulation_steps {gradient_accumulation_steps}"
-)
+os.environ["WORLD_SIZE"] = "1"
+os.environ["MASTER_ADDR"] = "localhost"
+os.environ["MASTER_PORT"] = "12345"
+os.environ["LOCAL_RANK"] = "0"
 
-# List of commands to run with different configurations
-commands = [
-    command_template.format(
-        num_processes=4,
-        batch_size=8,
-        gradient_accumulation_steps=2
-    ),
-    command_template.format(
-        num_processes=4,
-        batch_size=16,
-        gradient_accumulation_steps=1
-    ),
-    command_template.format(
-        num_processes=4,
-        batch_size=1,
-        gradient_accumulation_steps=16
-    ),
-    command_template.format(
-        num_processes=4,
-        batch_size=2,
-        gradient_accumulation_steps=8
-    ),
-    command_template.format(
-        num_processes=4,
-        batch_size=4,
-        gradient_accumulation_steps=4
-    ),
+
+experiments = [
+    [4, 8, 2],
+    [4, 16, 1],
+    [4, 1, 16],
+    [4, 2, 8],
+    [4, 4, 4],
 ]
 
 # Execute each command in the list
-for cmd in commands:
-    print(f"Executing: {cmd}")
+for np, bs, ga in experiments:
+    with open("config_template.yaml", "r") as f:
+        config_txt = f.read()
+
+    config_txt = config_txt.replace('gradient_accumulation_steps: 1', f'gradient_accumulation_steps: {ga}')
+    config_txt = config_txt.replace('per_device_train_batch_size: 8', f'per_device_train_batch_size: {bs}')
+    config_txt = config_txt.replace('per_device_eval_batch_size: 8', f'per_device_eval_batch_size: {bs}')
+    config_txt = config_txt.replace('num_processes: 4', f'num_processes: {np}')
+
+    with open("config.yaml", "w") as f:
+        f.write(config_txt)
+
+    cmd = f"accelerate launch --config_file config.yaml run.py --output_dir=DS_FFT_TRL_{np}_{bs}_{ga} --batch_size={bs} --gradient_accumulation_steps={ga}"
+    print(f"Executing: {config_txt}")
     process = subprocess.run(cmd, shell=True)
 
     if process.returncode != 0:

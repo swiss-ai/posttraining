@@ -15,7 +15,7 @@ compute_dtype = torch.bfloat16
 attn_implementation = 'flash_attention_2'
 
 
-def fine_tune_trl(model_name, batch_size=1, gradient_accumulation_steps=32):
+def fine_tune_trl(model_name, output_dir, batch_size, gradient_accumulation_steps):
     ds = load_dataset("timdettmers/openassistant-guanaco")
 
     if "meta" in model_name:
@@ -46,7 +46,6 @@ def fine_tune_trl(model_name, batch_size=1, gradient_accumulation_steps=32):
     )
     model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={'use_reentrant': True})
 
-    output_dir = "./FFT_TRL_" + str(batch_size) + "_" + str(gradient_accumulation_steps) + "/"
 
     training_arguments = SFTConfig(
         output_dir=output_dir,
@@ -54,8 +53,8 @@ def fine_tune_trl(model_name, batch_size=1, gradient_accumulation_steps=32):
         do_eval=True,
         optim="paged_adamw_8bit",
         per_device_train_batch_size=batch_size,
-        gradient_accumulation_steps=gradient_accumulation_steps,
         per_device_eval_batch_size=batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
         log_level="debug",
         save_strategy="no",
         logging_steps=25,
@@ -118,6 +117,7 @@ def fine_tune_trl(model_name, batch_size=1, gradient_accumulation_steps=32):
 if __name__ == "__main__":
     # Command-line argument parsing
     parser = argparse.ArgumentParser(description="Fine-tune a model using TRL SFTTrainer.")
+    parser.add_argument("--output_dir", type=str, default="output", help="Output directory for checkpoints and logs.")
     parser.add_argument("--batch_size", type=int, default=1, help="Batch size per device for training.")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=32,
                         help="Number of gradient accumulation steps.")
@@ -125,5 +125,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Call the fine-tune function with parsed arguments
-    fine_tune_trl("meta-llama/Llama-3.2-1B", batch_size=args.batch_size,
-                  gradient_accumulation_steps=args.gradient_accumulation_steps)
+    fine_tune_trl("meta-llama/Llama-3.2-1B", args.output_dir, args.batch_size, args.gradient_accumulation_steps)
