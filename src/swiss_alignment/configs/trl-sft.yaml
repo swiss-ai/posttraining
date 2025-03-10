@@ -32,10 +32,10 @@ training_args:
   bf16: true
   max_seq_length: 2048
   learning_rate: 5.0e-06
-  lr_scheduler_type: cosine
+  lr_scheduler_type: linear
   warmup_ratio: 0.03
   weight_decay: 0.0
-  num_train_epochs: 5
+  num_train_epochs: 2
   packing: false
   dataloader_drop_last: true
   per_device_train_batch_size: 2 # note, this is set up for 4 GPUs
