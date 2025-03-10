@@ -22,7 +22,7 @@ for np, bs, ga in experiments:
 
     config_txt = config_txt.replace('gradient_accumulation_steps: 1', f'gradient_accumulation_steps: {ga}')
     config_txt = config_txt.replace('per_device_train_batch_size: 8', f'per_device_train_batch_size: {bs}')
-    config_txt = config_txt.replace('per_device_eval_batch_size: 8', f'per_device_eval_batch_size: {bs}')
+    # config_txt = config_txt.replace('per_device_eval_batch_size: 8', f'per_device_eval_batch_size: {bs}')
     config_txt = config_txt.replace('num_processes: 4', f'num_processes: {np}')
 
     with open("config.yaml", "w") as f:

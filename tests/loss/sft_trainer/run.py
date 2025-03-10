@@ -53,7 +53,7 @@ def fine_tune_trl(model_name, output_dir, batch_size, gradient_accumulation_step
         do_eval=True,
         optim="paged_adamw_8bit",
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
+        per_device_eval_batch_size=8,
         gradient_accumulation_steps=gradient_accumulation_steps,
         log_level="debug",
         save_strategy="no",
