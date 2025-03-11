@@ -21,6 +21,7 @@ defaults:
 
 dataset_args:
   debug_oom: false # Reorder the dataset with largest batch first to test OOM
+  # set this to true
   debug_subsample:
     train: 0
     eval: 0
@@ -31,6 +32,7 @@ script_args:
 training_args:
   bf16: true
   max_seq_length: 2048
+  # take a loop at dpr - max_norm something
   learning_rate: 5.0e-06
   lr_scheduler_type: linear
   warmup_ratio: 0.03
