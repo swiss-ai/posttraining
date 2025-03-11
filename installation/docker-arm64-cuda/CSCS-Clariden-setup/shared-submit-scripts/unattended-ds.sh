@@ -9,12 +9,8 @@
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
-export PROJECT_NAME=swiss-alignment
-export PACKAGE_NAME=swiss_alignment
+source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh $@
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
-export WANDB_API_KEY_FILE_AT=$HOME/.wandb-api-key
-export HF_TOKEN_AT=$HOME/.hf-token
-export HF_HOME=$SCRATCH/huggingface
 
 export OMP_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
@@ -40,6 +36,7 @@ srun \
   --container-mounts=\
 $PROJECT_ROOT_AT,\
 $SCRATCH,\
+/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/,\
 $WANDB_API_KEY_FILE_AT,\
 $HF_TOKEN_AT \
   --container-workdir=$PROJECT_ROOT_AT \

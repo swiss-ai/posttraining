@@ -9,14 +9,9 @@
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/dev
-export PROJECT_NAME=swiss-alignment
-export PACKAGE_NAME=swiss_alignment
+source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh $@
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 export SLURM_ONE_REMOTE_DEV=1
-export WANDB_API_KEY_FILE_AT=$HOME/.wandb-api-key
-export OPENAI_API_KEY_AT=$HOME/.openai-api-key
-export HF_TOKEN_AT=$HOME/.hf-token
-export HF_HOME=$SCRATCH/huggingface
 export PRE_COMMIT_HOME=$SCRATCH/pre-commit
 export SSH_SERVER=1
 export NO_SUDO_NEEDED=1
