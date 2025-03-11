@@ -2,7 +2,6 @@ import logging
 
 import numpy as np
 import torch
-import torch.nn as nn
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
 from torch.nn import CrossEntropyLoss
@@ -43,7 +42,6 @@ class PLWTrainer(CustomSFTTrainer):
             }
         )
         super().__init__(*args, **kwargs)
-        # self.model_accepts_loss_kwargs = False
         self.plw = torch.tensor(
             prompt_loss_weight, dtype=self.model.dtype, device=self.args.device
         )
@@ -138,11 +136,7 @@ class PLWTrainer(CustomSFTTrainer):
         else:
             loss = (token_losses * shift_weights).sum() / shift_weights.sum()
 
-        if (
-            self.args.average_tokens_across_devices
-            # and (self.model_accepts_loss_kwargs or self.compute_loss_func)
-            and num_items_in_batch is not None
-        ):
+        if self.args.average_tokens_across_devices and num_items_in_batch is not None:
             loss *= self.accelerator.num_processes
 
         return (loss, outputs) if return_outputs else loss

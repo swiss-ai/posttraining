@@ -19,9 +19,9 @@ learning_rates = [5e-6]
 lr_scheduler_type = "linear"
 lr_warmup_ratio = 0.03
 
-logging_steps = 10
-eval_steps = 100
-save_steps = 500
+logging_steps = 100
+eval_steps = 1600
+save_steps = 1600
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
 run_name = f"tulu-3-sft-dev"

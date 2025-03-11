@@ -1,10 +1,10 @@
 from datetime import datetime
 
 models = ["meta-llama-3-1-8b.yaml"]
-datasets = ["tulu-3-sft-mixture-split"]
+datasets = ["tulu-3-sft-mixture-plw"]
 
 num_epochs = 5
-batch_size = 64
+batch_size = 32
 max_seq_length = 4096
 num_nodes = 2
 num_proc_per_node = 4
@@ -20,12 +20,12 @@ lr_warmup_ratio = 0.03
 
 prompt_loss_weight = [0.0, 0.01, 0.1, 0.5, 1.0]
 
-logging_steps = 200
-eval_steps = 400
-save_steps = 800
+logging_steps = 100
+eval_steps = 800
+save_steps = 1600
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
-run_name = f"plw-sweep"
+run_name = f"tulu-3-plw-sweep"
 nruns = 0
 for dataset in datasets:
     for model in models:
@@ -43,8 +43,6 @@ for dataset in datasets:
                     f"model={model} "
                     f"plw_args.prompt_loss_weight={plw} "
                     f"dataset_args.debug_oom=True "
-                    f"dataset_args.debug_subsample.train=10_000 "
-                    f"dataset_args.debug_subsample.eval=1_000 "
                     f"training_args.max_seq_length={max_seq_length} "
                     f"training_args.num_train_epochs={num_epochs} "
                     f"training_args.gradient_accumulation_steps={accumulation_steps} "
