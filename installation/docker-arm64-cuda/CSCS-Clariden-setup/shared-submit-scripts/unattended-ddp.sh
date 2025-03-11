@@ -24,6 +24,7 @@ srun \
   --container-image=$CONTAINER_IMAGES/$(id -gn)+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/edf.toml" \
   --container-mounts=\
+$PROJECT_ROOT_AT,\
 $SCRATCH,\
 $WANDB_API_KEY_FILE_AT,\
 $HF_TOKEN_AT \
@@ -33,7 +34,7 @@ $HF_TOKEN_AT \
   --no-container-entrypoint \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
-  bash -c "exec accelerate launch --config-file src/swiss-alignment/configs/accelerate/ddp-4xN.yaml \
+  bash -c "exec accelerate launch --config-file src/swiss_alignment/configs/accelerate/ddp-4xN.yaml \
   --num_machines $SLURM_NNODES \
   --num_processes $((4*$SLURM_NNODES)) \
   --main_process_ip $(hostname) \
