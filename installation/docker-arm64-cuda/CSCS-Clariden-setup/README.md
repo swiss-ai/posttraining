@@ -27,29 +27,39 @@ The outputs and data directories of those two instances will be symlinked to the
 and will be shared anyway.
 This guide includes the steps to do it, and there are general details in `data/README.md` and `outputs/README.md`.
 
+You are going to install `swiss-alignment` as well as `olmes` project for evaluation sources. The image creation scripts
+would be stored and configured inside the `swiss-alignment` project, branch `eval-image`. However, the sources for 
+evaluation are stored in `olmes` directory.
+
 ```bash
 # SSH to a cluster.
 ssh clariden
 # Clone the repo twice with name dev and run (if you already have one, mv it to a different name)
+mkdir -p $HOME/projects/olmes
+cd $HOME/projects/olmes
+git clone <olmes HTTPS/SSH> dev
+git clone <olmes HTTPS/SSH> run
+
 mkdir -p $HOME/projects/swiss-alignment
 cd $HOME/projects/swiss-alignment
-git clone <HTTPS/SSH> dev
-git clone <HTTPS/SSH> run
+git clone <swiss-alignment HTTPS/SSH> dev
+git clone <swiss-alignment HTTPS/SSH> run
 ```
 
 The rest of the instructions should be performed on the cluster from the dev instance of the project.
 ```bash
-cd dev
+cd $HOME/projects/swiss-alignment/dev
 # It may also be useful to open a remote code editor on a login node to view the project. (The remote development will happen in another IDE in the container.)
 # Push what you did on your local machine so far (change project name etc) and pull it on the cluster.
 git pull
+git checkout eval-image
 cd installation/docker-amd64-cuda
 ```
 
 ## Building the environment (skip to First steps if you do not need to change the image)
 
-You can reuse the `swiss-alignment` image for your project if you don't need to edit the environment.
-Otherwise, it's better to still get started with the `swiss--alignment` image, understand what dependencies you're missing
+You can reuse the `olmes` image for your project if you don't need to edit the environment.
+Otherwise, it's better to still get started with the `olmes` image, understand what dependencies you're missing
 when developing, then read the `Instructions to maintain the environment` section in the `docker-arm64-cuda/README.md` file
 to undersntand how to change the environment, then follow the steps below
 
@@ -84,7 +94,7 @@ pip install podman-compose
 
 ### Build the images
 
-All commands should be run from the `installation/docker-arm64-cuda/` directory.
+All commands should be run from the `$HOME/projects/swiss-alignment/dev/installation/docker-arm64-cuda/` directory.
 
 You should be on a compute node. If not already, get one.
 ```bash
@@ -98,7 +108,7 @@ tmux at
 ```
 
 ```bash
-cd installation/docker-arm64-cuda
+cd $HOME/projects/swiss-alignment/dev/installation/docker-arm64-cuda/
 ```
 
 1. Create an environment file for your personal configuration with
@@ -135,14 +145,14 @@ cd installation/docker-arm64-cuda
 
 ## Getting your image (if already built, or just built)
 
-You will find the image to use for this project at `/capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh`.
+You will find the image to use for this project at `/capstor/store/cscs/swissai/a10/container-images/a10+smoalla+olmes+arm64-cuda-root-latest.sqsh`.
 Copy it or create a symlink to it where you keep your images. E.g.,
 ```bash
 # Make a directory where you store your images
 # Add it to your bashrc as it'll be used often
 CONTAINER_IMAGES=$SCRATCH/container-images
 mkdir -p $CONTAINER_IMAGES
-cp /capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/a10+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh
+cp /capstor/store/cscs/swissai/a10/container-images/a10+smoalla+olmes+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/a10+$(id -un)+olmes+arm64-cuda-root-latest.sqsh
 ```
 
 Example submit scripts are provided in the `example-submit-scripts` directory and are used in the following examples.
@@ -395,7 +405,7 @@ All the directories will be created automatically.
    (something like `/iopsstor/scratch/cscs/smoalla/jetbrains-server/dist`)
    not in its default location **(use the small "installation options..." link)**.
    For the project directory, it should be in the same location where it was mounted (`${PROJECT_ROOT_AT}`,
-   something like `/iopsstor/scratch/cscs/smoalla/swiss-alignment/dev`).
+   something like `/iopsstor/scratch/cscs/smoalla/olmes/dev`).
 
 When in the container, locate the name of the PyCharm IDE installed.
 It will be at

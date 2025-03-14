@@ -46,8 +46,8 @@ We provide the following guides for obtaining/building and running the environme
 Clone the git repository.
 
 ```bash
-git clone <HTTPS/SSH> swiss-alignment
-cd swiss-alignment
+git clone <HTTPS/SSH> olmes
+cd olmes
 ```
 
 ### Obtain/build the images
@@ -115,7 +115,7 @@ For the local deployment option with Docker Compose, follow the instructions bel
 Push the generic image if you built it (`LAB_NAME/USR/PROJECT_NAME:PLATFORM-root-latest`).
 
 ```bash
-./template.sh push_generic docker.io/docker-username/swiss-alignment
+./template.sh push_generic docker.io/docker-username/olmes
 ```
 
 Pro-tip: it will also push them with the git commit hash as a tag if the build is at the latest commit.
@@ -124,7 +124,7 @@ You can rebuild the images with `./template.sh build` to tag them with the lates
 > [!IMPORTANT]
 > **TEMPLATE TODO:**
 > Give the generic image name you just pushed
-> (e.g., `docker.io/docker-username/swiss-alignment`)
+> (e.g., `docker.io/docker-username/olmes`)
 > Replace the _TODO ADD PULL_IMAGE_NAME_ above with this name.
 
 ## Running locally with Docker Compose
@@ -191,11 +191,11 @@ you're simultaneously developing.
 You could for example
 
 ```bash
-mv swiss-alignment swiss-alignment-tmp
-mkdir swiss-alignment
-mv swiss-alignment-tmp swiss-alignment/dev
+mv olmes olmes-tmp
+mkdir olmes
+mv olmes-tmp olmes/dev
 # Make sure to rerun your .env so that the new paths are correct.
-git clone <HTTPS/SSH> swiss-alignment/run
+git clone <HTTPS/SSH> olmes/run
 # Then you can follow the same steps for .../run to run your experiments.
 # Remember to generate and edit the .env file there as well.
 ```
@@ -343,7 +343,7 @@ You can use your favorite container runtime to run these images.
 They have an entrypoint which installs the project with pip
 and expects it to be mounted in the container and its location specified with the
 environment variable `PROJECT_ROOT_AT`.
-E.g., you can mount it at `/project/swiss-alignment` and specify `PROJECT_ROOT_AT=/project/swiss-alignment`.
+E.g., you can mount it at `/project/olmes` and specify `PROJECT_ROOT_AT=/project/olmes`.
 The entrypoint can then take any command to run in the container and will run it with PID 1.
 (If you don't specify the `PROJECT_ROOT_AT`, the entrypoint will skip the project installation and warn you about it.)
 It also expects the working directory to be set to `$PROJECT_ROOT_AT`.
@@ -358,14 +358,14 @@ For example, on an HPC system with Apptainer/Singularity you could do
 apptainer pull PULL_IMAGE_NAME:arm64-cuda-root-latest
 
 # Location to mount the project, also used by the entrypoint
-export PROJECT_ROOT_AT=/project/swiss-alignment
+export PROJECT_ROOT_AT=/project/olmes
 apptainer run \
     -c \
     -B $(pwd):${PROJECT_ROOT_AT} \
     --cwd ${PROJECT_ROOT_AT} \
     --env PROJECT_ROOT_AT=${PROJECT_ROOT_AT} \
     --env WANDB_API_KEY="" \
-    --nv swiss-alignment_arm64-cuda-root-latest.sif
+    --nv olmes_arm64-cuda-root-latest.sif
 # --env PROJECT_ROOT_AT is used by the entrypoint to install the project
 # *.sif is the downloaded image.
 # -c to not mount all the home directory to avoid spoiling reproducibility

@@ -41,8 +41,9 @@ PYCHARM_IDE_AT=
 ## Used to avoid writing paths multiple times and creating inconsistencies.
 ## You should not need to change anything below this line.
 PROJECT_NAME=swiss-alignment
+EVAL_PROJECT_NAME=olmes
 PACKAGE_NAME=swiss_alignment
-IMAGE_NAME=\${LAB_NAME}/\${USR}/\${PROJECT_NAME}
+IMAGE_NAME=\${LAB_NAME}/\${USR}/\${EVAL_PROJECT_NAME}
 IMAGE_PLATFORM=arm64-cuda
 # The image name includes the USR to separate the images in an image registry.
 # Its tag includes the platform for registries that don't hand multi-platform images for the same tag.
@@ -72,7 +73,7 @@ check() {
     exit 1
   fi
   source "${ENV_FILE}"
-  COMPOSE_PROJECT="${PROJECT_NAME}-${IMAGE_PLATFORM}-${USR}"
+  COMPOSE_PROJECT="${EVAL_PROJECT_NAME}-${IMAGE_PLATFORM}-${USR}"
 }
 
 edit_from_base() {
@@ -92,8 +93,8 @@ pull_generic() {
   PULL_IMAGE_NAME="${1}"
   if [ "${PULL_IMAGE_NAME}" == "" ]; then
     echo "[TEMPLATE ERROR] Please specify the name of the image to pull."
-    echo "For example: ./template.sh pull ic-registry.epfl.ch/${LAB_NAME}/gaspar/${PROJECT_NAME}"
-    echo "For example: ./template.sh pull docker.io/docker-username/${PROJECT_NAME}"
+    echo "For example: ./template.sh pull ic-registry.epfl.ch/${LAB_NAME}/gaspar/${EVAL_PROJECT_NAME}"
+    echo "For example: ./template.sh pull docker.io/docker-username/${EVAL_PROJECT_NAME}"
     exit 1
   fi
 
@@ -236,7 +237,7 @@ list_env() {
   echo "[TEMPLATE INFO] The idea is to see if all your dependencies have been installed."
   $DOCKER run --rm "${IMAGE_NAME}:${IMAGE_PLATFORM}-root-latest" zsh -c \
   "echo '[TEMPLATE INFO] Running mamba list';\
-  if command -v mamba >/dev/null 2>&1; then mamba list -n ${PROJECT_NAME}; \
+  if command -v mamba >/dev/null 2>&1; then mamba list -n ${EVAL_PROJECT_NAME}; \
   else echo '[TEMPLATE INFO] conda not in the environment, skipping...'; fi;
   echo '[TEMPLATE INFO] Running pip list'; pip list"
 }
