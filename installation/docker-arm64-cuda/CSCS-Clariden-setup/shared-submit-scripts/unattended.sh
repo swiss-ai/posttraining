@@ -8,6 +8,7 @@
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
+export EVAL_PROJECT_ROOT_AT=$HOME/projects/olmes/run
 export PROJECT_NAME=swiss-alignment
 export PACKAGE_NAME=swiss_alignment
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
@@ -23,14 +24,14 @@ OPENAI_API_KEY=$(cat $OPENAI_API_KEY_AT)
 export OPENAI_API_KEY
 
 srun \
-  --container-image=$CONTAINER_IMAGES/$(id -gn)+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh \
+  --container-image=$CONTAINER_IMAGES/$(id -gn)+$(id -un)+olmes+arm64-cuda-root-latest.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/edf.toml" \
   --container-mounts=\
 $SCRATCH,\
 $WANDB_API_KEY_FILE_AT,\
 $HF_TOKEN_AT,\
 $OPENAI_API_KEY_AT \
-  --container-workdir=$PROJECT_ROOT_AT \
+  --container-workdir=$EVAL_PROJECT_ROOT_AT \
   --no-container-mount-home \
   --no-container-remap-root \
   --no-container-entrypoint \
