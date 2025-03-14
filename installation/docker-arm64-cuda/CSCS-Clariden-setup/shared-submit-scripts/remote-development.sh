@@ -37,7 +37,7 @@ srun \
   --container-image=$CONTAINER_IMAGES/$(id -gn)+$(id -un)+olmes+arm64-cuda-root-latest.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/edf.toml" \
   --container-mounts=\
-$PROJECT_ROOT_AT, \
+$PROJECT_ROOT_AT,\
 $EVAL_PROJECT_ROOT_AT,\
 $SCRATCH,\
 /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/,\
@@ -48,7 +48,7 @@ $HOME/.bashrc,\
 $HOME/.oh-my-bash,\
 $JETBRAINS_SERVER_AT,\
 $HOME/.ssh \
-  --container-workdir=$EVAL_PROJECT_ROOT_AT \
+  --container-workdir=$PROJECT_ROOT_AT \
   --no-container-mount-home \
   --no-container-remap-root \
   --no-container-entrypoint \
