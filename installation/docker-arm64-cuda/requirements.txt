@@ -1,7 +1,6 @@
 # Template
 hatchling
 editables
-hydra-core
 tqdm
 wandb
 pre-commit
@@ -26,3 +25,4 @@ tenacity
 tree-sitter
 tree-sitter-python
 gradio-client
+antlr4-python3-runtime==4.11.1
