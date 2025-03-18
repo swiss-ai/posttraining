@@ -2,12 +2,12 @@ compute_environment: LOCAL_MACHINE
 debug: false
 deepspeed_config:
   deepspeed_multinode_launcher: standard
-  gradient_accumulation_steps: 8
   zero3_init_flag: false
   zero_stage: 1
 distributed_type: DEEPSPEED
 downcast_bf16: 'no'
 enable_cpu_affinity: false
+gpu_ids: all
 machine_rank: 0
 main_process_ip: nid                        # Edit at runtime
 main_process_port: 29400

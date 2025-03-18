@@ -45,7 +45,7 @@ $HF_TOKEN_AT \
   --no-container-entrypoint \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
-  bash -c "exec accelerate launch --config-file src/swiss_alignment/configs/accelerate/ds1-acc${deepspeed_acc}-4xN.yaml \
+  bash -c "exec accelerate launch --config-file src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
   --num_machines $SLURM_NNODES \
   --num_processes $((4*$SLURM_NNODES)) \
   --main_process_ip $(hostname) \

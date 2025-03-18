@@ -92,6 +92,7 @@ def main(config: DictConfig) -> None:
                 ds["train"] = ds["train"].remove_columns([extra_key])
             if extra_key in ds["eval"].column_names:
                 ds["eval"] = ds["eval"].remove_columns([extra_key])
+
     if config.dataset_args.debug_oom:
 
         def add_debug_max_len(row):
