@@ -8,6 +8,7 @@ from torch.nn import CrossEntropyLoss
 from trl import SFTTrainer
 
 from swiss_alignment import utils
+from swiss_alignment.utils.utils_for_plw import PLWDataCollator
 
 utils.config.register_resolvers()
 acc_state = PartialState()
@@ -48,24 +49,11 @@ class PLWTrainer(CustomSFTTrainer):
 
         # Store eval masks as tensors if eval_dataset is provided
         if self.eval_dataset is not None:
-            prompt_masks = self.eval_dataset["prompt_mask"]
-            completion_masks = self.eval_dataset["completion_mask"]
-
-            max_length = min(
-                self.args.max_seq_length,
-                max([len(tokens) for tokens in self.eval_dataset["input_ids"]]),
+            padded_eval = self.data_collator(self.eval_dataset, return_tensors="np")
+            self.prompt_mask, self.completion_mask = (
+                padded_eval["prompt_mask"],
+                padded_eval["completion_mask"],
             )
-            dataset_size = len(self.eval_dataset)
-
-            self.prompt_mask = np.zeros((dataset_size, max_length), dtype=np.int8)
-            self.completion_mask = np.zeros((dataset_size, max_length), dtype=np.int8)
-
-            for i in range(dataset_size):
-                p_len = min(len(prompt_masks[i]), max_length)
-                c_len = min(len(completion_masks[i]), max_length)
-
-                self.prompt_mask[i, :p_len] = prompt_masks[i][:p_len]
-                self.completion_mask[i, :c_len] = completion_masks[i][:c_len]
         else:
             self.prompt_mask = self.completion_mask = None
 

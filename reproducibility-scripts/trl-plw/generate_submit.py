@@ -1,12 +1,12 @@
 from datetime import datetime
 
 models = ["meta-llama-3-1-8b.yaml"]
-datasets = ["tulu-3-sft-mixture-plw"]
+datasets = ["tulu-3-sft-mixture-split"]
 
-num_epochs = 5
-batch_size = 32
+num_epochs = 2
+batch_size = 128
 max_seq_length = 4096
-num_nodes = 2
+num_nodes = 4
 num_proc_per_node = 4
 proc_train_batch_size = 1
 accumulation_steps = batch_size // (
@@ -18,14 +18,15 @@ learning_rates = [5e-6]
 lr_scheduler_type = "linear"
 lr_warmup_ratio = 0.03
 
-prompt_loss_weight = [0.0, 0.01, 0.1, 0.5, 1.0]
+# prompt_loss_weight = [0.0, 0.01, 0.1, 0.5, 1.0]
+prompt_loss_weight = [0.0, 1.0]
 
 logging_steps = 100
-eval_steps = 800
+eval_steps = 1600
 save_steps = 1600
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
-run_name = f"tulu-3-plw-sweep"
+run_name = f"tulu-3-sft-sweep"
 nruns = 0
 for dataset in datasets:
     for model in models:
@@ -42,8 +43,8 @@ for dataset in datasets:
                     f"dataset={dataset} "
                     f"model={model} "
                     f"plw_args.prompt_loss_weight={plw} "
-                    f"dataset_args.debug_oom=True "
                     f"training_args.max_seq_length={max_seq_length} "
+                    f"training_args.max_grad_norm=None "
                     f"training_args.num_train_epochs={num_epochs} "
                     f"training_args.gradient_accumulation_steps={accumulation_steps} "
                     f"training_args.per_device_train_batch_size={proc_train_batch_size} "
@@ -55,11 +56,11 @@ for dataset in datasets:
                     f"training_args.eval_steps={eval_steps} "
                     f"training_args.save_steps={save_steps} "
                     f"tokenizer_args.chat_template_name=tulu "
-                    "outputs_subdir=dev "
+                    "outputs_subdir=shared "
                     f"job_subdir={run_name}/{model_config} "
-                    f"wandb.run_name={model_config}-plw-{run_name} "
+                    f"wandb.run_name={model_config}-{run_name} "
                     "'wandb.tags=[prod,plw]' "
-                    "resuming.resume=True "
+                    "resuming.resume=False "
                 )
                 print(command)
                 nruns += 1

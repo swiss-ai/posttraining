@@ -61,7 +61,7 @@ class PLWDataCollator(DataCollatorForLanguageModeling):
 
 
 # All adapted from: https://github.com/davidsvaughn/prompt-loss-weight/blob/main/run_plw.py
-def tokenize_batch(batch, tokenizer):
+def __tokenize_batch(batch, tokenizer):
     # tokenize and encode text
     tokenized_text = tokenizer(
         batch["text"],
@@ -82,10 +82,10 @@ def tokenize_batch(batch, tokenizer):
     return data
 
 
-def tokenize(dataset, tokenizer):
+def __tokenize(dataset, tokenizer):
     # Tokenize dataset, remove original columns
     tokenized = dataset.map(
-        partial(tokenize_batch, tokenizer=tokenizer),
+        partial(__tokenize_batch, tokenizer=tokenizer),
         batched=True,
         remove_columns=list(dataset.features),
     )
@@ -114,7 +114,7 @@ def prepare_dataset(dataset, tokenizer):
     processed = DatasetDict({})
     for k in dataset.keys():
         split = dataset[k].map(format_sample)
-        split = tokenize(split, tokenizer)
+        split = __tokenize(split, tokenizer)
         processed[k] = split
 
     return processed
