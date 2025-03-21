@@ -2,37 +2,17 @@ import logging
 import os
 
 import hydra
-from datasets import ClassLabel, load_dataset, load_from_disk
+from datasets import ClassLabel
 from omegaconf import DictConfig
 
 from swiss_alignment import utils
+from swiss_alignment.utils.utils_for_dataset import (
+    load_dataset_flexible,
+    save_dataset_flexible,
+)
 
 utils.config.register_resolvers()
 hydra_logger = logging.getLogger(__name__)
-
-
-def load_dataset_flexible(dataset_identifier):
-    # Check if dataset_identifier is a valid local path
-    if os.path.exists(dataset_identifier):
-        hydra_logger.info(f"Loading dataset from local path: {dataset_identifier}")
-        return load_from_disk(dataset_identifier)
-    else:
-        hydra_logger.info(
-            f"Loading dataset from Hugging Face Hub: {dataset_identifier}"
-        )
-        return load_dataset(dataset_identifier)
-
-
-def save_dataset_flexible(dataset, output_path):
-    # Check if output_path looks like a local path or HF Hub repo
-    if os.path.isabs(output_path) or os.path.relpath(
-        output_path, os.getcwd()
-    ).startswith("."):
-        dataset.save_to_disk(output_path)
-        hydra_logger.info(f"Dataset saved to local directory: {output_path}")
-    else:
-        dataset.push_to_hub(output_path)
-        hydra_logger.info(f"Dataset pushed to Hugging Face Hub: {output_path}")
 
 
 @hydra.main(

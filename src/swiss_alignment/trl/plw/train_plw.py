@@ -6,7 +6,6 @@ import hydra
 import wandb
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
-from datasets import DatasetDict, load_from_disk
 from omegaconf import DictConfig, OmegaConf
 from trl import (
     ModelConfig,
@@ -20,7 +19,9 @@ from trl import (
 from swiss_alignment import utils
 from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
 from swiss_alignment.trl.trainers import PLWTrainer
-from swiss_alignment.utils import utils_for_plw, utils_for_trl
+from swiss_alignment.utils import utils_for_trl
+from swiss_alignment.utils.utils_for_dataset import DatasetConfig, get_dataset
+from swiss_alignment.utils.utils_for_plw import PLWDataCollator
 
 utils.config.register_resolvers()
 acc_state = PartialState()
@@ -49,6 +50,24 @@ def main(config: DictConfig) -> None:
         model_pad_token_id=config.tokenizer_args.model_pad_token_id,
         model_eos_token_id=config.tokenizer_args.model_eos_token_id,
     )
+    dataset_config = DatasetConfig(
+        dataset_name=script_args.dataset_name,
+        dataset_path=script_args.dataset_name,
+        dataset_split_names={
+            "train": script_args.dataset_train_split,
+            "eval": script_args.dataset_test_split,
+        },
+        dataset_subsample={
+            "train": config.dataset_args.debug_subsample.train,
+            "eval": config.dataset_args.debug_subsample.eval,
+        },
+        transform_fn=["sft_tulu_tokenize_and_truncate", "sft_tulu_filter"],
+        transform_fn_args=[
+            {"max_seq_length": training_args.max_seq_length},
+            {},
+        ],
+        # target_columns=["id", "input_ids", "labels", "attention_mask", "prompt_mask", "completion_mask", "source"],
+    )
 
     quantization_config = get_quantization_config(model_args)
     model_kwargs = dict(
@@ -74,25 +93,7 @@ def main(config: DictConfig) -> None:
     tokenizer = get_tokenizer(tokenizer_args)
 
     ############################ Dataset Setup ############################
-    # Make sure to download the dataset before.
-    ds = load_from_disk(script_args.dataset_name)
-    ds = DatasetDict(
-        {
-            "train": ds[script_args.dataset_train_split],
-            "eval": ds[script_args.dataset_test_split],
-        }
-    )
-
-    if config.dataset_args.debug_subsample.train > 0:
-        ds["train"] = ds["train"].select(
-            range(min(len(ds["train"]), config.dataset_args.debug_subsample.train))
-        )
-    if config.dataset_args.debug_subsample.eval > 0:
-        ds["eval"] = ds["eval"].select(
-            range(min(len(ds["eval"]), config.dataset_args.debug_subsample.eval))
-        )
-
-    ds = utils_for_plw.prepare_dataset(ds, tokenizer)
+    ds = get_dataset(dataset_config, tokenizer)
 
     # Shuffle at the end to preserve previous cache across seeds.
     ds = ds.shuffle(seed=config.seed)
@@ -123,7 +124,7 @@ def main(config: DictConfig) -> None:
         train_dataset=ds["train"],
         eval_dataset=ds["eval"] if training_args.eval_strategy != "no" else None,
         processing_class=tokenizer,
-        data_collator=utils_for_plw.PLWDataCollator(tokenizer=tokenizer, mlm=False),
+        data_collator=PLWDataCollator(tokenizer=tokenizer, mlm=False),
         peft_config=peft_config,
     )
 
