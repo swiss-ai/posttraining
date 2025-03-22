@@ -50,10 +50,8 @@ class PLWTrainer(CustomSFTTrainer):
         # Store eval masks as tensors if eval_dataset is provided
         if self.eval_dataset is not None:
             padded_eval = self.data_collator(self.eval_dataset, return_tensors="np")
-            self.prompt_mask, self.completion_mask = (
-                padded_eval["prompt_mask"],
-                padded_eval["completion_mask"],
-            )
+            self.prompt_mask = padded_eval["prompt_mask"]
+            self.completion_mask = padded_eval["completion_mask"]
         else:
             self.prompt_mask = self.completion_mask = None
 
@@ -111,7 +109,6 @@ class PLWTrainer(CustomSFTTrainer):
         shift_labels = labels[..., 1:].contiguous()
         shift_weights = weights[..., 1:].contiguous()
 
-        # Enable model parallelism
         shift_labels = shift_labels.to(logits.device)
         shift_weights = shift_weights.to(logits.device)
 

@@ -1,13 +1,15 @@
 import copy
 import logging
-from functools import partial
+import multiprocessing
+import os
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
-import numpy as np
+import torch
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
-from datasets import DatasetDict, Sequence, Value
+from datasets import DatasetDict, load_dataset, load_from_disk
 from transformers import PreTrainedTokenizer
-from transformers.data.data_collator import DataCollatorForLanguageModeling
 
 from swiss_alignment import utils
 
@@ -17,81 +19,7 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
-# All adapted from: https://github.com/davidsvaughn/prompt-loss-weight/blob/main/run_plw.py
-def __tokenize_batch(batch, tokenizer):
-    # tokenize and encode text
-    tokenized_text = tokenizer(
-        batch["text"],
-        return_tensors="pt",
-        padding=False,
-        truncation=True,
-        # max_length=max_seq_length,
-        add_generation_prompt=False,
-        return_offsets_mapping=True,
-    )
-    data = {k: tokenized_text[k] for k in tokenized_text.keys()}
-
-    # use offset_mappings to make prompt/completion masks (idx marks the start of each completion)
-    prompt_masks, completion_masks = [], []
-    for offset_mapping, idx in zip(data["offset_mapping"], batch["idx"]):
-        prompt_masks.append([1 if o[1] < idx else 0 for o in offset_mapping])
-        completion_masks.append([0 if o[1] < idx else 1 for o in offset_mapping])
-
-    data["prompt_mask"] = prompt_masks
-    data["completion_mask"] = completion_masks
-    del data["offset_mapping"]
-    return data
-
-
-def __tokenize(dataset, tokenizer):
-    # Tokenize dataset, remove original columns
-    tokenized = dataset.map(
-        partial(__tokenize_batch, tokenizer=tokenizer),
-        batched=True,
-        remove_columns=list(dataset.features),
-    )
-
-    # Cast mask columns to int8
-    for col in ["prompt_mask", "completion_mask"]:
-        tokenized = tokenized.cast_column(col, Sequence(Value("int8")))
-
-    return tokenized
-
-
-def prepare_dataset(dataset, tokenizer):
-    # Helper function to format each sample
-    # def format_sample(sample):
-    #     # Apply chat template to full conversation
-    #     sample["text"] = tokenizer.apply_chat_template(
-    #         sample["messages"], tokenize=False, add_generation_prompt=False
-    #     )
-    #     # Get prompt length for completion index
-    #     prompt_text = tokenizer.apply_chat_template(
-    #         sample["messages"][:1], tokenize=False, add_generation_prompt=True
-    #     )
-    #     sample["idx"] = len(prompt_text)
-    #     return sample
-
-    processed = DatasetDict({})
-    for k in dataset.keys():
-        # split = dataset[k].map(format_sample)
-        split = dataset[k].map(
-            sft_tulu_tokenize_and_truncate, fn_kwargs={"tokenizer": tokenizer}
-        )
-        # split = __tokenize(split, tokenizer)
-        processed[k] = split
-
-    return processed
-
-
-import multiprocessing
-import os
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-
-import torch
-from datasets import load_dataset, load_from_disk
-
+# Adapted from: https://github.com/allenai/open-instruct/blob/main/open_instruct/dataset_transformation.py
 # ------------------------------------------------------------
 # Dataset Transformation
 # SFT dataset
@@ -119,12 +47,22 @@ def sft_tokenize(
     else:
         prompt = row[sft_messages_key][:-1]
 
+    # Input ids
     row[INPUT_IDS_PROMPT_KEY] = tokenizer.apply_chat_template(
         prompt,
         add_generation_prompt=True,
     )
     row[INPUT_IDS_KEY] = tokenizer.apply_chat_template(row[sft_messages_key])
     row[ATTENTION_MASK_KEY] = [1] * len(row[INPUT_IDS_KEY])
+
+    # Prompt/Completion masks
+    completion_lenth = len(row[INPUT_IDS_KEY]) - len(row[INPUT_IDS_PROMPT_KEY])
+    row[PROMPT_MASK_KEY] = [1] * len(row[INPUT_IDS_PROMPT_KEY]) + [0] * completion_lenth
+    row[COMPLETION_MASK_KEY] = [0] * len(row[INPUT_IDS_PROMPT_KEY]) + [
+        1
+    ] * completion_lenth
+
+    # Labels
     labels = copy.deepcopy(row[INPUT_IDS_KEY])
     row[LABELS_KEY] = labels
     return row
@@ -347,9 +285,10 @@ def get_num_proc(
 
 
 def get_dataset(dc: DatasetConfig, tokenizer):
-    assert len(dc.transform_fn) == len(
-        dc.transform_fn_args
-    ), f"transform_fn and transform_fn_args must have the same length: {dc.transform_fn=} != {dc.transform_fn_args=}"
+    if len(dc.transform_fn) != len(dc.transform_fn_args):
+        raise ValueError(
+            f"transform_fn and transform_fn_args must have the same length: {dc.transform_fn=} != {dc.transform_fn_args=}"
+        )
 
     ds = load_dataset_flexible(dc.dataset_path)
     ds = DatasetDict(
@@ -372,38 +311,46 @@ def get_dataset(dc: DatasetConfig, tokenizer):
     num_proc = int(
         float(os.environ.get("BEAKER_ASSIGNED_CPU_COUNT", multiprocessing.cpu_count()))
     )
-    for fn_name, fn_args in zip(dc.transform_fn, dc.transform_fn_args):
-        fn, fn_type = TRANSFORM_FNS[fn_name]
-        # always pass in tokenizer and other args if needed
-        fn_kwargs = {"tokenizer": tokenizer}
-        fn_kwargs.update(fn_args)
+    for split in ds.keys():
+        for fn_name, fn_args in zip(dc.transform_fn, dc.transform_fn_args):
+            fn, fn_type = TRANSFORM_FNS[fn_name]
+            # always pass in tokenizer and other args if needed
+            fn_kwargs = {"tokenizer": tokenizer}
+            fn_kwargs.update(fn_args)
 
-        # perform the transformation
-        target_columns = (
-            ds.column_names if dc.target_columns is None else dc.target_columns
-        )
-        if fn_type == "map":
-            ds = ds.map(
-                fn,
-                fn_kwargs=fn_kwargs,
-                remove_columns=[
-                    col for col in ds.column_names if col not in target_columns
-                ],
-                num_proc=get_num_proc(
-                    len(ds), num_proc, APPLY_CHAT_TEMPLATE_EXAMPLE_PER_SECOND_PER_CPU
-                ),
+            # perform the transformation
+            target_columns = (
+                ds[split].column_names
+                if dc.target_columns is None
+                else dc.target_columns
             )
-        elif fn_type == "filter":
-            ds = ds.filter(
-                fn,
-                fn_kwargs=fn_kwargs,
-                num_proc=get_num_proc(
-                    len(ds), num_proc, FILTER_EXAMPLE_PER_SECOND_PER_CPU
-                ),
-            )
-        else:
-            raise ValueError(f"Unknown transform function type: {fn_type}")
+            if fn_type == "map":
+                ds[split] = ds[split].map(
+                    fn,
+                    fn_kwargs=fn_kwargs,
+                    remove_columns=[
+                        col
+                        for col in ds[split].column_names
+                        if col not in target_columns
+                    ],
+                    num_proc=get_num_proc(
+                        len(ds[split]),
+                        num_proc,
+                        APPLY_CHAT_TEMPLATE_EXAMPLE_PER_SECOND_PER_CPU,
+                    ),
+                )
+            elif fn_type == "filter":
+                ds[split] = ds[split].filter(
+                    fn,
+                    fn_kwargs=fn_kwargs,
+                    num_proc=get_num_proc(
+                        len(ds[split]), num_proc, FILTER_EXAMPLE_PER_SECOND_PER_CPU
+                    ),
+                )
+            else:
+                raise ValueError(f"Unknown transform function type: {fn_type}")
 
-    if len(ds) == 0:
-        raise ValueError("No examples left after transformation")
+        if len(ds[split]) == 0:
+            raise ValueError("No examples left after transformation")
+
     return ds

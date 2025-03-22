@@ -4,7 +4,13 @@ from typing import Optional
 
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
-from transformers import AutoTokenizer
+from transformers import (
+    AutoTokenizer,
+    GPTNeoXTokenizerFast,
+    LlamaTokenizer,
+    LlamaTokenizerFast,
+    PreTrainedTokenizerFast,
+)
 
 from swiss_alignment import utils
 
@@ -135,6 +141,7 @@ class TokenizerConfig:
     model_eos_token_id: Optional[int] = None
 
 
+# Adapted from: https://github.com/allenai/open-instruct/blob/main/open_instruct/dataset_transformation.py#L378
 def get_tokenizer(tc: TokenizerConfig):
     tokenizer = AutoTokenizer.from_pretrained(
         tc.model_name_or_path,
@@ -142,7 +149,25 @@ def get_tokenizer(tc: TokenizerConfig):
         trust_remote_code=tc.trust_remote_code,
     )
 
-    #  Update chat template.
+    # Update special tokens.
+    if tc.model_pad_token_id is not None:
+        tokenizer.pad_token_id = tc.model_pad_token_id
+        acc_logger.info(f"Overriding tokenizer pad token id to {tc.model_pad_token_id}")
+    if tc.model_eos_token_id is not None:
+        tokenizer.eos_token_id = tc.model_eos_token_id
+        acc_logger.info(f"Overriding tokenizer eos token id to {tc.model_eos_token_id}")
+
+    # Perform checks
+    if tokenizer.pad_token is None:
+        raise ValueError("Tokenizer must have a pad token.")
+    if tokenizer.pad_token == tokenizer.eos_token:
+        raise ValueError(
+            "Tokenizer pad token is the same as the eos token. The eos will be masked as if it was a pad."
+        )
+
+    # set the tokenizer chat template to the training format
+    # this will be used for encoding the training examples
+    # and saved together with the tokenizer to be used later.
     if tc.chat_template_name in CHAT_TEMPLATES:
         tokenizer.chat_template = CHAT_TEMPLATES[tc.chat_template_name]
     else:
@@ -165,21 +190,5 @@ def get_tokenizer(tc: TokenizerConfig):
             )
         # also add bos in the chat template if not already there
         tokenizer.chat_template = "{{ bos_token }}" + tokenizer.chat_template
-
-    # Update special tokens.
-    if tc.model_pad_token_id is not None:
-        tokenizer.pad_token_id = tc.model_pad_token_id
-        acc_logger.info(f"Overriding tokenizer pad token id to {tc.model_pad_token_id}")
-    if tc.model_eos_token_id is not None:
-        tokenizer.eos_token_id = tc.model_eos_token_id
-        acc_logger.info(f"Overriding tokenizer eos token id to {tc.model_eos_token_id}")
-
-    # Perform checks
-    if tokenizer.pad_token is None:
-        raise ValueError("Tokenizer must have a pad token.")
-    if tokenizer.pad_token == tokenizer.eos_token:
-        raise ValueError(
-            "Tokenizer pad token is the same as the eos token. The eos will be masked as if it was a pad."
-        )
 
     return tokenizer

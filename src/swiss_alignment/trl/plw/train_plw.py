@@ -66,7 +66,15 @@ def main(config: DictConfig) -> None:
             {"max_seq_length": training_args.max_seq_length},
             {},
         ],
-        # target_columns=["id", "input_ids", "labels", "attention_mask", "prompt_mask", "completion_mask", "source"],
+        target_columns=[
+            "id",
+            "input_ids",
+            "labels",
+            "attention_mask",
+            "prompt_mask",
+            "completion_mask",
+            "source",
+        ],
     )
 
     quantization_config = get_quantization_config(model_args)
