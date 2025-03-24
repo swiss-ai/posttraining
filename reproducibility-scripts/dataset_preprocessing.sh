@@ -1,0 +1,1 @@
+exec python -m swiss_alignment.trl.dataset_preprocessing dataset_args.dataset_name=${data_dir}/shared/datasets/tulu-3-sft-mixture dataset_args.output_path=${data_dir}/shared/datasets/tulu-3-sft-mixture-split dataset_args.train_split.name=train dataset_args.eval_split.name=validation dataset_args.eval_split.ratio=0.01 dataset_args.stratify_by_column=source

@@ -1,58 +1,57 @@
-# An example config file for an experiment.
-# Keep this, it's used as an example to run the code after a user installs the project.
-
 defaults:
-  # Common setup.
   - setup
-  # This file.
   - _self_
   # Model (from the configs/model/ directory).
-  - model: mistralai-mistral-7b-instruct
+  - model: meta-llama-3-1-8b
   # Dataset (from the configs/dataset/ directory).
-  - dataset: magpieair
+  - dataset: tulu-3-sft-mixture-split
   # Optional preset for training parameters.
   - optional preset: none
 
 ######################################################################
-
-# model_args from the model config file
-# reward_model_args from the reward model config file
-# dataset args from the dataset config file
 
 dataset_args:
   debug_oom: false # Reorder the dataset with largest batch first to test OOM
   debug_subsample:
     train: 0
     eval: 0
+
 script_args:
   dataset_name: ${dataset_args.dataset_name}
   dataset_train_split: ${dataset_args.train_split.name}
   dataset_test_split: ${dataset_args.eval_split.name}
+
+plw_args:
+  prompt_loss_weight: 0.1
 training_args:
   bf16: true
-  max_seq_length: 2048
-  learning_rate: 2.0e-5
-  lr_scheduler_type: cosine
-  warmup_ratio: 0.1
-  num_train_epochs: 1
+  max_seq_length: 4096
+  # max_grad_norm: 10000 # Used for clipping
+  learning_rate: 5.0e-06
+  lr_scheduler_type: linear
+  warmup_ratio: 0.03
+  weight_decay: 0.0
+  num_train_epochs: 2
   packing: false
   dataloader_drop_last: true
-  per_device_train_batch_size: 2
-  gradient_accumulation_steps: 16
+  remove_unused_columns: false # For PLW: makes custom fields (like 'completion_mask') available inside compute_loss function
+  per_device_train_batch_size: 2 # note, this is set up for 4 GPUs
+  gradient_accumulation_steps: 4 # effective batch size 128 with 4 nodes
   gradient_checkpointing: true
   gradient_checkpointing_kwargs:
     use_reentrant: false # https://pytorch.org/docs/stable/checkpoint.html, https://github.com/huggingface/trl/issues/1348
   average_tokens_across_devices: true # More accurate loss.
   logging_first_step: true
-  logging_steps: 5
+  logging_steps: 25
   eval_strategy: steps
-  eval_steps: 100
+  eval_steps: 50
   eval_on_start: true
   per_device_eval_batch_size: 2
   save_strategy: steps
-  save_steps: 100
+  save_steps: 50
   report_to: wandb
   seed: ${seed}
+  dataset_num_proc: 8
   dataloader_num_workers: 8
 
 seed: 42

@@ -6,13 +6,11 @@ import hydra
 import wandb
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
-from datasets import DatasetDict, load_from_disk
 from omegaconf import DictConfig, OmegaConf
 from trl import (
     ModelConfig,
     ScriptArguments,
     SFTConfig,
-    SFTTrainer,
     get_kbit_device_map,
     get_peft_config,
     get_quantization_config,
@@ -20,7 +18,10 @@ from trl import (
 
 from swiss_alignment import utils
 from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
+from swiss_alignment.trl.trainers import PLWTrainer
 from swiss_alignment.utils import utils_for_trl
+from swiss_alignment.utils.utils_for_dataset import DatasetConfig, get_dataset
+from swiss_alignment.utils.utils_for_plw import PLWDataCollator
 
 utils.config.register_resolvers()
 acc_state = PartialState()
@@ -28,24 +29,7 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
-class CustomSFTTrainer(SFTTrainer):
-    def evaluate(
-        self,
-        eval_dataset=None,
-        ignore_keys=None,
-        metric_key_prefix: str = "eval",
-    ) -> dict[str, float]:
-        """Saves eval metrics to files"""
-        acc_state = PartialState()
-        acc_logger = get_logger(__name__)
-        acc_logger.info("\nEvaluating model\n")
-        metrics = super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
-        self.log_metrics(f"eval_{self.state.global_step}", metrics)
-        self.save_metrics(f"eval_{self.state.global_step}", metrics, combined=False)
-        return metrics
-
-
-@hydra.main(version_base=None, config_path="../configs", config_name="trl-sft")
+@hydra.main(version_base=None, config_path="../../configs", config_name="trl-plw")
 def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
 
@@ -61,10 +45,36 @@ def main(config: DictConfig) -> None:
         model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
         padding_side=config.tokenizer_args.padding_side,
         add_bos=config.tokenizer_args.add_bos,
-        trust_remote_code=model_args.trust_remote_code,
+        trust_remote_code=config.tokenizer_args.trust_remote_code,
         chat_template_name=config.tokenizer_args.chat_template_name,
         model_pad_token_id=config.tokenizer_args.model_pad_token_id,
         model_eos_token_id=config.tokenizer_args.model_eos_token_id,
+    )
+    dataset_config = DatasetConfig(
+        dataset_name=script_args.dataset_name,
+        dataset_path=script_args.dataset_name,
+        dataset_split_names={
+            "train": script_args.dataset_train_split,
+            "eval": script_args.dataset_test_split,
+        },
+        dataset_subsample={
+            "train": config.dataset_args.debug_subsample.train,
+            "eval": config.dataset_args.debug_subsample.eval,
+        },
+        transform_fn=["sft_tulu_tokenize_and_truncate", "sft_tulu_filter"],
+        transform_fn_args=[
+            {"max_seq_length": training_args.max_seq_length},
+            {},
+        ],
+        target_columns=[
+            "id",
+            "input_ids",
+            "labels",
+            "attention_mask",
+            "prompt_mask",
+            "completion_mask",
+            "source",
+        ],
     )
 
     quantization_config = get_quantization_config(model_args)
@@ -91,42 +101,7 @@ def main(config: DictConfig) -> None:
     tokenizer = get_tokenizer(tokenizer_args)
 
     ############################ Dataset Setup ############################
-
-    # Make sure to download the dataset before.
-    ds = load_from_disk(script_args.dataset_name)
-    ds = DatasetDict(
-        {
-            "train": ds[config.script_args.dataset_train_split],
-            "eval": ds[config.script_args.dataset_test_split],
-        }
-    )
-    # Handle preference datasets:
-    if "chosen" in ds["train"].column_names:
-        ds = ds.map(lambda row: {"messages": row["chosen"]})
-        # Drop the extra preference columns
-        for extra_key in ["prompt", "completion", "chosen", "rejected"]:
-            if extra_key in ds["train"].column_names:
-                ds["train"] = ds["train"].remove_columns([extra_key])
-            if extra_key in ds["eval"].column_names:
-                ds["eval"] = ds["eval"].remove_columns([extra_key])
-    if config.dataset_args.debug_oom:
-
-        def add_debug_max_len(row):
-            chat_tokens = tokenizer.apply_chat_template(row["messages"], tokenize=True)
-            return {"debug_max_len": len(chat_tokens)}
-
-        with acc_state.main_process_first():
-            ds = ds.map(add_debug_max_len, num_proc=64)
-            ds = ds.sort("debug_max_len", reverse=True)
-
-    if config.dataset_args.debug_subsample.train > 0:
-        ds["train"] = ds["train"].select(
-            range(min(len(ds["train"]), config.dataset_args.debug_subsample.train))
-        )
-    if config.dataset_args.debug_subsample.eval > 0:
-        ds["eval"] = ds["eval"].select(
-            range(min(len(ds["eval"]), config.dataset_args.debug_subsample.eval))
-        )
+    ds = get_dataset(dataset_config, tokenizer)
 
     # Shuffle at the end to preserve previous cache across seeds.
     ds = ds.shuffle(seed=config.seed)
@@ -150,12 +125,14 @@ def main(config: DictConfig) -> None:
         if eval_file.exists():
             training_args.eval_on_start = False
 
-    trainer = CustomSFTTrainer(
+    trainer = PLWTrainer(
+        prompt_loss_weight=config.plw_args.prompt_loss_weight,
         model=model_args.model_name_or_path,
         args=training_args,
         train_dataset=ds["train"],
         eval_dataset=ds["eval"] if training_args.eval_strategy != "no" else None,
         processing_class=tokenizer,
+        data_collator=PLWDataCollator(tokenizer=tokenizer, mlm=False),
         peft_config=peft_config,
     )
 
