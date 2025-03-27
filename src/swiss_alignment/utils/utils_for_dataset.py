@@ -6,16 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import torch
-from accelerate.logging import get_logger
-from accelerate.state import PartialState
 from datasets import DatasetDict, load_dataset, load_from_disk
 from transformers import PreTrainedTokenizer
 
-from swiss_alignment import utils
-
-utils.config.register_resolvers()
-acc_state = PartialState()
-acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 

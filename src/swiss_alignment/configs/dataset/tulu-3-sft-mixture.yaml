@@ -1,6 +1,6 @@
 # @package _global_
 
-dataset_name: allenai/tulu-3-sft-mixture-split
+dataset_name: allenai/tulu-3-sft-mixture
 
 dataset_args:
   dataset_name: ${data_dir}/shared/datasets/tulu-3-sft-mixture-split
