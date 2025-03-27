@@ -111,7 +111,7 @@ class PLWTrainer(CustomSFTTrainer):
         shift_logits = logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
         shift_weights = weights[..., 1:].contiguous()
-
+        
         # Compute weighted average of losses
         loss_fct = CrossEntropyLoss(reduction="none")
         token_losses = loss_fct(shift_logits.transpose(1, 2), shift_labels)

@@ -1,12 +1,12 @@
 from datetime import datetime
 
-models = ["meta-llama-3-1-70b.yaml"]
+models = ["meta-llama-3-1-8b.yaml"]
 datasets = ["tulu-3-sft-mixture-split"]
 
 num_epochs = 2
 batch_size = 128
-max_seq_length = 2048
-num_nodes = 32
+max_seq_length = 4096
+num_nodes = 4
 num_proc_per_node = 4
 proc_train_batch_size = 1
 accumulation_steps = batch_size // (
