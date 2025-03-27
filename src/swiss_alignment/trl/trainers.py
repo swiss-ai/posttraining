@@ -1,6 +1,5 @@
 import logging
 
-import numpy as np
 import torch
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
@@ -8,7 +7,6 @@ from torch.nn import CrossEntropyLoss
 from trl import SFTTrainer
 
 from swiss_alignment import utils
-from swiss_alignment.utils.utils_for_plw import PLWDataCollator
 
 utils.config.register_resolvers()
 acc_state = PartialState()
@@ -16,6 +14,10 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
+# In our current setup, this will train over prompt + completion sequence
+# If we want to train on only the completion, then use PLWTrainer with plw=0,
+# or modify the dataset tokenization (e.g. sft_tulu_tokenize_and_truncate) to
+# assign -100 to prompt in labels
 class CustomSFTTrainer(SFTTrainer):
     def evaluate(
         self,
@@ -81,13 +83,14 @@ class PLWTrainer(CustomSFTTrainer):
             except (TypeError, AttributeError):
                 pass
 
-        if self.args.average_tokens_across_devices and num_items_in_batch is not None:
-            num_items_in_batch = (
-                self.accelerator.gather(num_items_in_batch).sum().item()
-            )
+        if num_items_in_batch is not None:
+            if self.args.average_tokens_across_devices:
+                num_items_in_batch = (
+                    self.accelerator.gather(num_items_in_batch).sum().item()
+                )
 
-        if torch.is_tensor(num_items_in_batch):
-            num_items_in_batch = num_items_in_batch.item()
+            if torch.is_tensor(num_items_in_batch):
+                num_items_in_batch = num_items_in_batch.item()
 
         return batch_samples, num_items_in_batch
 
@@ -108,9 +111,6 @@ class PLWTrainer(CustomSFTTrainer):
         shift_logits = logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
         shift_weights = weights[..., 1:].contiguous()
-
-        shift_labels = shift_labels.to(logits.device)
-        shift_weights = shift_weights.to(logits.device)
 
         # Compute weighted average of losses
         loss_fct = CrossEntropyLoss(reduction="none")
@@ -171,3 +171,88 @@ class PLWTrainer(CustomSFTTrainer):
             "prompt_token_accuracy": prompt_accuracy,
             "completion_token_accuracy": completion_accuracy,
         }
+
+
+# Normalizes the prompt and completion independently before performing plw
+class LengthNormalizedPLWTrainer(PLWTrainer):
+    def get_batch_samples(self, epoch_iterator, num_batches):
+        batch_samples = []
+        num_prompt_in_batch = None
+        num_completion_in_batch = None
+        for _ in range(num_batches):
+            try:
+                batch_samples += [next(epoch_iterator)]
+            except StopIteration:
+                break
+
+        if (
+            len(batch_samples) > 0
+            and "prompt_mask" in batch_samples[0]
+            and "completion_mask" in batch_samples[0]
+        ):
+            try:
+                num_prompt_in_batch = sum(
+                    [(batch["prompt_mask"]).sum() for batch in batch_samples]
+                )
+                num_completion_in_batch = sum(
+                    [(batch["completion_mask"]).sum() for batch in batch_samples]
+                )
+            except (TypeError, AttributeError):
+                pass
+
+        if num_prompt_in_batch is not None and num_completion_in_batch is not None:
+            if self.args.average_tokens_across_devices:
+                num_prompt_in_batch = (
+                    self.accelerator.gather(num_prompt_in_batch).sum().item()
+                )
+                num_completion_in_batch = (
+                    self.accelerator.gather(num_completion_in_batch).sum().item()
+                )
+
+            if torch.is_tensor(num_prompt_in_batch):
+                num_prompt_in_batch = num_prompt_in_batch.item()
+
+            if torch.is_tensor(num_completion_in_batch):
+                num_completion_in_batch = num_completion_in_batch.item()
+
+        return batch_samples, (num_prompt_in_batch, num_completion_in_batch)
+
+    def compute_loss(
+        self, model, inputs, return_outputs=False, num_items_in_batch=None
+    ):
+        # get outputs without computing loss (by not passing in labels)
+        outputs = model(
+            input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"]
+        )
+        logits = outputs.get("logits").float()
+        labels = inputs.pop("labels")
+
+        # Shift-by-1 so that tokens < n predict n
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = labels[..., 1:].contiguous()
+        shift_prompt = inputs["prompt_mask"][..., 1:].contiguous()
+        shift_completion = inputs["completion_mask"][..., 1:].contiguous()
+
+        # Compute weighted average of losses
+        loss_fct = CrossEntropyLoss(reduction="none")
+        token_losses = loss_fct(shift_logits.transpose(1, 2), shift_labels)
+
+        # only occurs for eval
+        if num_items_in_batch is not None:
+            num_prompt_in_batch, num_completion_in_batch = num_items_in_batch
+            prompt_loss = (token_losses * shift_prompt).sum() / num_prompt_in_batch
+            completion_loss = (
+                token_losses * shift_completion
+            ).sum() / num_completion_in_batch
+            loss = prompt_loss * self.plw + completion_loss
+        else:
+            prompt_loss = (token_losses * shift_prompt).sum() / shift_prompt.sum()
+            completion_loss = (
+                token_losses * shift_completion
+            ).sum() / shift_completion.sum()
+            loss = prompt_loss * self.plw + completion_loss
+
+        if self.args.average_tokens_across_devices and num_items_in_batch is not None:
+            loss *= self.accelerator.num_processes
+
+        return (loss, outputs) if return_outputs else loss

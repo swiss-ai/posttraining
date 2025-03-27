@@ -21,6 +21,7 @@ script_args:
   dataset_train_split: ${dataset_args.train_split.name}
   dataset_test_split: ${dataset_args.eval_split.name}
 
+trainer: sft # can only take values: sft, plw, ln-plw
 plw_args:
   prompt_loss_weight: 0.1
 training_args:
@@ -34,7 +35,7 @@ training_args:
   num_train_epochs: 2
   packing: false
   dataloader_drop_last: true
-  remove_unused_columns: false # For PLW: makes custom fields (like 'completion_mask') available inside compute_loss function
+  remove_unused_columns: false # required for custom data collator
   per_device_train_batch_size: 2 # note, this is set up for 4 GPUs
   gradient_accumulation_steps: 4 # effective batch size 128 with 4 nodes
   gradient_checkpointing: true
@@ -43,12 +44,12 @@ training_args:
   average_tokens_across_devices: true # More accurate loss.
   logging_first_step: true
   logging_steps: 25
-  eval_strategy: steps
+  per_device_eval_batch_size: 2
+  eval_strategy: steps # use "no" for no evaluation
   eval_steps: 50
   eval_on_start: true
-  per_device_eval_batch_size: 2
-  save_strategy: steps
-  save_steps: 50
+  save_strategy: epoch
+  # save_steps: 50 # only required if save_strategy=steps
   report_to: wandb
   seed: ${seed}
   dataset_num_proc: 8
