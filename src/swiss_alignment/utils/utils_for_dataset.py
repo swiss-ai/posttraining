@@ -141,16 +141,15 @@ def sft_tulu_tokenize_and_truncate(
                 add_generation_prompt=False,
             ).shape[1]
 
+        chat_template_args = {
+            "conversation": messages[: message_idx + 1],
+            "tokenize": True,
+            "return_tensors": "pt",
+            "padding": False,
+            "truncation": True,
+            "max_length": max_seq_length,
+        }
         if message["role"] != "assistant":
-            chat_template_args = {
-                "conversation": messages[: message_idx + 1],
-                "tokenize": True,
-                "return_tensors": "pt",
-                "padding": False,
-                "truncation": True,
-                "max_length": max_seq_length,
-            }
-
             # Identifying non-assistant prompts
             if (
                 message_idx < len(messages) - 1
@@ -166,15 +165,10 @@ def sft_tulu_tokenize_and_truncate(
             if max_seq_length and message_end_idx >= max_seq_length:
                 break
         else:
-            message_end_idx = tokenizer.apply_chat_template(
-                conversation=messages[: message_idx + 1],
-                tokenize=True,
-                return_tensors="pt",
-                padding=False,
-                truncation=True,
-                max_length=max_seq_length,
-                add_generation_prompt=False,
-            ).shape[1]
+            chat_template_args["add_generation_prompt"] = False
+            message_end_idx = tokenizer.apply_chat_template(**chat_template_args).shape[
+                1
+            ]
             completion_mask[
                 :, message_start_idx:message_end_idx
             ] = 1  # Mark assistant tokens
