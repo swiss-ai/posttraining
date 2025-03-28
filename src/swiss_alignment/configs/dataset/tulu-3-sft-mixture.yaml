@@ -1,0 +1,15 @@
+# @package _global_
+
+dataset_name: allenai/tulu-3-sft-mixture
+
+dataset_args:
+  dataset_name: ${data_dir}/shared/datasets/tulu-3-sft-mixture-split
+  train_split:
+    name: train
+  eval_split:
+    name: null
+
+training_args:
+  eval_strategy: no
+  eval_steps: null
+  save_steps: 160

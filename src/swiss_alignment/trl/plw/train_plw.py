@@ -18,7 +18,11 @@ from trl import (
 
 from swiss_alignment import utils
 from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
-from swiss_alignment.trl.trainers import PLWTrainer
+from swiss_alignment.trl.trainers import (
+    CustomSFTTrainer,
+    LengthNormalizedPLWTrainer,
+    PLWTrainer,
+)
 from swiss_alignment.utils import utils_for_trl
 from swiss_alignment.utils.utils_for_dataset import DatasetConfig, get_dataset
 from swiss_alignment.utils.utils_for_plw import PLWDataCollator
@@ -52,7 +56,6 @@ def main(config: DictConfig) -> None:
     )
     dataset_config = DatasetConfig(
         dataset_name=script_args.dataset_name,
-        dataset_path=script_args.dataset_name,
         dataset_split_names={
             "train": script_args.dataset_train_split,
             "eval": script_args.dataset_test_split,
@@ -67,13 +70,11 @@ def main(config: DictConfig) -> None:
             {},
         ],
         target_columns=[
-            "id",
             "input_ids",
             "labels",
             "attention_mask",
             "prompt_mask",
             "completion_mask",
-            "source",
         ],
     )
 
@@ -125,16 +126,29 @@ def main(config: DictConfig) -> None:
         if eval_file.exists():
             training_args.eval_on_start = False
 
-    trainer = PLWTrainer(
-        prompt_loss_weight=config.plw_args.prompt_loss_weight,
-        model=model_args.model_name_or_path,
-        args=training_args,
-        train_dataset=ds["train"],
-        eval_dataset=ds["eval"] if training_args.eval_strategy != "no" else None,
-        processing_class=tokenizer,
-        data_collator=PLWDataCollator(tokenizer=tokenizer, mlm=False),
-        peft_config=peft_config,
-    )
+    trainer_args = {
+        "model": model_args.model_name_or_path,
+        "args": training_args,
+        "train_dataset": ds["train"],
+        "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
+        "processing_class": tokenizer,
+        "data_collator": PLWDataCollator(tokenizer=tokenizer, mlm=False),
+        "peft_config": peft_config,
+    }
+    if config.trainer == "sft":
+        trainer = CustomSFTTrainer(
+            **trainer_args,
+        )
+    elif config.trainer == "plw":
+        trainer = PLWTrainer(
+            prompt_loss_weight=config.plw_args.prompt_loss_weight,
+            **trainer_args,
+        )
+    elif config.trainer == "ln-plw":
+        trainer = LengthNormalizedPLWTrainer(
+            prompt_loss_weight=config.plw_args.prompt_loss_weight,
+            **trainer_args,
+        )
 
     # Apply the token patches to the model
     if tokenizer_args.model_eos_token_id is not None:

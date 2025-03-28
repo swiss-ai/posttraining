@@ -15,12 +15,6 @@ export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 export OMP_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 
-#export NCCL_DEBUG=INFO
-#export NCCL_DEBUG_SUBSYS=ALL
-#export TORCH_DISTRIBUTED_DEBUG=INFO
-
-#export NCCL_P2P_LEVEL=NVL
-
 parse_for_deepspeed_plugin() {
   for arg in "$@"; do
     if [[ $arg =~ training_args\.gradient_accumulation_steps=([0-9]+) ]]; then
@@ -36,6 +30,7 @@ srun \
   --container-mounts=\
 $PROJECT_ROOT_AT,\
 $SCRATCH,\
+$SWISS_AI_STORAGE,\
 /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/,\
 $WANDB_API_KEY_FILE_AT,\
 $HF_TOKEN_AT \

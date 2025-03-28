@@ -6,16 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import torch
-from accelerate.logging import get_logger
-from accelerate.state import PartialState
 from datasets import DatasetDict, load_dataset, load_from_disk
 from transformers import PreTrainedTokenizer
 
-from swiss_alignment import utils
-
-utils.config.register_resolvers()
-acc_state = PartialState()
-acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
@@ -74,20 +67,12 @@ def sft_tokenize_mask_out_prompt(
     sft_messages_key: str = DEFAULT_SFT_MESSAGES_KEY,
 ):
     """mask out the prompt tokens by manipulating labels"""
-    if len(row[sft_messages_key]) == 1:
-        prompt = row[sft_messages_key]
-    else:
-        prompt = row[sft_messages_key][:-1]
+    row = sft_tokenize(row, tokenizer, sft_messages_key=sft_messages_key)
 
-    row[INPUT_IDS_PROMPT_KEY] = tokenizer.apply_chat_template(
-        prompt,
-        add_generation_prompt=True,
-    )
-    row[INPUT_IDS_KEY] = tokenizer.apply_chat_template(row[sft_messages_key])
-    row[ATTENTION_MASK_KEY] = [1] * len(row[INPUT_IDS_KEY])
-    labels = copy.deepcopy(row[INPUT_IDS_KEY])
-    labels[: len(row[INPUT_IDS_PROMPT_KEY])] = [-100] * len(row[INPUT_IDS_PROMPT_KEY])
-    row[LABELS_KEY] = labels
+    # Mask out prompt tokens
+    labels = torch.tensor(row[LABELS_KEY])
+    prompt_mask = torch.tensor(row[PROMPT_MASK_KEY])
+    row[LABELS_KEY] = torch.where(prompt_mask == 1, -100, labels).tolist()
     return row
 
 
@@ -108,7 +93,7 @@ def sft_filter(
     if max_token_length is not None:
         max_token_length_ok = len(row[INPUT_IDS_KEY]) <= max_token_length
 
-    contain_some_labels = any(x != -100 for x in row[LABELS_KEY])
+    contain_some_labels = sum(row[PROMPT_MASK_KEY]) < len(row[PROMPT_MASK_KEY])
     return (
         max_prompt_token_length_ok
         and max_token_length_ok
@@ -143,65 +128,11 @@ def sft_tulu_tokenize_and_truncate(
 
     # mask the non-assistant part for avoiding loss and set masks
     for message_idx, message in enumerate(messages):
-        if message["role"] != "assistant":
-            # we calculate the start index of this non-assistant message
-            if message_idx == 0:
-                message_start_idx = 0
-            else:
-                message_start_idx = tokenizer.apply_chat_template(
-                    conversation=messages[:message_idx],
-                    tokenize=True,
-                    return_tensors="pt",
-                    padding=False,
-                    truncation=True,
-                    max_length=max_seq_length,
-                    add_generation_prompt=False,
-                ).shape[1]
-            # calculate the end index of this non-assistant message
-            if (
-                message_idx < len(messages) - 1
-                and messages[message_idx + 1]["role"] == "assistant"
-            ):
-                message_end_idx = tokenizer.apply_chat_template(
-                    conversation=messages[: message_idx + 1],
-                    tokenize=True,
-                    return_tensors="pt",
-                    padding=False,
-                    truncation=True,
-                    max_length=max_seq_length,
-                    add_generation_prompt=True,
-                ).shape[1]
-            else:
-                message_end_idx = tokenizer.apply_chat_template(
-                    conversation=messages[: message_idx + 1],
-                    tokenize=True,
-                    return_tensors="pt",
-                    padding=False,
-                    truncation=True,
-                    max_length=max_seq_length,
-                    add_generation_prompt=False,
-                ).shape[1]
-            # set the label to -100 for the non-assistant part and update masks
-            labels[:, message_start_idx:message_end_idx] = -100
-            prompt_mask[:, message_start_idx:message_end_idx] = 1  # Mark prompt tokens
-            if max_seq_length and message_end_idx >= max_seq_length:
-                break
+        if message_idx == 0:
+            message_start_idx = 0
         else:
-            # For assistant messages, calculate start and end indices
-            if message_idx == 0:
-                message_start_idx = 0
-            else:
-                message_start_idx = tokenizer.apply_chat_template(
-                    conversation=messages[:message_idx],
-                    tokenize=True,
-                    return_tensors="pt",
-                    padding=False,
-                    truncation=True,
-                    max_length=max_seq_length,
-                    add_generation_prompt=False,
-                ).shape[1]
-            message_end_idx = tokenizer.apply_chat_template(
-                conversation=messages[: message_idx + 1],
+            message_start_idx = tokenizer.apply_chat_template(
+                conversation=messages[:message_idx],
                 tokenize=True,
                 return_tensors="pt",
                 padding=False,
@@ -209,9 +140,40 @@ def sft_tulu_tokenize_and_truncate(
                 max_length=max_seq_length,
                 add_generation_prompt=False,
             ).shape[1]
+
+        chat_template_args = {
+            "conversation": messages[: message_idx + 1],
+            "tokenize": True,
+            "return_tensors": "pt",
+            "padding": False,
+            "truncation": True,
+            "max_length": max_seq_length,
+        }
+        if message["role"] != "assistant":
+            # Identifying non-assistant prompts
+            if (
+                message_idx < len(messages) - 1
+                and messages[message_idx + 1]["role"] == "assistant"
+            ):
+                chat_template_args["add_generation_prompt"] = True
+            else:
+                chat_template_args["add_generation_prompt"] = False
+            message_end_idx = tokenizer.apply_chat_template(**chat_template_args).shape[
+                1
+            ]
+            prompt_mask[:, message_start_idx:message_end_idx] = 1  # Mark prompt tokens
+            if max_seq_length and message_end_idx >= max_seq_length:
+                break
+        else:
+            chat_template_args["add_generation_prompt"] = False
+            message_end_idx = tokenizer.apply_chat_template(**chat_template_args).shape[
+                1
+            ]
             completion_mask[
                 :, message_start_idx:message_end_idx
             ] = 1  # Mark assistant tokens
+            if max_seq_length and message_end_idx >= max_seq_length:
+                break
 
     attention_mask = torch.ones_like(input_ids)
     row[INPUT_IDS_KEY] = input_ids.flatten()
@@ -223,7 +185,7 @@ def sft_tulu_tokenize_and_truncate(
 
 
 def sft_tulu_filter(row: Dict[str, Any], tokenizer: PreTrainedTokenizer):
-    return any(x != -100 for x in row[LABELS_KEY])
+    return sum(row[PROMPT_MASK_KEY]) < len(row[PROMPT_MASK_KEY])
 
 
 TRANSFORM_FNS = {
@@ -240,7 +202,6 @@ TRANSFORM_FNS = {
 @dataclass
 class DatasetConfig:
     dataset_name: str
-    dataset_path: str
     dataset_split_names: Dict[str, str]
     dataset_subsample: Optional[Dict[str, int]] = None
     transform_fn: List[str] = field(default_factory=list)
@@ -290,11 +251,15 @@ def get_dataset(dc: DatasetConfig, tokenizer):
             f"transform_fn and transform_fn_args must have the same length: {dc.transform_fn=} != {dc.transform_fn_args=}"
         )
 
-    ds = load_dataset_flexible(dc.dataset_path)
+    ds = load_dataset_flexible(dc.dataset_name)
     ds = DatasetDict(
         {
             "train": ds[dc.dataset_split_names["train"]],
-            "eval": ds[dc.dataset_split_names["eval"]],
+            **(
+                {"eval": ds[dc.dataset_split_names["eval"]]}
+                if dc.dataset_split_names["eval"] is not None
+                else {}
+            ),
         }
     )
 
@@ -302,7 +267,7 @@ def get_dataset(dc: DatasetConfig, tokenizer):
         ds["train"] = ds["train"].select(
             range(min(len(ds["train"]), dc.dataset_subsample["train"]))
         )
-    if dc.dataset_subsample["eval"] > 0:
+    if dc.dataset_split_names["eval"] is not None and dc.dataset_subsample["eval"] > 0:
         ds["eval"] = ds["eval"].select(
             range(min(len(ds["eval"]), dc.dataset_subsample["eval"]))
         )

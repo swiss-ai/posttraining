@@ -58,7 +58,6 @@ to undersntand how to change the environment, then follow the steps below
 > After saving your generic image, provide the image location to your teammates.
 > Ideally also push it to team registry and later on a public registry if you open-source your project.
 > Add it below in the TODO ADD IMAGE PATH.
-
 ### Prerequisites
 
 * `podman` (Already installed on the CSCS clusters). Configure it as described [here](https://confluence.cscs.ch/display/KB/LLM+Inference)
@@ -423,8 +422,8 @@ You can find an example in `submit-scripts/remote-development.sh`.
 * PyCharm's default terminal is bash. Change it to zsh in the Settings -> Tools -> Terminal.
 * When running Run/Debug configurations, set your working directory the project root (`$PROJECT_ROOT_AT`), not the script's directory.
 * Your interpreter will be
-  * the system Python `/usr/bin/python` with the `from-python` option.
-  * the Python in your conda environment with the `from-scratch` option, with the conda binary found at `/opt/conda/condabin/conda`.
+    * the system Python `/usr/bin/python` with the `from-python` option.
+    * the Python in your conda environment with the `from-scratch` option, with the conda binary found at `/opt/conda/condabin/conda`.
 
 **Limitations:**
 
