@@ -21,4 +21,4 @@ columns_to_keep: [messages]
 need_columns: null
 keep_ids: True
 shuffle: True
-save_data_dir: ${data_dir}/shared/datasets/tulu-3-mixture
+save_data_dir: ${data_dir}/shared/datasets/dataset-mixture
