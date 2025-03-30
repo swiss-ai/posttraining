@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -J swiss-alignment-run-dist
-#SBATCH -t 12:00:00
+#SBATCH -t 24:00:00
 #SBATCH -A a-a10
 #SBATCH --output=sunattended-distributed.out
 #SBATCH --nodes 1
@@ -40,12 +40,15 @@ $HF_TOKEN_AT \
   --no-container-entrypoint \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
-  bash -c "exec accelerate launch --config-file src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
-  --num_machines $SLURM_NNODES \
-  --num_processes $((4*$SLURM_NNODES)) \
-  --main_process_ip $(hostname) \
-  --machine_rank \$SLURM_NODEID \
-  $*"
+  bash -c "\
+    bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
+    exec accelerate launch \
+    --config-file src/dpr/configs/accelerate/ds-zero1.yaml \
+    --num_machines $SLURM_NNODES \
+    --num_processes $((4*$SLURM_NNODES)) \
+    --main_process_ip $(hostname) \
+    --machine_rank \$SLURM_NODEID \
+    $*"
 
 # limitation have to manually edit the grad_accumulation_steps in the config
 
