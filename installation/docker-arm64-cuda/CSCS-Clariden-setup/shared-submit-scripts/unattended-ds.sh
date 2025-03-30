@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -J swiss-alignment-run-dist
-#SBATCH -t 24:00:00
+#SBATCH -t 12:00:00
 #SBATCH -A a-a10
 #SBATCH --output=sunattended-distributed.out
 #SBATCH --nodes 1
