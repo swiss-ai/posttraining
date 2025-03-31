@@ -5,7 +5,6 @@ ca-certificates     # Likely needed.
 curl                # Useful.
 git                 # Likely needed.
 htop                # Useful.
-netcat              # Useful.
 openssh-server      # Required for remote development with most IDEs.
 openssl             # Required.
 sudo                # Required to open ssh server.
