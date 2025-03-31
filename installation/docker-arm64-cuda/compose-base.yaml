@@ -2,7 +2,7 @@ services:
   build-args:
     build:
       args:
-        BASE_IMAGE: /capstor/store/cscs/swissai/a06/containers/vllm/swissai_vllm.sqsh
+        BASE_IMAGE: docker.io/vanekpavlov/swissai_vllm:latest
         # vLLM custom-build image from https://github.com/skandermoalla/vllm-build
         # Bsed on the nvcr.io/nvidia/pytorch:24.10-py3
         # With Pytorch 2.5.0a0+e000cf0ad9, NVIDIA CUDA 12.6.2, NVIDIA NCCL 2.22.3, Python 3.10.
@@ -11,6 +11,6 @@ services:
         GIT_IMAGE: docker.io/alpine/git:2.40.1            # https://hub.docker.com/r/alpine/git/tags
         # You can find the entrypoint by running `docker inspect BASE_IMAGE | grep -A 3 Entrypoint`
         # If there is no entrypoint, you can leave it empty.
-        BASE_ENTRYPOINT: ""
+        BASE_ENTRYPOINT: "/opt/nvidia/nvidia_entrypoint.sh"
         # 1 normally, 0 if the entrypoint does not exec its arguments, in rare cases.
         BASE_ENTRYPOINT_EXECS: 1
