@@ -9,7 +9,6 @@ black
 accelerate
 deepspeed<=0.15.4
 peft
-transformers
 trl
 # TRL extensions
 llm-blender
