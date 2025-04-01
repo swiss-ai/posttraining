@@ -34,7 +34,7 @@ OPENAI_API_KEY=$(cat $OPENAI_API_KEY_AT)
 export OPENAI_API_KEY
 
 srun \
-  --container-image=$CONTAINER_IMAGES/$(id -gn)+$(id -un)+olmes+arm64-cuda-root-latest.sqsh \
+  --container-image=$CONTAINER_IMAGES/$(id -gn)+$(id -un)+olmes+arm64-cuda-root-eee3375.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/edf.toml" \
   --container-mounts=\
 $PROJECT_ROOT_AT,\
@@ -46,6 +46,7 @@ $HF_TOKEN_AT,\
 $HOME/.gitconfig,\
 $HOME/.bashrc,\
 $HOME/.oh-my-bash,\
+/capstor/store/cscs/swissai/,\
 $JETBRAINS_SERVER_AT,\
 $HOME/.ssh \
   --container-workdir=$PROJECT_ROOT_AT \
