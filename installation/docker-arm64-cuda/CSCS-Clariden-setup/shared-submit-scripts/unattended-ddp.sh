@@ -35,7 +35,7 @@ $HF_TOKEN_AT \
   bash -c "\
     bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
     exec accelerate launch \
-    --config-file src/dpr/configs/accelerate/ds-zero1.yaml \
+    --config-file src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
     --num_machines $SLURM_NNODES \
     --num_processes $((4*$SLURM_NNODES)) \
     --main_process_ip $(hostname) \
