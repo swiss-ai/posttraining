@@ -14,6 +14,10 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
+# ------------------------------------------------------------
+# SFT Trainers
+
+
 # In our current setup, this will train over prompt + completion sequence
 # If we want to train on only the completion, then use PLWTrainer with plw=0,
 # or modify the dataset tokenization (e.g. sft_tulu_tokenize_and_truncate) to
@@ -111,7 +115,7 @@ class PLWTrainer(CustomSFTTrainer):
         shift_logits = logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
         shift_weights = weights[..., 1:].contiguous()
-        
+
         # Compute weighted average of losses
         loss_fct = CrossEntropyLoss(reduction="none")
         token_losses = loss_fct(shift_logits.transpose(1, 2), shift_labels)
@@ -256,3 +260,6 @@ class LengthNormalizedPLWTrainer(PLWTrainer):
             loss *= self.accelerator.num_processes
 
         return (loss, outputs) if return_outputs else loss
+
+
+# ------------------------------------------------------------
