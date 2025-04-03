@@ -60,9 +60,24 @@ python -c "import datasets; datasets.load_dataset('Magpie-Align/Magpie-Air-DPO-1
 ## Instructions to process the data
 
 ### Creating an eval set
-The `swiss_alignment.trl.dataset_preprocessing` module enables subsampling of training and evaluation sets from a
-single dataset object. For example, the command below was used to subsample the
-[allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture) dataset, creating a split version stored as tulu-3-sft-mixture-split.
+The `swiss_alignment.trl.dataset_preprocessing` module facilitates subsampling a training dataset from a single
+source (either a HF dataset or a local path) defined in `config/dataset_preprocessing.yaml` into distinct training and evaluation sets.
+For instance, the following command was used to subsample the [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture)
+dataset, generating a split version saved as `tulu-3-sft-mixture-split`.
 ```bash
 exec python -m swiss_alignment.trl.dataset_preprocessing dataset_args.dataset_name=${data_dir}/shared/datasets/tulu-3-sft-mixture dataset_args.output_path=${data_dir}/shared/datasets/tulu-3-sft-mixture-split dataset_args.train_split.name=train dataset_args.eval_split.name=validation dataset_args.eval_split.ratio=0.01 dataset_args.stratify_by_column=source
+```
+
+### Creating dataset mixtures
+A dataset mixture is a tailored combination of datasets, configured in the `config/dataset_mixture.yaml` file.
+The `dataset_mixer` attribute is defined as a list of objects, each specifying details for a dataset to include
+in the mixture. These objects contain the following fields:
+- **`dataset_name`**: The name of the dataset (e.g., `allenai/tulu-3-sft-mixture-split`), not correctly used.
+- **`dataset_path`**: The path to the dataset, which can point to a HF db or a local directory (e.g., `${data_dir}/shared/datasets/tulu-3-sft-mixture-plw`).
+- **`train_splits`**: A list of split names to include in the training set (e.g., `[train]`).
+- **`eval_splits`**: A list of split names to include in the evaluation set (e.g., `[validation]`).
+- **`frac_or_samples`**: Controls the amount of datapoints to save. This can be either a fraction of the dataset (e.g., `0.1` for 10%) or an exact number of samples (e.g., `1_000`).
+
+```bash
+exec python -m swiss_alignment.trl.dataset_mixture
 ```

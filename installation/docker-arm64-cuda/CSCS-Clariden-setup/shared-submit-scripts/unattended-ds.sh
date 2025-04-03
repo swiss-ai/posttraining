@@ -8,6 +8,7 @@
 #SBATCH --ntasks-per-node 1
 
 # Variables used by the entrypoint script
+# Change this to the path of your project (can be the /dev or /run copy)
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh $@
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
@@ -40,12 +41,15 @@ $HF_TOKEN_AT \
   --no-container-entrypoint \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
-  bash -c "exec accelerate launch --config-file src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
-  --num_machines $SLURM_NNODES \
-  --num_processes $((4*$SLURM_NNODES)) \
-  --main_process_ip $(hostname) \
-  --machine_rank \$SLURM_NODEID \
-  $*"
+  bash -c "\
+    bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
+    exec accelerate launch \
+    --config-file src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
+    --num_machines $SLURM_NNODES \
+    --num_processes $((4*$SLURM_NNODES)) \
+    --main_process_ip $(hostname) \
+    --machine_rank \$SLURM_NODEID \
+    $*"
 
 # limitation have to manually edit the grad_accumulation_steps in the config
 

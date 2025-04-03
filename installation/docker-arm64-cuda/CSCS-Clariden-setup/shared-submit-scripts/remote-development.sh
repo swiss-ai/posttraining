@@ -45,7 +45,9 @@ $HOME/.ssh \
   --no-container-entrypoint \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
-  sleep infinity
+  bash -c "\
+      bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
+      exec sleep infinity"
 
 # additional options
 # --container-env to override environment variables defined in the container

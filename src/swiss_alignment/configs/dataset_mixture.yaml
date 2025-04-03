@@ -1,0 +1,24 @@
+defaults:
+  # Common setup.
+  - setup
+  # This file.
+  - _self_
+
+dataset_mixer:
+  - dataset_name: allenai/tulu-3-sft-mixture-split
+    dataset_path: ${data_dir}/shared/datasets/tulu-3-sft-mixture-plw
+    train_splits: [train]
+    eval_splits: [validation]
+    frac_or_samples: 0.8
+  - dataset_name: Magpie-Align/Magpie-Air-DPO-100K-v0.1
+    dataset_path: ${data_dir}/shared/datasets/magpieair
+    train_splits: [train]
+    eval_splits: []
+    frac_or_samples: 0.2
+
+add_source_col: True
+columns_to_keep: [messages]
+need_columns: null
+keep_ids: True
+shuffle: True
+save_data_dir: ${data_dir}/shared/datasets/dataset-mixture

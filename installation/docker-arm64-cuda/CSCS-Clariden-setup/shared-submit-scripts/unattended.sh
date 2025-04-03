@@ -32,7 +32,9 @@ $OPENAI_API_KEY_AT \
   --no-container-entrypoint \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
-  "$@"
+  bash -c "\
+      bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
+      exec $*"
 
 # additional options for pyxis
 # --container-env to override environment variables defined in the container

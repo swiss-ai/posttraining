@@ -136,15 +136,20 @@ def main(config: DictConfig) -> None:
         "peft_config": peft_config,
     }
     if config.trainer == "sft":
+        acc_logger.info("Starting sft trainer.")
         trainer = CustomSFTTrainer(
             **trainer_args,
         )
     elif config.trainer == "plw":
+        acc_logger.info(f"Starting plw={config.plw_args.prompt_loss_weight} trainer.")
         trainer = PLWTrainer(
             prompt_loss_weight=config.plw_args.prompt_loss_weight,
             **trainer_args,
         )
     elif config.trainer == "ln-plw":
+        acc_logger.info(
+            f"Starting ln-plw={config.plw_args.prompt_loss_weight} trainer."
+        )
         trainer = LengthNormalizedPLWTrainer(
             prompt_loss_weight=config.plw_args.prompt_loss_weight,
             **trainer_args,

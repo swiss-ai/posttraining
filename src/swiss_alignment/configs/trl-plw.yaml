@@ -27,7 +27,7 @@ plw_args:
 training_args:
   bf16: true
   max_seq_length: 4096
-  max_grad_norm: -1 # clipping (-1 represents no clipping)
+  max_grad_norm: 1_000 # clipping (1_000 represents no clipping)
   learning_rate: 5.0e-06
   lr_scheduler_type: linear
   warmup_ratio: 0.03
