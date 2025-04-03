@@ -15,7 +15,7 @@ hydra_logger = logging.getLogger(__name__)
 # Adapted from: https://github.com/allenai/open-instruct/blob/main/open_instruct/utils.py
 # ------------------------------------------------------------
 # Dataset utilities
-def is_openai_format(messages) -> bool:
+def __is_openai_format(messages) -> bool:
     """
     Check if the input messages are in OpenAI format.
     Args:
@@ -32,7 +32,7 @@ def is_openai_format(messages) -> bool:
 
 
 # functions for handling different formats of messages
-def convert_alpaca_gpt4_to_messages(example):
+def __convert_alpaca_gpt4_to_messages(example):
     """
     Convert an instruction in inst-output to a list of messages.
     e.g. vicgalle/alpaca-gpt4"""
@@ -53,7 +53,7 @@ def convert_alpaca_gpt4_to_messages(example):
     return example
 
 
-def convert_codefeedback_single_turn_to_messages(example):
+def __convert_codefeedback_single_turn_to_messages(example):
     """
     Convert a query-answer pair to a list of messages.
     e.g. m-a-p/CodeFeedback-Filtered-Instruction"""
@@ -65,7 +65,7 @@ def convert_codefeedback_single_turn_to_messages(example):
     return example
 
 
-def convert_metamath_qa_to_messages(example):
+def __convert_metamath_qa_to_messages(example):
     """
     Convert a query-response pair to a list of messages.
     e.g. meta-math/MetaMathQA"""
@@ -77,7 +77,7 @@ def convert_metamath_qa_to_messages(example):
     return example
 
 
-def convert_code_alpaca_to_messages(example):
+def __convert_code_alpaca_to_messages(example):
     """
     Convert a prompt-completion pair to a list of messages.
     e.g. HuggingFaceH4/CodeAlpaca_20K"""
@@ -89,7 +89,7 @@ def convert_code_alpaca_to_messages(example):
     return example
 
 
-def convert_open_orca_to_messages(example):
+def __convert_open_orca_to_messages(example):
     """
     Convert a question-response pair to a list of messages.
     e.g. Open-Orca/OpenOrca"""
@@ -102,7 +102,7 @@ def convert_open_orca_to_messages(example):
     return example
 
 
-def conversations_to_messages(example):
+def __conversations_to_messages(example):
     """
     Convert from conversations format to messages.
 
@@ -128,7 +128,7 @@ def conversations_to_messages(example):
     return example
 
 
-def convert_rejection_samples_to_messages(example):
+def __convert_rejection_samples_to_messages(example):
     """
     Convert a rejection sampling dataset to messages.
     """
@@ -207,38 +207,44 @@ def get_mix_datasets(
                 and "output" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
-                ds[split] = ds[split].map(convert_alpaca_gpt4_to_messages, num_proc=10)
+                ds[split] = ds[split].map(
+                    __convert_alpaca_gpt4_to_messages, num_proc=10
+                )
             elif (
                 "prompt" in ds[split].column_names
                 and "completion" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
-                ds[split] = ds[split].map(convert_code_alpaca_to_messages, num_proc=10)
+                ds[split] = ds[split].map(
+                    __convert_code_alpaca_to_messages, num_proc=10
+                )
             elif (
                 "conversations" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
-                ds[split] = ds[split].map(conversations_to_messages, num_proc=10)
+                ds[split] = ds[split].map(__conversations_to_messages, num_proc=10)
             elif (
                 "question" in ds[split].column_names
                 and "response" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
-                ds[split] = ds[split].map(convert_open_orca_to_messages, num_proc=10)
+                ds[split] = ds[split].map(__convert_open_orca_to_messages, num_proc=10)
             elif (
                 "query" in ds[split].column_names
                 and "answer" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
                 ds[split] = ds[split].map(
-                    convert_codefeedback_single_turn_to_messages, num_proc=10
+                    __convert_codefeedback_single_turn_to_messages, num_proc=10
                 )
             elif (
                 "query" in ds[split].column_names
                 and "response" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
-                ds[split] = ds[split].map(convert_metamath_qa_to_messages, num_proc=10)
+                ds[split] = ds[split].map(
+                    __convert_metamath_qa_to_messages, num_proc=10
+                )
             elif (
                 "chosen" in ds[split].column_names
                 and "rejected" in ds[split].column_names
@@ -246,7 +252,7 @@ def get_mix_datasets(
                 and "messages" not in ds[split].column_names
             ):
                 ds[split] = ds[split].map(
-                    convert_rejection_samples_to_messages, num_proc=10
+                    __convert_rejection_samples_to_messages, num_proc=10
                 )
 
             # if id not in dataset, create it as ds-{index}
