@@ -10,6 +10,5 @@ dataset_args:
     name: null
 
 training_args:
-  eval_strategy: no
   eval_steps: null
   save_steps: 160

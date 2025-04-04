@@ -33,7 +33,7 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../../configs", config_name="trl-plw")
+@hydra.main(version_base=None, config_path="../../configs", config_name="trl-dpo")
 def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
 
@@ -54,6 +54,7 @@ def main(config: DictConfig) -> None:
         model_pad_token_id=config.tokenizer_args.model_pad_token_id,
         model_eos_token_id=config.tokenizer_args.model_eos_token_id,
     )
+
     dataset_config = DatasetConfig(
         dataset_name=script_args.dataset_name,
         dataset_split_names={
@@ -64,17 +65,21 @@ def main(config: DictConfig) -> None:
             "train": config.dataset_args.debug_subsample.train,
             "eval": config.dataset_args.debug_subsample.eval,
         },
-        transform_fn=["sft_tulu_tokenize_and_truncate", "sft_tulu_filter"],
+        transform_fn=[
+            "preference_tulu_tokenize_and_truncate",
+            "preference_tulu_filter",
+        ],
         transform_fn_args=[
             {"max_seq_length": training_args.max_seq_length},
             {},
         ],
         target_columns=[
-            "input_ids",
-            "labels",
-            "attention_mask",
-            "prompt_mask",
-            "completion_mask",
+            "chosen_input_ids",
+            "chosen_labels",
+            "chosen_attention_mask",
+            "rejected_input_ids",
+            "rejected_labels",
+            "rejected_attention_mask",
         ],
     )
 
@@ -106,6 +111,9 @@ def main(config: DictConfig) -> None:
 
     # Shuffle at the end to preserve previous cache across seeds.
     ds = ds.shuffle(seed=config.seed)
+
+    exit(0)
+
     ############################ Trainer Setup ############################
 
     # Find the last checkpoint

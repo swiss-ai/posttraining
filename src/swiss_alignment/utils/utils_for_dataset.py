@@ -369,6 +369,16 @@ ATTENTION_MASK_KEY = "attention_mask"
 PROMPT_MASK_KEY = "prompt_mask"
 COMPLETION_MASK_KEY = "completion_mask"
 LABELS_KEY = "labels"
+
+DEFAULT_CHOSEN_KEY = "chosen"
+DEFAULT_REJECTED_KEY = "rejected"
+CHOSEN_INPUT_IDS_KEY = "chosen_input_ids"
+CHOSEN_ATTENTION_MASK_KEY = "chosen_attention_mask"
+CHOSEN_LABELS_KEY = "chosen_labels"
+REJECTED_INPUT_IDS_KEY = "rejected_input_ids"
+REJECTED_ATTENTION_MASK_KEY = "rejected_attention_mask"
+REJECTED_LABELS_KEY = "rejected_labels"
+
 TOKENIZED_SFT_DATASET_KEYS = [
     INPUT_IDS_KEY,
     ATTENTION_MASK_KEY,
@@ -542,12 +552,59 @@ def sft_tulu_filter(row: Dict[str, Any], tokenizer: PreTrainedTokenizer):
     return sum(row[PROMPT_MASK_KEY]) < len(row[PROMPT_MASK_KEY])
 
 
+def preference_tulu_tokenize_and_truncate(
+    row: Dict[str, Any],
+    tokenizer: PreTrainedTokenizer,
+    max_seq_length: int,
+    chosen_key: str = DEFAULT_CHOSEN_KEY,
+    rejected_key: str = DEFAULT_REJECTED_KEY,
+):
+    """
+    Here we assume each example has a rejected and chosen field, both of which are a list of messages.
+    Each message is a dict with 'role' and 'content' fields.
+    We assume only the last message is different, and the prompt is contained in the list of messages.
+    """
+    chosen_messages = row[chosen_key]
+    rejected_messages = row[rejected_key]
+    if len(chosen_messages) == 0:
+        raise ValueError("chosen messages field is empty.")
+    if len(rejected_messages) == 0:
+        raise ValueError("rejected messages field is empty.")
+
+    chosen_encoded = sft_tulu_tokenize_and_truncate(
+        {DEFAULT_SFT_MESSAGES_KEY: chosen_messages}, tokenizer, max_seq_length
+    )
+    rejected_encoded = sft_tulu_tokenize_and_truncate(
+        {DEFAULT_SFT_MESSAGES_KEY: rejected_messages}, tokenizer, max_seq_length
+    )
+
+    return {
+        CHOSEN_INPUT_IDS_KEY: chosen_encoded["input_ids"],
+        CHOSEN_LABELS_KEY: chosen_encoded["labels"],
+        CHOSEN_ATTENTION_MASK_KEY: chosen_encoded["attention_mask"],
+        REJECTED_INPUT_IDS_KEY: rejected_encoded["input_ids"],
+        REJECTED_LABELS_KEY: rejected_encoded["labels"],
+        REJECTED_ATTENTION_MASK_KEY: rejected_encoded["attention_mask"],
+    }
+
+
+def preference_tulu_filter(row: Dict[str, Any], tokenizer: PreTrainedTokenizer):
+    return any(x != -100 for x in row[CHOSEN_LABELS_KEY]) and any(
+        x != -100 for x in row[REJECTED_LABELS_KEY]
+    )
+
+
 TRANSFORM_FNS = {
     "sft_tokenize": (sft_tokenize, "map"),
     "sft_tokenize_mask_out_prompt": (sft_tokenize_mask_out_prompt, "map"),
     "sft_filter": (sft_filter, "filter"),
     "sft_tulu_tokenize_and_truncate": (sft_tulu_tokenize_and_truncate, "map"),
     "sft_tulu_filter": (sft_tulu_filter, "filter"),
+    "preference_tulu_tokenize_and_truncate": (
+        preference_tulu_tokenize_and_truncate,
+        "map",
+    ),
+    "preference_tulu_filter": (preference_tulu_filter, "filter"),
 }
 
 
