@@ -600,89 +600,93 @@ def get_dataset(
             f"transform_fn and transform_fn_args must have the same length: {dc.transform_fn=} != {dc.transform_fn_args=}"
         )
 
-    ds = load_dataset_flexible(dc.dataset_name)
-    ds = DatasetDict(
-        {
-            "train": ds[dc.dataset_split_names["train"]],
-            **(
-                {"eval": ds[dc.dataset_split_names["eval"]]}
-                if dc.dataset_split_names["eval"] is not None
-                else {}
-            ),
-        }
-    )
-
-    if dc.debug_oom:
-
-        def add_debug_max_len(row):
-            return {
-                "debug_max_len": [
-                    len(tokenizer.apply_chat_template(msgs, tokenize=True))
-                    for msgs in row["messages"]
-                ]
+    with acc_state.main_process_first():
+        ds = load_dataset_flexible(dc.dataset_name)
+        ds = DatasetDict(
+            {
+                "train": ds[dc.dataset_split_names["train"]],
+                **(
+                    {"eval": ds[dc.dataset_split_names["eval"]]}
+                    if dc.dataset_split_names["eval"] is not None
+                    else {}
+                ),
             }
-
-        with acc_state.main_process_first():
-            ds = ds.map(
-                add_debug_max_len,
-                batched=True,
-                num_proc=64,
-            )
-            ds = ds.sort("debug_max_len", reverse=True)
-
-    if dc.dataset_subsample["train"] > 0:
-        ds["train"] = ds["train"].select(
-            range(min(len(ds["train"]), dc.dataset_subsample["train"]))
-        )
-    if dc.dataset_split_names["eval"] is not None and dc.dataset_subsample["eval"] > 0:
-        ds["eval"] = ds["eval"].select(
-            range(min(len(ds["eval"]), dc.dataset_subsample["eval"]))
         )
 
-    # beaker specific logic; we may get assigned 15.5 CPU, so we convert it to float then int
-    num_proc = int(
-        float(os.environ.get("BEAKER_ASSIGNED_CPU_COUNT", multiprocessing.cpu_count()))
-    )
-    for split in ds.keys():
-        for fn_name, fn_args in zip(dc.transform_fn, dc.transform_fn_args):
-            fn, fn_type = TRANSFORM_FNS[fn_name]
-            # always pass in tokenizer and other args if needed
-            fn_kwargs = {"tokenizer": tokenizer}
-            fn_kwargs.update(fn_args)
-
-            # perform the transformation
-            target_columns = (
-                ds[split].column_names
-                if dc.target_columns is None
-                else dc.target_columns
+        # beaker specific logic; we may get assigned 15.5 CPU, so we convert it to float then int
+        num_proc = int(
+            float(
+                os.environ.get("BEAKER_ASSIGNED_CPU_COUNT", multiprocessing.cpu_count())
             )
-            if fn_type == "map":
-                ds[split] = ds[split].map(
-                    fn,
-                    fn_kwargs=fn_kwargs,
-                    remove_columns=[
-                        col
-                        for col in ds[split].column_names
-                        if col not in target_columns
-                    ],
-                    num_proc=get_num_proc(
-                        len(ds[split]),
-                        num_proc,
-                        APPLY_CHAT_TEMPLATE_EXAMPLE_PER_SECOND_PER_CPU,
-                    ),
-                )
-            elif fn_type == "filter":
-                ds[split] = ds[split].filter(
-                    fn,
-                    fn_kwargs=fn_kwargs,
-                    num_proc=get_num_proc(
-                        len(ds[split]), num_proc, FILTER_EXAMPLE_PER_SECOND_PER_CPU
-                    ),
-                )
-            else:
-                raise ValueError(f"Unknown transform function type: {fn_type}")
+        )
+        for split in ds.keys():
+            if dc.debug_oom:
 
-        if len(ds[split]) == 0:
-            raise ValueError("No examples left after transformation")
+                def add_debug_max_len(row):
+                    return {
+                        "debug_max_len": len(
+                            tokenizer.apply_chat_template(
+                                row["messages"], tokenize=True
+                            )
+                        )
+                    }
 
-    return ds
+                ds[split] = (
+                    ds[split]
+                    .map(
+                        add_debug_max_len,
+                        num_proc=get_num_proc(
+                            len(ds[split]),
+                            num_proc,
+                            APPLY_CHAT_TEMPLATE_EXAMPLE_PER_SECOND_PER_CPU,
+                        ),
+                    )
+                    .sort("debug_max_len", reverse=True)
+                )
+
+            if split in dc.dataset_subsample and dc.dataset_subsample[split] > 0:
+                ds[split] = ds[split].select(
+                    range(min(len(ds[split]), dc.dataset_subsample[split]))
+                )
+
+            for fn_name, fn_args in zip(dc.transform_fn, dc.transform_fn_args):
+                fn, fn_type = TRANSFORM_FNS[fn_name]
+                # always pass in tokenizer and other args if needed
+                fn_kwargs = {"tokenizer": tokenizer}
+                fn_kwargs.update(fn_args)
+
+                # perform the transformation
+                target_columns = (
+                    ds[split].column_names
+                    if dc.target_columns is None
+                    else dc.target_columns
+                )
+                if fn_type == "map":
+                    ds[split] = ds[split].map(
+                        fn,
+                        fn_kwargs=fn_kwargs,
+                        remove_columns=[
+                            col
+                            for col in ds[split].column_names
+                            if col not in target_columns
+                        ],
+                        num_proc=get_num_proc(
+                            len(ds[split]),
+                            num_proc,
+                            APPLY_CHAT_TEMPLATE_EXAMPLE_PER_SECOND_PER_CPU,
+                        ),
+                    )
+                elif fn_type == "filter":
+                    ds[split] = ds[split].filter(
+                        fn,
+                        fn_kwargs=fn_kwargs,
+                        num_proc=get_num_proc(
+                            len(ds[split]), num_proc, FILTER_EXAMPLE_PER_SECOND_PER_CPU
+                        ),
+                    )
+                else:
+                    raise ValueError(f"Unknown transform function type: {fn_type}")
+
+            if len(ds[split]) == 0:
+                raise ValueError("No examples left after transformation")
+        return ds
