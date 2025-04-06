@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import torch
+from accelerate import PartialState
 from datasets import DatasetDict, concatenate_datasets, load_dataset, load_from_disk
 from transformers import PreTrainedTokenizer
 
@@ -548,6 +549,7 @@ TRANSFORM_FNS = {
 class DatasetConfig:
     dataset_name: str
     dataset_split_names: Dict[str, str]
+    debug_oom: Optional[bool] = False
     dataset_subsample: Optional[Dict[str, int]] = None
     transform_fn: List[str] = field(default_factory=list)
     transform_fn_args: List[Dict[str, Any]] = field(default_factory=list)
@@ -590,7 +592,9 @@ def get_num_proc(
     return min(num_required_cpus, num_available_cpus)
 
 
-def get_dataset(dc: DatasetConfig, tokenizer: PreTrainedTokenizer):
+def get_dataset(
+    dc: DatasetConfig, tokenizer: PreTrainedTokenizer, acc_state: PartialState
+):
     if len(dc.transform_fn) != len(dc.transform_fn_args):
         raise ValueError(
             f"transform_fn and transform_fn_args must have the same length: {dc.transform_fn=} != {dc.transform_fn_args=}"
@@ -607,6 +611,24 @@ def get_dataset(dc: DatasetConfig, tokenizer: PreTrainedTokenizer):
             ),
         }
     )
+
+    if dc.debug_oom:
+
+        def add_debug_max_len(row):
+            return {
+                "debug_max_len": [
+                    len(tokenizer.apply_chat_template(msgs, tokenize=True))
+                    for msgs in row["messages"]
+                ]
+            }
+
+        with acc_state.main_process_first():
+            ds = ds.map(
+                add_debug_max_len,
+                batched=True,
+                num_proc=64,
+            )
+            ds = ds.sort("debug_max_len", reverse=True)
 
     if dc.dataset_subsample["train"] > 0:
         ds["train"] = ds["train"].select(
