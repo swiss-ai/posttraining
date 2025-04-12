@@ -2,13 +2,13 @@
 
 model_args:
   torch_dtype: bfloat16
-  model_name_or_path: meta-llama/Llama-3.1-8B
+  model_name_or_path: meta-llama/Llama-3.1-70B
   attn_implementation: flash_attention_2
   trust_remote_code: true
   use_peft: false
 
 tokenizer_args:
-  tokenizer_name_or_path: meta-llama/Llama-3.1-8B
+  tokenizer_name_or_path: meta-llama/Llama-3.1-70B
   chat_template_name: tulu
   trust_remote_code: true
   padding_side: right

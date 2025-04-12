@@ -60,6 +60,7 @@ def main(config: DictConfig) -> None:
             "train": script_args.dataset_train_split,
             "eval": script_args.dataset_test_split,
         },
+        debug_oom=config.dataset_args.debug_oom,
         dataset_subsample={
             "train": config.dataset_args.debug_subsample.train,
             "eval": config.dataset_args.debug_subsample.eval,
@@ -102,7 +103,7 @@ def main(config: DictConfig) -> None:
     tokenizer = get_tokenizer(tokenizer_args)
 
     ############################ Dataset Setup ############################
-    ds = get_dataset(dataset_config, tokenizer)
+    ds = get_dataset(dataset_config, tokenizer, acc_state)
 
     # Shuffle at the end to preserve previous cache across seeds.
     ds = ds.shuffle(seed=config.seed)
