@@ -477,14 +477,22 @@ def sft_tulu_tokenize_and_truncate(
         if message_idx == 0:
             message_start_idx = 0
         else:
+            chat_template_args = {
+                "conversation": messages[:message_idx],
+                "tokenize": True,
+                "return_tensors": "pt",
+                "padding": False,
+                "truncation": True,
+                "max_length": max_seq_length,
+            }
+            if message_idx > 0 and messages[message_idx]["role"] == "assistant":
+                # required so the start idx for assistance doesn't include the generation prompt
+                chat_template_args["add_generation_prompt"] = True
+            else:
+                chat_template_args["add_generation_prompt"] = False
+
             message_start_idx = tokenizer.apply_chat_template(
-                conversation=messages[:message_idx],
-                tokenize=True,
-                return_tensors="pt",
-                padding=False,
-                truncation=True,
-                max_length=max_seq_length,
-                add_generation_prompt=False,
+                **chat_template_args
             ).shape[1]
 
         chat_template_args = {
