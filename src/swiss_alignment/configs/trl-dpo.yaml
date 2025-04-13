@@ -21,17 +21,16 @@ script_args:
   dataset_train_split: ${dataset_args.train_split.name}
   dataset_test_split: ${dataset_args.eval_split.name}
 
-trainer: sft # can only take values: sft, plw, ln-plw
+trainer: dpo
 training_args:
   bf16: true
-  max_seq_length: 4096
+  max_length: 2048
   max_grad_norm: -1 # clipping (-1 represents no clipping)
   learning_rate: 5.0e-06
   lr_scheduler_type: linear
   warmup_ratio: 0.03
   weight_decay: 0.0
   num_train_epochs: 2
-  packing: false
   dataloader_drop_last: true
   remove_unused_columns: false # required for custom data collator
   per_device_train_batch_size: 2 # note, this is set up for 4 GPUs

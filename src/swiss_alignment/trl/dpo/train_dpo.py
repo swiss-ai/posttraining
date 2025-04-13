@@ -8,6 +8,8 @@ from accelerate.logging import get_logger
 from accelerate.state import PartialState
 from omegaconf import DictConfig, OmegaConf
 from trl import (
+    DPOConfig,
+    DPOTrainer,
     ModelConfig,
     ScriptArguments,
     SFTConfig,
@@ -41,7 +43,7 @@ def main(config: DictConfig) -> None:
     # full_config is a merge with the TRL arg dataclasses
     # The args dataclasses are used by the HF classes, and the full_config by the template.
     script_args = ScriptArguments(**OmegaConf.to_container(config.script_args))
-    training_args = SFTConfig(
+    training_args = DPOConfig(
         **OmegaConf.to_container(config.training_args), output_dir=str(Path.cwd())
     )
     model_args = ModelConfig(**OmegaConf.to_container(config.model_args))
@@ -70,7 +72,7 @@ def main(config: DictConfig) -> None:
             "preference_tulu_filter",
         ],
         transform_fn_args=[
-            {"max_seq_length": training_args.max_seq_length},
+            {"max_seq_length": training_args.max_length},
             {},
         ],
         target_columns=[
@@ -112,8 +114,6 @@ def main(config: DictConfig) -> None:
     # Shuffle at the end to preserve previous cache across seeds.
     ds = ds.shuffle(seed=config.seed)
 
-    exit(0)
-
     ############################ Trainer Setup ############################
 
     # Find the last checkpoint
@@ -138,23 +138,13 @@ def main(config: DictConfig) -> None:
         "model": model_args.model_name_or_path,
         "args": training_args,
         "train_dataset": ds["train"],
-        "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
+        # "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
         "processing_class": tokenizer,
         "data_collator": PLWDataCollator(tokenizer=tokenizer, mlm=False),
         "peft_config": peft_config,
     }
-    if config.trainer == "sft":
-        trainer = CustomSFTTrainer(
-            **trainer_args,
-        )
-    elif config.trainer == "plw":
-        trainer = PLWTrainer(
-            prompt_loss_weight=config.plw_args.prompt_loss_weight,
-            **trainer_args,
-        )
-    elif config.trainer == "ln-plw":
-        trainer = LengthNormalizedPLWTrainer(
-            prompt_loss_weight=config.plw_args.prompt_loss_weight,
+    if config.trainer == "dpo":
+        trainer = DPOTrainer(
             **trainer_args,
         )
 
@@ -167,12 +157,13 @@ def main(config: DictConfig) -> None:
         )
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
-    acc_logger.info("Training completed. Performing final evaluation.")
-    if training_args.eval_strategy != "no":
-        metrics = trainer.evaluate()
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
-    acc_logger.info("Final evaluation completed.")
+    acc_logger.info("Training completed.")
+    # if training_args.eval_strategy != "no":
+    #     acc_logger.info("Performing final evaluation.")
+    #     metrics = trainer.evaluate()
+    #     trainer.log_metrics("eval", metrics)
+    #     trainer.save_metrics("eval", metrics)
+    #     acc_logger.info("Final evaluation completed.")
 
     if training_args.num_train_epochs == 0:
         acc_logger.info("Training skipped. Saving the model.")
