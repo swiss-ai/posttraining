@@ -47,6 +47,10 @@ def main(config: DictConfig) -> None:
         **OmegaConf.to_container(config.training_args), output_dir=str(Path.cwd())
     )
     model_args = ModelConfig(**OmegaConf.to_container(config.model_args))
+    if config.tokenizer_args.chat_template_name == "tulu":
+        # DPOTrainer manually adds EOS tokens to the end of chosen and rejected
+        config.tokenizer_args.chat_template_name = "tulu_no_eos"
+
     tokenizer_args = TokenizerConfig(
         model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
         padding_side=config.tokenizer_args.padding_side,
@@ -68,20 +72,23 @@ def main(config: DictConfig) -> None:
             "eval": config.dataset_args.debug_subsample.eval,
         },
         transform_fn=[
-            "preference_tulu_tokenize_and_truncate",
-            "preference_tulu_filter",
+            # "preference_tulu_tokenize_and_truncate",
+            # "preference_tulu_filter",
+            # transformation done inside DPOTrainer class
         ],
         transform_fn_args=[
-            {"max_seq_length": training_args.max_length},
-            {},
+            # {"max_seq_length": training_args.max_length},
+            # {},
+            # transformation done inside DPOTrainer class
         ],
         target_columns=[
-            "chosen_input_ids",
-            "chosen_labels",
-            "chosen_attention_mask",
-            "rejected_input_ids",
-            "rejected_labels",
-            "rejected_attention_mask",
+            # "chosen_input_ids",
+            # "chosen_labels",
+            # "chosen_attention_mask",
+            # "rejected_input_ids",
+            # "rejected_labels",
+            # "rejected_attention_mask",
+            # target columns are not applicable
         ],
     )
 
@@ -96,6 +103,9 @@ def main(config: DictConfig) -> None:
         quantization_config=quantization_config,
     )
     training_args.model_init_kwargs = model_kwargs
+    # the same ref model config
+    training_args.ref_model_init_kwargs = model_kwargs
+
     peft_config = get_peft_config(model_args)
 
     full_config = utils_for_trl.merge_and_save_config(
@@ -136,11 +146,12 @@ def main(config: DictConfig) -> None:
 
     trainer_args = {
         "model": model_args.model_name_or_path,
+        "ref_model": model_args.model_name_or_path,
         "args": training_args,
         "train_dataset": ds["train"],
         # "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
         "processing_class": tokenizer,
-        "data_collator": PLWDataCollator(tokenizer=tokenizer, mlm=False),
+        # "data_collator": PLWDataCollator(tokenizer=tokenizer, mlm=False), TODO: figure out collator and padding
         "peft_config": peft_config,
     }
 

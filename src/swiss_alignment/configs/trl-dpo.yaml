@@ -24,13 +24,17 @@ script_args:
 trainer: dpo
 training_args:
   bf16: true
-  max_length: 2048
-  max_grad_norm: -1 # clipping (-1 represents no clipping)
-  learning_rate: 5.0e-06
+  max_prompt_length: 2048
+  max_completion_length: 2048
+  max_grad_norm: 1000 # clipping (1_000 represents no clipping)
+  learning_rate: 5e-07
   lr_scheduler_type: linear
-  warmup_ratio: 0.03
+  warmup_ratio: 0.1
   weight_decay: 0.0
-  num_train_epochs: 2
+  beta: 5
+  label_smoothing: 0.0
+  num_train_epochs: 1
+  optim: adamw_torch_fused
   dataloader_drop_last: true
   remove_unused_columns: false # required for custom data collator
   per_device_train_batch_size: 2 # note, this is set up for 4 GPUs
@@ -42,9 +46,9 @@ training_args:
   logging_first_step: true
   logging_steps: 25
   per_device_eval_batch_size: 2
-  eval_strategy: steps # use "no" for no evaluation
+  eval_strategy: "no" # use "no" for no evaluation
   eval_steps: 50
-  eval_on_start: true
+  eval_on_start: false
   save_strategy: epoch
   # save_steps: 50 # only required if save_strategy=steps
   report_to: wandb
