@@ -574,9 +574,23 @@ def preference_tulu_tokenize_and_truncate(
     chosen_encoded = sft_tulu_tokenize_and_truncate(
         {DEFAULT_SFT_MESSAGES_KEY: chosen_messages}, tokenizer, max_seq_length
     )
+
+    # Mask out prompt for the labels
+    chosen_labels = chosen_encoded[LABELS_KEY].clone().detach()
+    prompt_mask = chosen_encoded[PROMPT_MASK_KEY].clone().detach()
+    chosen_encoded[LABELS_KEY] = torch.where(
+        prompt_mask == 1, -100, chosen_labels
+    ).tolist()
+
     rejected_encoded = sft_tulu_tokenize_and_truncate(
         {DEFAULT_SFT_MESSAGES_KEY: rejected_messages}, tokenizer, max_seq_length
     )
+
+    rejected_labels = rejected_encoded[LABELS_KEY].clone().detach()
+    prompt_mask = rejected_encoded[PROMPT_MASK_KEY].clone().detach()
+    rejected_encoded[LABELS_KEY] = torch.where(
+        prompt_mask == 1, -100, rejected_labels
+    ).tolist()
 
     return {
         CHOSEN_INPUT_IDS_KEY: chosen_encoded["input_ids"],

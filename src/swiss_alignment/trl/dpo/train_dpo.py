@@ -109,7 +109,7 @@ def main(config: DictConfig) -> None:
     tokenizer = get_tokenizer(tokenizer_args)
 
     ############################ Dataset Setup ############################
-    ds = get_dataset(dataset_config, tokenizer)
+    ds = get_dataset(dataset_config, tokenizer, acc_state)
 
     # Shuffle at the end to preserve previous cache across seeds.
     ds = ds.shuffle(seed=config.seed)
@@ -143,10 +143,10 @@ def main(config: DictConfig) -> None:
         "data_collator": PLWDataCollator(tokenizer=tokenizer, mlm=False),
         "peft_config": peft_config,
     }
-    if config.trainer == "dpo":
-        trainer = DPOTrainer(
-            **trainer_args,
-        )
+
+    trainer = DPOTrainer(
+        **trainer_args,
+    )
 
     # Apply the token patches to the model
     if tokenizer_args.model_eos_token_id is not None:
