@@ -562,6 +562,8 @@ class DatasetConfig:
     transform_fn: List[str] = field(default_factory=list)
     transform_fn_args: List[Dict[str, Any]] = field(default_factory=list)
     target_columns: Optional[List[str]] = None
+    shuffle: Optional[bool] = False
+    seed: int = 42
 
 
 def load_dataset_flexible(dataset_identifier):
@@ -651,6 +653,9 @@ def get_dataset(
                     )
                     .sort("debug_max_len", reverse=True)
                 )
+            else:
+                if dc.shuffle:
+                    ds[split] = ds[split].shuffle(seed=dc.seed)
 
             if split in dc.dataset_subsample and dc.dataset_subsample[split] > 0:
                 ds[split] = ds[split].select(

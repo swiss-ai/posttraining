@@ -15,6 +15,7 @@ dataset_args:
   debug_subsample:
     train: 0
     eval: 0
+  shuffle: true
 
 script_args:
   dataset_name: ${dataset_args.dataset_name}
@@ -24,6 +25,7 @@ script_args:
 trainer: sft # can only take values: sft, plw, ln-plw
 plw_args:
   prompt_loss_weight: 0.1
+
 training_args:
   bf16: true
   max_seq_length: 4096

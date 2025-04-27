@@ -77,6 +77,8 @@ def main(config: DictConfig) -> None:
             "prompt_mask",
             "completion_mask",
         ],
+        shuffle=config.dataset_args.shuffle,
+        seed=config.seed,
     )
 
     quantization_config = get_quantization_config(model_args)
@@ -105,8 +107,6 @@ def main(config: DictConfig) -> None:
     ############################ Dataset Setup ############################
     ds = get_dataset(dataset_config, tokenizer, acc_state)
 
-    # Shuffle at the end to preserve previous cache across seeds.
-    ds = ds.shuffle(seed=config.seed)
     ############################ Trainer Setup ############################
 
     # Find the last checkpoint
