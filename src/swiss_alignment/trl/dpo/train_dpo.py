@@ -12,7 +12,6 @@ from trl import (
     DPOTrainer,
     ModelConfig,
     ScriptArguments,
-    SFTConfig,
     get_kbit_device_map,
     get_peft_config,
     get_quantization_config,
@@ -20,14 +19,8 @@ from trl import (
 
 from swiss_alignment import utils
 from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
-from swiss_alignment.trl.trainers import (
-    CustomSFTTrainer,
-    LengthNormalizedPLWTrainer,
-    PLWTrainer,
-)
 from swiss_alignment.utils import utils_for_trl
 from swiss_alignment.utils.utils_for_dataset import DatasetConfig, get_dataset
-from swiss_alignment.utils.utils_for_plw import PLWDataCollator
 
 utils.config.register_resolvers()
 acc_state = PartialState()
@@ -72,22 +65,12 @@ def main(config: DictConfig) -> None:
             "eval": config.dataset_args.debug_subsample.eval,
         },
         transform_fn=[
-            # "preference_tulu_tokenize_and_truncate",
-            # "preference_tulu_filter",
             # transformation done inside DPOTrainer class
         ],
         transform_fn_args=[
-            # {"max_seq_length": training_args.max_length},
-            # {},
             # transformation done inside DPOTrainer class
         ],
         target_columns=[
-            # "chosen_input_ids",
-            # "chosen_labels",
-            # "chosen_attention_mask",
-            # "rejected_input_ids",
-            # "rejected_labels",
-            # "rejected_attention_mask",
             # target columns are not applicable
         ],
     )
@@ -169,12 +152,6 @@ def main(config: DictConfig) -> None:
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed.")
-    # if training_args.eval_strategy != "no":
-    #     acc_logger.info("Performing final evaluation.")
-    #     metrics = trainer.evaluate()
-    #     trainer.log_metrics("eval", metrics)
-    #     trainer.save_metrics("eval", metrics)
-    #     acc_logger.info("Final evaluation completed.")
 
     if training_args.num_train_epochs == 0:
         acc_logger.info("Training skipped. Saving the model.")
