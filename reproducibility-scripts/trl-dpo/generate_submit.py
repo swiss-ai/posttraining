@@ -1,12 +1,12 @@
 from datetime import datetime
 
-models = ["tulu-3-8b-sft.yaml"]
+models = ["apertus3-8b-sft.yaml"]
 datasets = ["tulu-3-8b-preference-mixture"]
 
 num_nodes = 4
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
-run_name = f"tulu-3-dpo-v0-b0.1"
+run_name = f"swissai-3-dpo-v0-b0.1"
 nruns = 0
 with open("dpo_submit.sh", "w") as file:
     for dataset in datasets:
