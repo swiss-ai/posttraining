@@ -3,7 +3,7 @@
 dataset_name: allenai/llama-3.1-tulu-3-8b-preference-mixture
 
 dataset_args:
-  dataset_name: ${data_dir}/shared/datasets/tulu-3-8b-sft-preference-mixture
+  dataset_name: ${data_dir}/shared/datasets/tulu-3/tulu-3-8b-sft-preference-mixture
   train_split:
     name: train
   eval_split:
