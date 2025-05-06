@@ -132,9 +132,7 @@ def main(config: DictConfig) -> None:
         "ref_model": model_args.model_name_or_path,
         "args": training_args,
         "train_dataset": ds["train"],
-        # "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
         "processing_class": tokenizer,
-        # "data_collator": PLWDataCollator(tokenizer=tokenizer, mlm=False), TODO: figure out collator and padding
         "peft_config": peft_config,
     }
 
