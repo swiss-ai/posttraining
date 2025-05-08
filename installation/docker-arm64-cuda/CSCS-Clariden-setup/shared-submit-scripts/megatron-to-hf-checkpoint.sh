@@ -38,7 +38,7 @@ $HOME/projects/,\
     --loader core \
     --saver swissai_hf \
     --load-dir /capstor/store/cscs/swissai/a10/swiss-alignment/meditron_checkpoints/intermediate_checkpoint/torch \
-    --save-dir /capstor/store/cscs/swissai/a10/swiss-alignment/meditron_checkpoints/hf_checkpoint/
+    --save-dir /capstor/store/cscs/swissai/a10/swiss-alignment/meditron_checkpoints/hf_checkpoint/ \
     --hf-tokenizer alehc/swissai-tokenizer
   "
 
