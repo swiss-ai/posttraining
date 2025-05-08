@@ -1,9 +1,9 @@
 # @package _global_
 
-dataset_name: allenai/tulu-3-sft-mixture
+dataset_name: allenai/tulu-3-sft-olmo-2-mixture-0225
 
 dataset_args:
-  dataset_name: ${data_dir}/shared/datasets/tulu-3/tulu-3-sft-mixture-split
+  dataset_name: ${data_dir}/shared/datasets/swissai/tulu-3-sft-mixture-0225-swissai-harcoded-no-openai
   train_split:
     name: train
   eval_split:

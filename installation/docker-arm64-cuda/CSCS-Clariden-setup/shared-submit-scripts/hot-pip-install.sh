@@ -5,7 +5,8 @@ elif [ -n "${SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE}" ] && [ "${SLURM_LOCALID}" -g
 else
   echo "[HOT PIP INSTALL] installing additional packages on SLURM_PROCID ${SLURM_PROCID}, SLURM_LOCALID ${SLURM_LOCALID}, hostname $(hostname)."
   pushd data/shared/pip-wheels/
-  pip install git+https://github.com/arcee-ai/mergekit.git
+  pip install git+https://github.com/swiss-ai/mergekit.git
+  pip install git+https://github.com/swiss-ai/transformers.git
   popd
 fi
 
