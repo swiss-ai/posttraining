@@ -43,7 +43,6 @@ $HF_TOKEN_AT \
   /opt/template-entrypoints/pre-entrypoint.sh \
   bash -c "\
     bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
-    export NCCL_SOCKET_IFNAME=hsn && \
     exec accelerate launch \
     --config-file src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
     --num_machines $SLURM_NNODES \
