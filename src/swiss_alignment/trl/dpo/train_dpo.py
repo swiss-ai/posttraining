@@ -132,6 +132,7 @@ def main(config: DictConfig) -> None:
         "ref_model": model_args.model_name_or_path,
         "args": training_args,
         "train_dataset": ds["train"],
+        "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
         "processing_class": tokenizer,
         "peft_config": peft_config,
     }
@@ -149,7 +150,12 @@ def main(config: DictConfig) -> None:
         )
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
-    acc_logger.info("Training completed.")
+    acc_logger.info("Training completed. Performing final evaluation.")
+    if training_args.eval_strategy != "no":
+        metrics = trainer.evaluate()
+        trainer.log_metrics("eval", metrics)
+        trainer.save_metrics("eval", metrics)
+    acc_logger.info("Final evaluation completed.")
 
     if training_args.num_train_epochs == 0:
         acc_logger.info("Training skipped. Saving the model.")
