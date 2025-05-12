@@ -25,7 +25,6 @@ $SWISS_AI_STORAGE,\
 /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/,\
 $WANDB_API_KEY_FILE_AT,\
 $HF_TOKEN_AT,\
-$OPENAI_API_KEY_AT \
   --container-workdir=$PROJECT_ROOT_AT \
   --no-container-mount-home \
   --no-container-remap-root \

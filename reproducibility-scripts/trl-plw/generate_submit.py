@@ -69,7 +69,7 @@ for dataset in datasets:
                     f"tokenizer_args.chat_template_name=tulu "
                     "outputs_subdir=shared "
                     f"job_subdir={run_name}/{model_config} "
-                    f"wandb.run_name={model_config}-{run_name} "
+                    f"wandb.run_name={model_config} "
                     f"wandb.tags=[prod,{trainer}] "
                     "resuming.resume=True "
                     # "resuming_dir=/users/jgarcagi/projects/swiss-alignment/dev/outputs/shared/train_plw/apertus3-plw-0-0-sweep/apertus3-8b.yaml-tulu-3-sft-mixture-split/checkpoints/39c8ac1414b2a1c0 "

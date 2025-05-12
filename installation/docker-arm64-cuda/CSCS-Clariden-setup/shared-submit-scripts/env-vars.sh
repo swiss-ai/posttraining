@@ -4,8 +4,6 @@ export SWISS_AI_STORAGE=/capstor/store/cscs/swissai/
 
 export WANDB_API_KEY_FILE_AT=$HOME/.wandb-api-key
 export HF_HOME=$SCRATCH/huggingface
-export OPENAI_API_KEY_AT=$HOME/.openai-api-key
-export OPENAI_API_KEY=$(cat $OPENAI_API_KEY_AT)
 
 export WANDB_API_KEY_FILE_AT=$HOME/.wandb-api-key
 if [[ "$@" == *"wandb.anonymize=true"* ]]; then
