@@ -17,4 +17,4 @@ parameters:
   rescale: false # used for DARE
   int8_mask: false # for int8 quantization
 
-dtype: float16
+dtype: bfloat16

@@ -26,4 +26,4 @@ models: # avg models
 parameters:
   normalize: true # if true, weights sum to 1
 
-dtype: float16
+dtype: bfloat16

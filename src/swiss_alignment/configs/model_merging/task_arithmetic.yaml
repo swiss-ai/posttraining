@@ -13,4 +13,4 @@ parameters:
   lambda: 1.0 # weights the sum (an aggregation fn) of task vectors
   normalize: false # if true, make task vector weights sum to 1
 
-dtype: float16
+dtype: bfloat16
