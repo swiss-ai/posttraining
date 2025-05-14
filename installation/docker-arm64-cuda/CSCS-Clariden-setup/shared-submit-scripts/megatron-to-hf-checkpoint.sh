@@ -2,7 +2,7 @@
 
 #SBATCH -J apertus-checkpoint
 #SBATCH -t 01:30:00
-#SBATCH -A a-a10
+#SBATCH -A a-infra01-1
 #SBATCH --output=sunattended-distributed.out
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
@@ -12,7 +12,6 @@
 export PROJECT_ROOT_AT=$HOME/projects/Megatron-LM
 export PROJECT_NAME=Megatron-Clariden
 
-export CUDA_BUFFER_PAGE_IN_THRESHOLD_MS=0.001
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 
 export OMP_NUM_THREADS=1
@@ -32,13 +31,13 @@ $HOME/projects/,\
    --bf16 \
    --pipeline-model-parallel-size=4 \
    --load /capstor/scratch/cscs/schlag/main_run_70B_megatron/Megatron-LM/logs/Meg-Runs/main-runs-v1/apertus3-70b-512-nodes-1e-5lr/checkpoints/ \
-   --ckpt-convert-save /capstor/store/cscs/swissai/a10/swiss-alignment/meditron_checkpoints/intermediate_checkpoint && \
+   --ckpt-convert-save /capstor/store/cscs/swissai/infra01/swiss-alignment/meditron_checkpoints/intermediate_checkpoint && \
   python $PROJECT_ROOT_AT/tools/checkpoint/convert.py \
     --model-type GPT \
     --loader core \
     --saver swissai_hf \
-    --load-dir /capstor/store/cscs/swissai/a10/swiss-alignment/meditron_checkpoints/intermediate_checkpoint/torch \
-    --save-dir /capstor/store/cscs/swissai/a10/swiss-alignment/meditron_checkpoints/hf_checkpoint/ \
+    --load-dir /capstor/store/cscs/swissai/infra01/swiss-alignment/meditron_checkpoints/intermediate_checkpoint/torch \
+    --save-dir /capstor/store/cscs/swissai/infra01/swiss-alignment/meditron_checkpoints/hf_checkpoint/ \
     --hf-tokenizer alehc/swissai-tokenizer
   "
 

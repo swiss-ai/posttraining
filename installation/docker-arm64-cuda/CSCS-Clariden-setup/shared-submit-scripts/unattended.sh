@@ -2,7 +2,7 @@
 
 #SBATCH -J swiss-alignment-run
 #SBATCH -t 12:00:00
-#SBATCH -A a-a10
+#SBATCH -A a-infra01-1
 #SBATCH --output=sunattended.out
 #SBATCH --nodes 1
 
