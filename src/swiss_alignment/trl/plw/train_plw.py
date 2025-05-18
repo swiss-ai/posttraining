@@ -20,6 +20,7 @@ from swiss_alignment import utils
 from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
 from swiss_alignment.trl.trainers import (
     CustomSFTTrainer,
+    IRLTrainer,
     LengthNormalizedPLWTrainer,
     PLWTrainer,
 )
@@ -153,6 +154,16 @@ def main(config: DictConfig) -> None:
         )
         trainer = LengthNormalizedPLWTrainer(
             prompt_loss_weight=config.plw_args.prompt_loss_weight,
+            **trainer_args,
+        )
+    elif config.trainer == "irl":
+        acc_logger.info(
+            f"Starting irl trainer: ln-plw={config.plw_args.prompt_loss_weight} lambda_td={config.irl_args.lambda_td} gamma={config.irl_args.gamma}."
+        )
+        trainer = IRLTrainer(
+            prompt_loss_weight=config.plw_args.prompt_loss_weight,
+            lambda_td=config.irl_args.lambda_td,
+            gamma=config.irl_args.gamma,
             **trainer_args,
         )
 

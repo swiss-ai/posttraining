@@ -1,0 +1,20 @@
+merge_method: ties
+
+base_model: /capstor/store/cscs/swissai/a06/hf_checkpoints/Apertus3-70B_iter_90000 # used to compute task vectors
+models: # ft models
+  - model: /capstor/store/cscs/swissai/a06/hf_checkpoints/Apertus3-70B_iter_90000
+    parameters:
+      density: 0.5 # control fraction of weights retained (for TA=1.0, for TIES in [0, 1])
+      weight: 0.5 # weight task vector
+  - model: /capstor/store/cscs/swissai/a06/hf_checkpoints/Apertus3-70B_iter_90000
+    parameters:
+      density: 0.2
+      weight: 0.5
+
+parameters:
+  lambda: 1.0 # weights the sum (an aggregation fn) of task vectors
+  normalize: false # if true, make task vector weights sum to 1
+  rescale: false # used for DARE
+  int8_mask: false # for int8 quantization
+
+dtype: bfloat16

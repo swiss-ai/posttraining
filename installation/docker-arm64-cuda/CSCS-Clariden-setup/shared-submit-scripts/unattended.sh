@@ -2,7 +2,7 @@
 
 #SBATCH -J swiss-alignment-run
 #SBATCH -t 12:00:00
-#SBATCH -A a-a10
+#SBATCH -A a-infra01-1
 #SBATCH --output=sunattended.out
 #SBATCH --nodes 1
 
@@ -25,7 +25,6 @@ $SWISS_AI_STORAGE,\
 /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/,\
 $WANDB_API_KEY_FILE_AT,\
 $HF_TOKEN_AT,\
-$OPENAI_API_KEY_AT \
   --container-workdir=$PROJECT_ROOT_AT \
   --no-container-mount-home \
   --no-container-remap-root \

@@ -3,7 +3,7 @@
 dataset_name: allenai/tulu-3-sft-mixture-split
 
 dataset_args:
-  dataset_name: ${data_dir}/shared/datasets/tulu-3-sft-mixture-split
+  dataset_name: ${data_dir}/shared/datasets/tulu-3/tulu-3-sft-mixture-split
   train_split:
     name: train
   eval_split:

@@ -234,8 +234,8 @@ class LengthNormalizedPLWTrainer(PLWTrainer):
         # Shift-by-1 so that tokens < n predict n
         shift_logits = logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
-        shift_prompt = inputs["prompt_mask"][..., 1:].contiguous()
-        shift_completion = inputs["completion_mask"][..., 1:].contiguous()
+        shift_prompt_mask = inputs["prompt_mask"][..., 1:].contiguous()
+        shift_completion_mask = inputs["completion_mask"][..., 1:].contiguous()
 
         # Compute weighted average of losses
         loss_fct = CrossEntropyLoss(reduction="none")
@@ -244,16 +244,95 @@ class LengthNormalizedPLWTrainer(PLWTrainer):
         # only occurs for eval
         if num_items_in_batch is not None:
             num_prompt_in_batch, num_completion_in_batch = num_items_in_batch
-            prompt_loss = (token_losses * shift_prompt).sum() / num_prompt_in_batch
+            prompt_loss = (token_losses * shift_prompt_mask).sum() / num_prompt_in_batch
             completion_loss = (
-                token_losses * shift_completion
+                token_losses * shift_completion_mask
             ).sum() / num_completion_in_batch
             loss = prompt_loss * self.plw + completion_loss
         else:
-            prompt_loss = (token_losses * shift_prompt).sum() / shift_prompt.sum()
+            prompt_loss = (
+                token_losses * shift_prompt_mask
+            ).sum() / shift_prompt_mask.sum()
             completion_loss = (
-                token_losses * shift_completion
-            ).sum() / shift_completion.sum()
+                token_losses * shift_completion_mask
+            ).sum() / shift_completion_mask.sum()
+            loss = prompt_loss * self.plw + completion_loss
+
+        if self.args.average_tokens_across_devices and num_items_in_batch is not None:
+            loss *= self.accelerator.num_processes
+
+        return (loss, outputs) if return_outputs else loss
+
+
+# https://arxiv.org/pdf/2409.01369
+# Adapted from: https://github.com/sankyde/IRL/blob/main/IRL.py
+class IRLTrainer(LengthNormalizedPLWTrainer):
+    def __init__(
+        self,
+        *args,
+        prompt_loss_weight=1.0,
+        lambda_td: float = 0.5,
+        gamma: float = 1.0,
+        **kwargs,
+    ):
+        super().__init__(*args, prompt_loss_weight=prompt_loss_weight, **kwargs)
+        self.lambda_td = torch.tensor(
+            lambda_td, dtype=self.model.dtype, device=self.args.device
+        )
+        self.gamma = torch.tensor(
+            gamma, dtype=self.model.dtype, device=self.args.device
+        )
+
+    def compute_loss(
+        self, model, inputs, return_outputs=False, num_items_in_batch=None
+    ):
+        # get outputs without computing loss (by not passing in labels)
+        outputs = model(
+            input_ids=inputs["input_ids"], attention_mask=inputs["attention_mask"]
+        )
+        Q = outputs.get("logits").float()  # Q(s,a)
+        actions = inputs.pop("labels")
+
+        # Shift-by-1 so that tokens < n predict n
+        shift_Q = Q[..., :-1, :].contiguous()
+        shift_actions = actions[..., 1:].contiguous()
+        shift_prompt_mask = inputs["prompt_mask"][..., 1:].contiguous()
+        shift_completion_mask = inputs["completion_mask"][..., 1:].contiguous()
+        shift_pad_mask = shift_prompt_mask + shift_completion_mask
+
+        # Compute values: v(s) = logsumexp(Q(s,:))
+        v = torch.logsumexp(shift_Q, dim=-1)
+        v_next = torch.zeros_like(v)  # next state
+        v_next[:, :-1] = v[:, 1:]  # shift right by one
+
+        chosen_Q = Q.gather(-1, (shift_actions * shift_pad_mask).unsqueeze(-1)).squeeze(
+            -1
+        )
+        log_pi = chosen_Q - v
+        nll_loss = -log_pi
+        # or
+        # loss_fct = CrossEntropyLoss(reduction="none")
+        # nll_loss = loss_fct(shift_Q.transpose(1, 2), shift_actions)
+        # log_pi = -nll_loss
+
+        # temporal difference regularization term
+        td_loss = (v + log_pi - self.gamma * v_next) ** 2
+
+        token_losses = self.lambda_td * td_loss + nll_loss
+        if num_items_in_batch is not None:
+            num_prompt_in_batch, num_completion_in_batch = num_items_in_batch
+            prompt_loss = (token_losses * shift_prompt_mask).sum() / num_prompt_in_batch
+            completion_loss = (
+                token_losses * shift_completion_mask
+            ).sum() / num_completion_in_batch
+            loss = prompt_loss * self.plw + completion_loss
+        else:
+            prompt_loss = (
+                token_losses * shift_prompt_mask
+            ).sum() / shift_prompt_mask.sum()
+            completion_loss = (
+                token_losses * shift_completion_mask
+            ).sum() / shift_completion_mask.sum()
             loss = prompt_loss * self.plw + completion_loss
 
         if self.args.average_tokens_across_devices and num_items_in_batch is not None:

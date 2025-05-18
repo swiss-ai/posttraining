@@ -1,0 +1,16 @@
+merge_method: task_arithmetic
+
+base_model: /capstor/store/cscs/swissai/a06/hf_checkpoints/Apertus3-8B_iter_900000 # used to compute task vectors
+models: # ft models
+  - model: /capstor/store/cscs/swissai/a06/hf_checkpoints/Apertus3-8B_iter_900000
+    parameters:
+      weight: 0.5 # weight task vector
+  - model: /capstor/store/cscs/swissai/a10/swiss-alignment/checkpoints/apertus3-8b-iter_90000-tulu3-sft/checkpoint-7270
+    parameters:
+      weight: 0.5
+
+parameters:
+  lambda: 1.0 # weights the sum (an aggregation fn) of task vectors
+  normalize: false # if true, make task vector weights sum to 1
+
+dtype: bfloat16
