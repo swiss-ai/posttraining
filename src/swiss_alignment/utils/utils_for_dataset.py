@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import torch
 from accelerate import PartialState
 from datasets import DatasetDict, concatenate_datasets, load_dataset, load_from_disk
@@ -139,12 +140,12 @@ def __convert_rejection_samples_to_messages(example):
 
 def get_mix_datasets(
     dataset_mixer: List[dict],
-    add_source_col: bool = False,
     columns_to_keep: Optional[List[str]] = None,
     need_columns: Optional[List[str]] = None,
     keep_ids: bool = False,
     shuffle: bool = True,
     save_data_dir: Optional[str] = None,
+    seed: Optional[int] = 42,
 ) -> DatasetDict:
     """
     Loads and mixes datasets according to proportions specified in `dataset_mixer`.
@@ -154,8 +155,6 @@ def get_mix_datasets(
             Dictionary or list containing the dataset names and their training proportions.
             By default, all test proportions are 1. Lists are formatted as
             `key1 value1 key2 value2 ...` If a list is passed in, it will be converted to a dictionary.
-        add_source_col (`bool`, *optional*, defaults to `False`):
-            Whether to add a column to the dataset that indicates the source of the data explicitly.
         columns_to_keep (Optional[List[str]], *optional*, defaults to `None`):
             Column names to keep in the dataset. Useful in the datamixer to avoid schema conflicts,
             and for cpt this should be (at least) the text column.
@@ -169,30 +168,34 @@ def get_mix_datasets(
             Whether to shuffle the training and testing/validation data.
         save_data_dir (Optional[str], *optional*, defaults to `None`):
             Optional directory to save training/test mixes on.
+        seed (Optional[int], *optional*, defaults to `42`):
+            Defines seed used for shuffling.
     """
+    # assert valid subsample_factor and duplication_factor
+    for ds_config in dataset_mixer:
+        assert (
+            ds_config.get("subsample_factor", 1) >= 0
+        ), "subsample_factor cannot be negative"
+        assert (
+            ds_config.get("duplication_factor", 1) > 0
+        ), "duplication_factor cannot be negative or zero"
+
     if save_data_dir:
         print(f"Saving mixed dataset to {save_data_dir}")
 
     raw_datasets = DatasetDict()
     raw_train_datasets = []
     raw_eval_datasets = []
-    frac_or_sample_list = []
     columns_to_keep = [] if columns_to_keep is None else columns_to_keep
     for ds_config in dataset_mixer:
-        frac_or_sample_list.append(ds_config["frac_or_samples"])
-
         ds = load_dataset_flexible(ds_config["dataset_path"])
         for split in ds.keys():
-            # only include splits specific in the config file
+            # only include splits specified in the config file
             if (
                 split not in ds_config["train_splits"]
                 and split not in ds_config["eval_splits"]
             ):
                 continue
-
-            # shuffle dataset if set
-            if shuffle:
-                ds[split] = ds[split].shuffle(seed=42)
 
             # assert that needed columns are present
             if need_columns:
@@ -201,15 +204,14 @@ def get_mix_datasets(
                         f"Needed column {need_columns} not found in dataset {ds[split].column_names}."
                     )
 
-            # handle per-case conversions
-            # if "instruction" and "output" columns are present and "messages" is not, convert to messages
+            # map datasets to conversational format
             if (
                 "instruction" in ds[split].column_names
                 and "output" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
                 ds[split] = ds[split].map(
-                    __convert_alpaca_gpt4_to_messages, num_proc=10
+                    __convert_alpaca_gpt4_to_messages, num_proc=50
                 )
             elif (
                 "prompt" in ds[split].column_names
@@ -217,26 +219,26 @@ def get_mix_datasets(
                 and "messages" not in ds[split].column_names
             ):
                 ds[split] = ds[split].map(
-                    __convert_code_alpaca_to_messages, num_proc=10
+                    __convert_code_alpaca_to_messages, num_proc=50
                 )
             elif (
                 "conversations" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
-                ds[split] = ds[split].map(__conversations_to_messages, num_proc=10)
+                ds[split] = ds[split].map(__conversations_to_messages, num_proc=50)
             elif (
                 "question" in ds[split].column_names
                 and "response" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
-                ds[split] = ds[split].map(__convert_open_orca_to_messages, num_proc=10)
+                ds[split] = ds[split].map(__convert_open_orca_to_messages, num_proc=50)
             elif (
                 "query" in ds[split].column_names
                 and "answer" in ds[split].column_names
                 and "messages" not in ds[split].column_names
             ):
                 ds[split] = ds[split].map(
-                    __convert_codefeedback_single_turn_to_messages, num_proc=10
+                    __convert_codefeedback_single_turn_to_messages, num_proc=50
                 )
             elif (
                 "query" in ds[split].column_names
@@ -244,7 +246,7 @@ def get_mix_datasets(
                 and "messages" not in ds[split].column_names
             ):
                 ds[split] = ds[split].map(
-                    __convert_metamath_qa_to_messages, num_proc=10
+                    __convert_metamath_qa_to_messages, num_proc=50
                 )
             elif (
                 "chosen" in ds[split].column_names
@@ -253,35 +255,64 @@ def get_mix_datasets(
                 and "messages" not in ds[split].column_names
             ):
                 ds[split] = ds[split].map(
-                    __convert_rejection_samples_to_messages, num_proc=10
+                    __convert_rejection_samples_to_messages, num_proc=50
                 )
 
-            # if id not in dataset, create it as ds-{index}
+            # add id is not present in dataset split
             if "id" not in ds[split].column_names:
-                id_col = [f"{ds}_{i}" for i in range(len(ds[split]))]
-                ds[split] = ds[split].add_column("id", id_col)
+                ds[split] = ds[split].add_column(
+                    "id",
+                    [f"{ds_config['dataset_name']}_{i}" for i in range(len(ds[split]))],
+                )
 
-            # Remove redundant columns to avoid schema conflicts on load
+            # keep track of dataset source if requested
+            if "source" not in ds[split].column_names:
+                ds[split] = ds[split].add_column(
+                    "source", [ds_config["dataset_name"]] * len(ds[split])
+                )
+
+            # remove redundant columns (to avoid schema conflicts on load)
             ds[split] = ds[split].remove_columns(
                 [
                     col
                     for col in ds[split].column_names
-                    if col not in (columns_to_keep + ["id"])
+                    if col not in (columns_to_keep + ["id", "source"])
                 ]
             )
 
-            # if add_source_col, add that column
-            if add_source_col:
-                source_col = [ds_config["dataset_name"]] * len(ds[split])
-                ds[split] = ds[split].add_column("source", source_col)
-
-            # for cols in columns_to_keep, if one is not present, add "None" to the column
+            # for cols in columns_to_keep, if not present, add "None" to the column
             for col in columns_to_keep:
                 if col not in ds[split].column_names:
                     ds[split] = ds[split].add_column(col, [None] * len(ds[split]))
 
-            # add dataset to train/eval split
+            # save dataset split to train/eval split
             if split in ds_config["train_splits"]:
+                # subsample the train set only
+                if ds_config.get("subsample_factor", 1) != 1:
+                    num_samples = (
+                        min(int(ds_config["subsample_factor"]), len(ds[split]))
+                        if ds_config["subsample_factor"] > 1
+                        else int(ds_config["subsample_factor"] * len(ds[split]))
+                    )
+                    if shuffle:
+                        ds[split] = ds[split].select(
+                            np.random.choice(
+                                len(ds[split]), size=num_samples, replace=False
+                            )
+                        )
+                    else:
+                        ds[split] = ds[split].select(range(num_samples))
+
+                # duplicate dataset splits (e.g. used for hardcoded prompts)
+                if ds_config.get("duplication_factor", 1) > 1:
+                    ds[split] = concatenate_datasets(
+                        [ds[split]] * ds_config["duplication_factor"]
+                    )
+
+                if shuffle:
+                    ds[split] = ds[split].shuffle(seed=seed)
+
+                # save augmented split
                 raw_train_datasets.append(ds[split])
             elif split in ds_config["eval_splits"]:
                 raw_eval_datasets.append(ds[split])
@@ -292,49 +323,16 @@ def get_mix_datasets(
 
     if len(raw_eval_datasets) == 0 and len(raw_train_datasets) == 0:
         raise ValueError("No datasets loaded.")
-    elif len(raw_train_datasets) == 0:
-        # target features are the features of the first dataset post load
-        target_features = raw_eval_datasets[0].features
-    else:
-        # target features are the features of the first dataset post load
-        target_features = raw_train_datasets[0].features
-
-    if any(frac_or_samples < 0 for frac_or_samples in frac_or_sample_list):
-        raise ValueError("Dataset fractions / lengths cannot be negative.")
-
-    # if any > 1, use count
-    if any(frac_or_samples > 1 for frac_or_samples in frac_or_sample_list):
-        is_count = True
-        # assert that all are integers
-        if not all(
-            isinstance(frac_or_samples, int) for frac_or_samples in frac_or_sample_list
-        ):
-            raise NotImplementedError("Cannot mix fractions and counts, yet.")
-    else:
-        is_count = False
+    target_features = (raw_train_datasets or raw_eval_datasets)[0].features
 
     if len(raw_train_datasets) > 0:
-        train_subsets = []
-        # Manage proportions
-        for dataset, frac_or_samples in zip(raw_train_datasets, frac_or_sample_list):
-            dataset = dataset.cast(target_features)
-            if is_count:
-                train_subset = dataset.select(range(frac_or_samples))
-            else:
-                train_subset = dataset.select(
-                    range(int(frac_or_samples * len(dataset)))
-                )
-            train_subsets.append(train_subset)
-
-        raw_datasets["train"] = concatenate_datasets(train_subsets)
-
-    # No subsampling for test datasets to enable fair comparison across models
+        raw_datasets["train"] = concatenate_datasets(
+            [dataset.cast(target_features) for dataset in raw_train_datasets]
+        )
     if len(raw_eval_datasets) > 0:
-        eval_subsets = []
-        for dataset in raw_eval_datasets:
-            eval_subsets.append(dataset.cast(target_features))
-
-        raw_datasets["test"] = concatenate_datasets(eval_subsets)
+        raw_datasets["test"] = concatenate_datasets(
+            [dataset.cast(target_features) for dataset in raw_eval_datasets]
+        )
 
     if len(raw_datasets) == 0:
         raise ValueError(
@@ -516,6 +514,10 @@ def sft_tulu_tokenize_and_truncate(
                 1
             ]
             prompt_mask[:, message_start_idx:message_end_idx] = 1  # Mark prompt tokens
+
+            # Note: Given no impact was found on prompt, we set the label to -100 to use default sft trainer
+            # labels[:, message_start_idx:message_end_idx] = -100
+
             if max_seq_length and message_end_idx >= max_seq_length:
                 break
         else:
@@ -569,8 +571,16 @@ class DatasetConfig:
 def load_dataset_flexible(dataset_identifier):
     # Check if dataset_identifier is a valid local path
     if os.path.exists(dataset_identifier):
-        hydra_logger.info(f"Loading dataset from local path: {dataset_identifier}")
-        return load_from_disk(dataset_identifier)
+        if dataset_identifier.endswith(".json") or dataset_identifier.endswith(
+            ".jsonl"
+        ):
+            hydra_logger.info(
+                f"Loading JSON dataset from local path: {dataset_identifier}"
+            )
+            return load_dataset("json", data_files=dataset_identifier)
+        else:
+            hydra_logger.info(f"Loading dataset from local path: {dataset_identifier}")
+            return load_from_disk(dataset_identifier)
     else:
         hydra_logger.info(
             f"Loading dataset from Hugging Face Hub: {dataset_identifier}"

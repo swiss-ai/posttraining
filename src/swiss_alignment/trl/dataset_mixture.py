@@ -21,12 +21,12 @@ def main(config: DictConfig) -> None:
 
     raw_datasets = get_mix_datasets(
         dataset_mixer=config.dataset_mixer,
-        add_source_col=config.add_source_col,
         columns_to_keep=config.columns_to_keep,
         need_columns=config.need_columns,
         keep_ids=config.keep_ids,
         shuffle=config.shuffle,
         save_data_dir=config.save_data_dir,
+        seed=config.seed,
     )
 
     # print first 5 samples of dataset
