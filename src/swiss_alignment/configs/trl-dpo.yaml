@@ -2,7 +2,7 @@ defaults:
   - setup
   - _self_
   # Model (from the configs/model/ directory).
-  - model: apertus3-8b-sft
+  - model:  tulu-3-8b-sft
   # Dataset (from the configs/dataset/ directory).
   - dataset: tulu-3-8b-preference-mixture
   # Optional preset for training parameters.

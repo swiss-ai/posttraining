@@ -13,5 +13,5 @@ tokenizer_args:
   trust_remote_code: true
   padding_side: right
   add_bos: false
-  model_pad_token_id: 128256  # <pad>
+  model_pad_token_id: 128004  # <|finetune_right_pad_id|>
   model_eos_token_id: null # keep default. (128001) '<|end_of_text|>'
