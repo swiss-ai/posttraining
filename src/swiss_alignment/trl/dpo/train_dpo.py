@@ -19,6 +19,7 @@ from trl import (
 
 from swiss_alignment import utils
 from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
+from swiss_alignment.trl.trainers import CustomDPOTrainer
 from swiss_alignment.utils import utils_for_trl
 from swiss_alignment.utils.utils_for_dataset import DatasetConfig, get_dataset
 
@@ -137,7 +138,7 @@ def main(config: DictConfig) -> None:
         "peft_config": peft_config,
     }
 
-    trainer = DPOTrainer(
+    trainer = CustomDPOTrainer(
         **trainer_args,
     )
 
