@@ -31,6 +31,7 @@ srun \
   --container-mounts=\
 $PROJECT_ROOT_AT,\
 $SCRATCH,\
+$HOME/projects/,\
 $SWISS_AI_STORAGE,\
 /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/,\
 $WANDB_API_KEY_FILE_AT,\

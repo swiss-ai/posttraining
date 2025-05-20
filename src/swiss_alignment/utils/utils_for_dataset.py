@@ -369,6 +369,7 @@ ATTENTION_MASK_KEY = "attention_mask"
 PROMPT_MASK_KEY = "prompt_mask"
 COMPLETION_MASK_KEY = "completion_mask"
 LABELS_KEY = "labels"
+
 TOKENIZED_SFT_DATASET_KEYS = [
     INPUT_IDS_KEY,
     ATTENTION_MASK_KEY,

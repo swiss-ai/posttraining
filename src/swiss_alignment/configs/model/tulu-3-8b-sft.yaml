@@ -1,0 +1,17 @@
+# @package _global_
+
+model_args:
+  torch_dtype: bfloat16
+  model_name_or_path: allenai/Llama-3.1-Tulu-3-8B-SFT
+  attn_implementation: flash_attention_2
+  trust_remote_code: true
+  use_peft: false
+
+tokenizer_args:
+  tokenizer_name_or_path: allenai/Llama-3.1-Tulu-3-8B-SFT
+  chat_template_name: tulu
+  trust_remote_code: true
+  padding_side: right
+  add_bos: false
+  model_pad_token_id: 128004  # <|finetune_right_pad_id|>
+  model_eos_token_id: null # keep default. (128001) '<|end_of_text|>'

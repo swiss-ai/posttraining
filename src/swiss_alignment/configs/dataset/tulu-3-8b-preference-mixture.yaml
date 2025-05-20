@@ -1,0 +1,14 @@
+# @package _global_
+
+dataset_name: allenai/llama-3.1-tulu-3-8b-preference-mixture
+
+dataset_args:
+  dataset_name: ${data_dir}/shared/datasets/tulu-3/tulu-3-8b-sft-preference-mixture
+  train_split:
+    name: train
+  eval_split:
+    name: null
+
+training_args:
+  eval_steps: null
+  save_steps: 160

@@ -4,7 +4,7 @@ import torch
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
 from torch.nn import CrossEntropyLoss
-from trl import SFTTrainer
+from trl import DPOTrainer, SFTTrainer
 
 from swiss_alignment import utils
 
@@ -342,3 +342,21 @@ class IRLTrainer(LengthNormalizedPLWTrainer):
 
 
 # ------------------------------------------------------------
+# DPO Trainers
+
+
+class CustomDPOTrainer(DPOTrainer):
+    def evaluate(
+        self,
+        eval_dataset=None,
+        ignore_keys=None,
+        metric_key_prefix: str = "eval",
+    ) -> dict[str, float]:
+        """Saves eval metrics to files"""
+        acc_state = PartialState()
+        acc_logger = get_logger(__name__)
+        acc_logger.info("\nEvaluating model\n")
+        metrics = super().evaluate(eval_dataset, ignore_keys, metric_key_prefix)
+        self.log_metrics(f"eval_{self.state.global_step}", metrics)
+        self.save_metrics(f"eval_{self.state.global_step}", metrics, combined=False)
+        return metrics
