@@ -91,6 +91,18 @@ def __convert_code_alpaca_to_messages(example):
     return example
 
 
+def __convert_aya_to_messages(example):
+    """
+    Convert a inputs-targets pair to a list of messages.
+    e.g. CohereLabs/aya_dataset"""
+    messages = [
+        {"role": "user", "content": example["inputs"]},
+        {"role": "assistant", "content": example["targets"]},
+    ]
+    example["messages"] = messages
+    return example
+
+
 def __convert_open_orca_to_messages(example):
     """
     Convert a question-response pair to a list of messages.
@@ -221,6 +233,12 @@ def get_mix_datasets(
                 ds[split] = ds[split].map(
                     __convert_code_alpaca_to_messages, num_proc=50
                 )
+            elif (
+                "inputs" in ds[split].column_names
+                and "targets" in ds[split].column_names
+                and "messages" not in ds[split].column_names
+            ):
+                ds[split] = ds[split].map(__convert_aya_to_messages, num_proc=50)
             elif (
                 "conversations" in ds[split].column_names
                 and "messages" not in ds[split].column_names
