@@ -6,19 +6,17 @@ defaults:
 
 dataset_mixer:
   - dataset_name: allenai/tulu-3-sft-mixture-split
-    dataset_path: ${data_dir}/shared/datasets/tulu-3-sft-mixture-plw
-    train_splits: [train]
-    eval_splits: [validation]
-    frac_or_samples: 0.8
-  - dataset_name: Magpie-Align/Magpie-Air-DPO-100K-v0.1
-    dataset_path: ${data_dir}/shared/datasets/magpieair
+    dataset_path: ${data_dir}/shared/datasets/tulu-3-0225/tulu-3-sft-mixture-0225-no-hardcoded-no-openai
     train_splits: [train]
     eval_splits: []
-    frac_or_samples: 0.2
+  - dataset_name: swissai/hardcoded-prompts
+    dataset_path: ${data_dir}/shared/datasets/swissai/swissai_hardcoded_prompts.jsonl
+    train_splits: [train]
+    eval_splits: []
+    duplication_factor: 10
 
-add_source_col: True
 columns_to_keep: [messages]
 need_columns: null
-keep_ids: True
-shuffle: True
-save_data_dir: ${data_dir}/shared/datasets/dataset-mixture
+keep_ids: true
+shuffle: false
+save_data_dir: ${data_dir}/shared/datasets/swissai/tulu-3-sft-mixture-0225-swissai-harcoded-no-openai

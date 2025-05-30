@@ -60,12 +60,12 @@ python -c "import datasets; datasets.load_dataset('Magpie-Align/Magpie-Air-DPO-1
 ## Instructions to process the data
 
 ### Creating an eval set
-The `swiss_alignment.trl.dataset_preprocessing` module facilitates subsampling a training dataset from a single
-source (either a HF dataset or a local path) defined in `config/dataset_preprocessing.yaml` into distinct training and evaluation sets.
+The `swiss_alignment.trl.dataset_split` module facilitates subsampling a training dataset from a single
+source (either a HF dataset or a local path) defined in `config/dataset_split.yaml` into distinct training and evaluation sets.
 For instance, the following command was used to subsample the [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture)
 dataset, generating a split version saved as `tulu-3-sft-mixture-split`.
 ```bash
-exec python -m swiss_alignment.trl.dataset_preprocessing dataset_args.dataset_name=${data_dir}/shared/datasets/tulu-3-sft-mixture dataset_args.output_path=${data_dir}/shared/datasets/tulu-3-sft-mixture-split dataset_args.train_split.name=train dataset_args.eval_split.name=validation dataset_args.eval_split.ratio=0.01 dataset_args.stratify_by_column=source
+exec python -m swiss_alignment.trl.dataset_split dataset_args.dataset_name=${data_dir}/shared/datasets/tulu-3-sft-mixture dataset_args.output_path=${data_dir}/shared/datasets/tulu-3-sft-mixture-split dataset_args.train_split.name=train dataset_args.eval_split.name=validation dataset_args.eval_split.ratio=0.01 dataset_args.stratify_by_column=source
 ```
 
 ### Creating dataset mixtures
@@ -76,8 +76,25 @@ in the mixture. These objects contain the following fields:
 - **`dataset_path`**: The path to the dataset, which can point to a HF db or a local directory (e.g., `${data_dir}/shared/datasets/tulu-3-sft-mixture-plw`).
 - **`train_splits`**: A list of split names to include in the training set (e.g., `[train]`).
 - **`eval_splits`**: A list of split names to include in the evaluation set (e.g., `[validation]`).
-- **`frac_or_samples`**: Controls the amount of datapoints to save. This can be either a fraction of the dataset (e.g., `0.1` for 10%) or an exact number of samples (e.g., `1_000`).
+- **`subsample_factor`**: (Optional) Controls the amount of datapoints to save. This can be either a fraction of the dataset (e.g., `0.1` for 10%) or an exact number of samples (e.g., `1_000`). Defaults to the full dataset.
+- **`duplication_factor`**: (Optional) Duplicates the dataset x number of times. Defaults to 1.
 
 ```bash
 exec python -m swiss_alignment.trl.dataset_mixture
 ```
+
+> [!NOTE]
+> Note: This script can also generate the Swiss AI hardcoded prompts dataset. It reads a JSON file containing the prompts and creates a dataset object.
+> ```bash
+> dataset_mixer:
+>   - dataset_name: swissai/hardcoded-prompts
+>     dataset_path: ${data_dir}/shared/datasets/swissai/swissai_hardcoded_prompts.jsonl
+>     train_splits: [train]
+>     eval_splits: []
+>     duplication_factor: 10
+> columns_to_keep: [messages]
+> need_columns: null
+> keep_ids: true
+> shuffle: false
+> save_data_dir: ${data_dir}/shared/datasets/swissai/swissai-harcoded-prompts-10x
+> ```
