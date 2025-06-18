@@ -51,9 +51,10 @@ The rest of the instructions should be performed on the cluster from the dev ins
 cd $HOME/projects/swiss-alignment/dev
 # It may also be useful to open a remote code editor on a login node to view the project. (The remote development will happen in another IDE in the container.)
 # Push what you did on your local machine so far (change project name etc) and pull it on the cluster.
-git pull
+git fetch
 git checkout eval-image
-cd installation/docker-amd64-cuda
+git pull
+cd installation/docker-arm64-cuda
 ```
 
 ## Building the environment (skip to First steps if you do not need to change the image)
