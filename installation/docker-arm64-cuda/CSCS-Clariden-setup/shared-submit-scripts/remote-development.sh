@@ -18,7 +18,7 @@ export SSH_SERVER=1
 export NO_SUDO_NEEDED=1
 # For the first time, mkdir -p $HOME/jetbrains-server, and comment out PYCHARM_IDE_AT
 export JETBRAINS_SERVER_AT=$HOME/jetbrains-server
-# export PYCHARM_IDE_AT=a72a92099e741_pycharm-professional-2024.3.3-aarch64
+export PYCHARM_IDE_AT=a72a92099e741_pycharm-professional-2024.3.3-aarch64
 # or
 export VSCODE_SERVER_AT=$SCRATCH/vscode-server
 
