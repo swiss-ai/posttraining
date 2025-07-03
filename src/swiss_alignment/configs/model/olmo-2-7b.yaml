@@ -1,0 +1,18 @@
+# @package _global_
+
+model_args:
+  torch_dtype: bfloat16
+  model_name_or_path: allenai/OLMo-2-1124-7B
+  model_revision: stage1-step928646-tokens3896B
+  attn_implementation: flash_attention_2
+  trust_remote_code: true
+  use_peft: false
+
+tokenizer_args:
+  tokenizer_name_or_path: allenai/OLMo-2-1124-7B
+  chat_template_name: tulu
+  trust_remote_code: true
+  padding_side: right
+  add_bos: true
+  model_pad_token_id: 100277  # <|pad|>
+  model_eos_token_id: null # keep default. (100257)
