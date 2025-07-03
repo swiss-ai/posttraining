@@ -20,13 +20,13 @@ export NO_SUDO_NEEDED=1
 export JETBRAINS_SERVER_AT=$HOME/jetbrains-server
 export PYCHARM_IDE_AT=a72a92099e741_pycharm-professional-2024.3.3-aarch64
 # or
-# export VSCODE_SERVER_AT=$SCRATCH/vscode-server
+export VSCODE_SERVER_AT=$SCRATCH/vscode-server
 
 export OMP_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 
 srun \
-  --container-image=$CONTAINER_IMAGES/$(id -gn)+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh \
+  --container-image=$CONTAINER_IMAGES/infra01+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/edf.toml" \
   --container-mounts=\
 $PROJECT_ROOT_AT,\

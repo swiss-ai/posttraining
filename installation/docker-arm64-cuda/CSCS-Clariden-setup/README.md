@@ -88,7 +88,7 @@ All commands should be run from the `installation/docker-arm64-cuda/` directory.
 You should be on a compute node. If not already, get one.
 ```bash
 # Request a compute node
-sbatch --time 4:00:00 -A a-a10 --wrap "sleep infinity" --output=/dev/null --error=/dev/null
+sbatch --time 4:00:00 -A a-infra01 --wrap "sleep infinity" --output=/dev/null --error=/dev/null
 # Connect to it
 srun --overlap --pty --jobid=GET_THE_JOB_ID bash
 tmux
@@ -134,14 +134,14 @@ cd installation/docker-arm64-cuda
 
 ## Getting your image (if already built, or just built)
 
-You will find the image to use for this project at `/capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh`.
+You will find the image to use for this project at `/capstor/store/cscs/swissai/infra01/container-images/infra01+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh`.
 Copy it or create a symlink to it where you keep your images. E.g.,
 ```bash
 # Make a directory where you store your images
 # Add it to your bashrc as it'll be used often
 CONTAINER_IMAGES=$SCRATCH/container-images
 mkdir -p $CONTAINER_IMAGES
-cp /capstor/store/cscs/swissai/a10/container-images/a10+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/a10+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh
+cp /capstor/store/cscs/swissai/infra01/container-images/infra01+smoalla+swiss-alignment+arm64-cuda-root-latest.sqsh $CONTAINER_IMAGES/infra01+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh
 ```
 
 Example submit scripts are provided in the `example-submit-scripts` directory and are used in the following examples.
