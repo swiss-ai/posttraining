@@ -2,7 +2,6 @@ from datetime import datetime
 
 models = ["olmo-2"]
 datasets = ["swissai-tulu-3-sft-0225"]
-# datasets = ["if-english", "if-prompt-translated", "if-multilingual"]
 
 num_epochs = 2
 batch_size = 128
@@ -35,22 +34,24 @@ nruns = 0
 for dataset in datasets:
     for model in models:
         for iter in [
-            "Olmo2-7B-stage1-step239000-tokens1003B",
-            "Olmo2-7B-stage1-step477000-tokens2001B",
-            "Olmo2-7B-stage1-step716000-tokens3004B",
-            "Olmo2-7B-stage1-step928646-tokens3896B",
+            # "Olmo2-7B-stage1-step239000-tokens1003B",
+            # "Olmo2-7B-stage1-step477000-tokens2001B",
+            # "Olmo2-7B-stage1-step716000-tokens3004B",
+            # "Olmo2-7B-stage1-step928646-tokens3896B",
             "Olmo2-7B-stage2-tokens4T",
         ]:
             for lr in learning_rates:
                 for plw in prompt_loss_weight:
-                    model_config = f"{iter}-{dataset}"
+                    model_config = f"{iter}-ademamix-{dataset}"
                     hp_config = f"{trainer}-{plw}-lr-{lr}"
                     command = (
                         f"sbatch "
                         f"--nodes {num_nodes} "
                         f"--output=reproducibility-scripts/trl-plw/out-{current_time}/{model_config}/{hp_config}.out "
-                        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh "
-                        f"-m swiss_alignment.trl.plw.train_plw "
+                        # "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh "
+                        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero2.sh "
+                        # f"-m swiss_alignment.trl.plw.train_plw "
+                        f"-m swiss_alignment.trl.plw.train_ademamix "
                         f"dataset={dataset} "
                         # f"dataset_args.debug_oom=true "
                         # f"dataset_args.debug_subsample.train=50_000 "
@@ -71,9 +72,7 @@ for dataset in datasets:
                         f"training_args.warmup_ratio={lr_warmup_ratio} "
                         f"training_args.logging_steps={logging_steps} "
                         f"training_args.eval_strategy=no "
-                        # f"training_args.eval_steps={eval_steps} "
                         f"training_args.eval_on_start=false "
-                        # f"training_args.save_strategy=epoch "
                         f"training_args.save_strategy=steps "
                         f"training_args.save_steps={save_steps} "
                         f"tokenizer_args.chat_template_name=tulu "
@@ -88,6 +87,5 @@ for dataset in datasets:
 
 print(nruns)
 
-
-# sbatch --dependency=afterany:539566 --node 32 --output=reproducibility-scripts/trl-plw/out-2025-07-02-17-04/Apertus70B-tokens7T-it679000-swissai-tulu-3-sft-0225/plw-0.0-lr-2e-06.out ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero3.sh -m swiss_alignment.trl.plw.train_plw dataset=swissai-tulu-3-sft-0225 model=apertus3-70b.yaml model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens7T-it679000tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens7T-it679000 trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_seq_length=4096 training_args.num_train_epochs=2 training_args.gradient_accumulation_steps=1 training_args.per_device_train_batch_size=1 training_args.per_device_eval_batch_size=2 training_args.learning_rate=2e-06 training_args.lr_scheduler_type=linear training_args.warmup_ratio=0.03 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_strategy=steps training_args.save_steps=1000 tokenizer_args.chat_template_name=tulu outputs_subdir=shared job_subdir=apertus3-70b-sweep/Apertus70B-tokens7T-it679000-swissai-tulu-3-sft-0225 wandb.run_name=Apertus70B-tokens7T-it679000-swissai-tulu-3-sft-0225 wandb.tags=[prod,plw] resuming.resume=True
-# sbatch --dependency=afterany:531442 --nodes 8 --output=reproducibility-scripts/trl-plw/out-2025-06-26-08-38/apertus3-8b_iter_1678000-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh -m swiss_alignment.trl.plw.train_plw dataset=swissai-tulu-3-sft-0225 model=apertus3-8b.yaml trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_seq_length=4096 training_args.num_train_epochs=2 training_args.gradient_accumulation_steps=4 training_args.per_device_train_batch_size=1 training_args.per_device_eval_batch_size=2 training_args.learning_rate=5e-06 training_args.lr_scheduler_type=linear training_args.warmup_ratio=0.03 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_strategy=steps training_args.save_steps=1000 tokenizer_args.chat_template_name=tulu outputs_subdir=shared job_subdir=apertus3-8b-sweep/apertus3-8b_iter_1678000-swissai-tulu-3-sft-0225 wandb.run_name=apertus3-8b_iter_1678000-swissai-tulu-3-sft-0225 wandb.tags=[prod,plw] resuming.resume=True
+# Ademamix
+# sbatch --dependency=afterany:570720 --nodes 8 --output=reproducibility-scripts/trl-plw/out-2025-07-17-01-10/Olmo2-7B-stage2-tokens4T-ademamix-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero2.sh -m swiss_alignment.trl.plw.train_ademamix dataset=swissai-tulu-3-sft-0225 model=olmo-2.yaml model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-7B-stage2-tokens4T tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-7B-stage2-tokens4T trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_seq_length=4096 training_args.num_train_epochs=2 training_args.gradient_accumulation_steps=4 training_args.per_device_train_batch_size=1 training_args.per_device_eval_batch_size=2 training_args.learning_rate=5e-06 training_args.lr_scheduler_type=linear training_args.warmup_ratio=0.03 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_strategy=steps training_args.save_steps=1000 tokenizer_args.chat_template_name=tulu outputs_subdir=shared job_subdir=olmo2-7b-sweep/Olmo2-7B-stage2-tokens4T-ademamix-swissai-tulu-3-sft-0225 wandb.run_name=Olmo2-7B-stage2-tokens4T-ademamix-swissai-tulu-3-sft-0225 wandb.tags=[prod,plw] resuming.resume=True

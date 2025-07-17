@@ -1,12 +1,12 @@
 from datetime import datetime
 
-models = ["apertus3-70b"]
+models = ["olmo-2"]
 datasets = ["swissai-tulu-3-sft-0225"]
 
 num_epochs = 2
 batch_size = 128
 max_seq_length = 4096
-num_nodes = 32
+num_nodes = 16
 num_proc_per_node = 4
 proc_train_batch_size = 1
 accumulation_steps = batch_size // (
@@ -29,19 +29,18 @@ logging_steps = 1
 save_steps = 1000
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
-run_name = f"apertus3-70b-sweep"
+run_name = f"olmo2-32b-sweep"
 nruns = 0
 for dataset in datasets:
     for model in models:
         for iter in [
-            # "Apertus70B-tokens3T-it560000",
-            # "Apertus70B-tokens4T-it560000",
-            # "Apertus70B-tokens5T-it560000",
-            # "Apertus70B-tokens6T-it619500",
-            # "Apertus70B-tokens7T-it679000",
-            "Apertus70B-tokens8T-it739000",
-            # "Apertus70B-tokens9T-it798250",
-            # "Apertus70B-tokens10T-it858000",
+            # "Olmo2-32B-stage1-step121000-tokens1016B",
+            # "Olmo2-32B-stage1-step239000-tokens2005B",
+            # "Olmo2-32B-stage1-step358000-tokens3004B",
+            "Olmo2-32B-stage1-step477000-tokens4002B",
+            # "Olmo2-32B-stage1-step596000-tokens5000B",
+            # "Olmo2-32B-stage1-step716000-tokens6007B",
+            "Olmo2-32B-stage2-tokens6T",
         ]:
             for lr in learning_rates:
                 for plw in prompt_loss_weight:
@@ -58,8 +57,8 @@ for dataset in datasets:
                         # f"dataset_args.debug_subsample.train=50_000 "
                         # f"dataset_args.debug_subsample.eval=100 "
                         f"model={model}.yaml "
-                        f"model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{iter} "
-                        f"tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{iter} "
+                        f"model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/{iter} "
+                        f"tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/{iter} "
                         f"trainer={trainer} "
                         f"plw_args.prompt_loss_weight={plw} "
                         f"training_args.max_seq_length={max_seq_length} "
@@ -89,6 +88,3 @@ for dataset in datasets:
                     nruns += 1
 
 print(nruns)
-
-# sbatch --dependency=afterany:545292 --nodes 32 --output=reproducibility-scripts/trl-plw/out-2025-07-08-17-08/Apertus70B-tokens10T-it858000-ademamix-swissai-tulu-3-sft-0225/plw-0.0-lr-2e-06.out ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero3.sh -m swiss_alignment.trl.plw.train_plw dataset=swissai-tulu-3-sft-0225 model=apertus3-70b.yaml model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens10T-it858000 tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens10T-it858000 trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_seq_length=4096 training_args.num_train_epochs=2 training_args.gradient_accumulation_steps=1 training_args.per_device_train_batch_size=1 training_args.per_device_eval_batch_size=2 training_args.learning_rate=2e-06 training_args.lr_scheduler_type=linear training_args.warmup_ratio=0.03 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_strategy=steps training_args.save_steps=1000 tokenizer_args.chat_template_name=tulu outputs_subdir=shared job_subdir=apertus3-70b-sweep/Apertus70B-tokens10T-it858000-ademamix-swissai-tulu-3-sft-0225 wandb.run_name=Apertus70B-tokens10T-it858000-ademamix-swissai-tulu-3-sft-0225 wandb.tags=[prod,plw] resuming.resume=True
-# sbatch --dependency=afterany:531442 --nodes 8 --output=reproducibility-scripts/trl-plw/out-2025-06-26-08-38/apertus3-8b_iter_1678000-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh -m swiss_alignment.trl.plw.train_plw dataset=swissai-tulu-3-sft-0225 model=apertus3-8b.yaml trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_seq_length=4096 training_args.num_train_epochs=2 training_args.gradient_accumulation_steps=4 training_args.per_device_train_batch_size=1 training_args.per_device_eval_batch_size=2 training_args.learning_rate=5e-06 training_args.lr_scheduler_type=linear training_args.warmup_ratio=0.03 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_strategy=steps training_args.save_steps=1000 tokenizer_args.chat_template_name=tulu outputs_subdir=shared job_subdir=apertus3-8b-sweep/apertus3-8b_iter_1678000-swissai-tulu-3-sft-0225 wandb.run_name=apertus3-8b_iter_1678000-swissai-tulu-3-sft-0225 wandb.tags=[prod,plw] resuming.resume=True

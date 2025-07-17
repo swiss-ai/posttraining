@@ -379,6 +379,8 @@ def get_mix_datasets(
 # Dataset Transformation
 # SFT dataset
 DEFAULT_SFT_MESSAGES_KEY = "messages"
+MESSAGES_ROLE_KEY = "role"
+MESSAGES_CONTENT = "content"
 INPUT_IDS_KEY = "input_ids"
 INPUT_IDS_PROMPT_KEY = "input_ids_prompt"
 ATTENTION_MASK_KEY = "attention_mask"
@@ -437,31 +439,6 @@ def sft_tokenize_mask_out_prompt(
     prompt_mask = torch.tensor(row[PROMPT_MASK_KEY])
     row[LABELS_KEY] = torch.where(prompt_mask == 1, -100, labels).tolist()
     return row
-
-
-def sft_filter(
-    row: Dict[str, Any],
-    tokenizer: PreTrainedTokenizer,
-    max_prompt_token_length: Optional[int] = None,
-    max_token_length: Optional[int] = None,
-    need_contain_labels: bool = True,
-):
-    max_prompt_token_length_ok = True
-    if max_prompt_token_length is not None:
-        max_prompt_token_length_ok = (
-            len(row[INPUT_IDS_PROMPT_KEY]) <= max_prompt_token_length
-        )
-
-    max_token_length_ok = True
-    if max_token_length is not None:
-        max_token_length_ok = len(row[INPUT_IDS_KEY]) <= max_token_length
-
-    contain_some_labels = sum(row[PROMPT_MASK_KEY]) < len(row[PROMPT_MASK_KEY])
-    return (
-        max_prompt_token_length_ok
-        and max_token_length_ok
-        and (contain_some_labels or not need_contain_labels)
-    )
 
 
 def sft_tulu_tokenize_and_truncate(
@@ -534,9 +511,6 @@ def sft_tulu_tokenize_and_truncate(
             ]
             prompt_mask[:, message_start_idx:message_end_idx] = 1  # Mark prompt tokens
 
-            # Note: Given no impact was found on prompt, we set the label to -100 to use default sft trainer
-            # labels[:, message_start_idx:message_end_idx] = -100
-
             if max_seq_length and message_end_idx >= max_seq_length:
                 break
         else:
@@ -559,16 +533,57 @@ def sft_tulu_tokenize_and_truncate(
     return row
 
 
-def sft_tulu_filter(row: Dict[str, Any], tokenizer: PreTrainedTokenizer):
+def sft_filter_has_assistant_tokens(
+    row: Dict[str, Any], tokenizer: PreTrainedTokenizer
+):
     return sum(row[PROMPT_MASK_KEY]) < len(row[PROMPT_MASK_KEY])
+
+
+def sft_filter_by_token_lengths(
+    row: Dict[str, Any],
+    tokenizer: PreTrainedTokenizer,
+    max_prompt_token_length: Optional[int] = None,
+    max_token_length: Optional[int] = None,
+    need_contain_labels: bool = True,
+):
+    max_prompt_token_length_ok = True
+    if max_prompt_token_length is not None:
+        max_prompt_token_length_ok = (
+            len(row[INPUT_IDS_PROMPT_KEY]) <= max_prompt_token_length
+        )
+
+    max_token_length_ok = True
+    if max_token_length is not None:
+        max_token_length_ok = len(row[INPUT_IDS_KEY]) <= max_token_length
+
+    contain_some_labels = sft_filter_has_assistant_tokens(row, tokenizer)
+    return (
+        max_prompt_token_length_ok
+        and max_token_length_ok
+        and (contain_some_labels or not need_contain_labels)
+    )
+
+
+def sft_filter_non_alternating_roles(
+    row: Dict[str, Any], tokenizer: PreTrainedTokenizer
+):
+    # Conversation roles must alternate (system/)user/assistant/user/assistant/...
+    messages = row[DEFAULT_SFT_MESSAGES_KEY]
+    start_index = 1 if messages[0][MESSAGES_ROLE_KEY] == "system" else 0
+    for i, message in enumerate(messages[start_index:]):
+        expected_role = "user" if i % 2 == 0 else "assistant"
+        if message[MESSAGES_ROLE_KEY] != expected_role:
+            return False
+    return True
 
 
 TRANSFORM_FNS = {
     "sft_tokenize": (sft_tokenize, "map"),
     "sft_tokenize_mask_out_prompt": (sft_tokenize_mask_out_prompt, "map"),
-    "sft_filter": (sft_filter, "filter"),
     "sft_tulu_tokenize_and_truncate": (sft_tulu_tokenize_and_truncate, "map"),
-    "sft_tulu_filter": (sft_tulu_filter, "filter"),
+    "sft_filter_has_assistant_tokens": (sft_filter_has_assistant_tokens, "filter"),
+    "sft_filter_by_token_lengths": (sft_filter_by_token_lengths, "filter"),
+    "sft_filter_non_alternating_roles": (sft_filter_non_alternating_roles, "filter"),
 }
 
 

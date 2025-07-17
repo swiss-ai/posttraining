@@ -8,24 +8,28 @@ stdout_root = (
 )
 
 
-models = ["apertus3-70b"]
+models = ["apertus3-8b"]
 datasets = ["swissai-tulu-3-sft-0225"]
 
 # Hyperparameters
 num_epochs = 2  # we save intermediate checkpoints
 max_seq_length = 4096
-learning_rates = [5e-7, 1e-6, 2e-6, 5e-6]
-batch_size = [(128, 32), (512, 64), (1024, 128)]  # bs, num_nodes
-grad_clipping = [1, 5, 1_000]
+learning_rates = [5e-6]  # 8b: 5e-6; 70b: 2e-6
+batch_size = [(128, 32)]  # bs, num_nodes
+grad_clipping = [1_000]
 trainers = [  # Trainers available: sft, plw, ln-plw, irl
-    ("ln-plw", 0.0),
-    ("ln-plw", 0.01),
-    ("ln-plw", 0.1),
-    ("irl", 0.0),
-    ("irl", 0.01),
-    ("irl", 0.1),
+    ("plw", 0.0)
+    # ("ln-plw", 0.0),
+    # ("ln-plw", 0.01),
+    # ("ln-plw", 0.1),
+    # ("irl", 0.0),
+    # ("irl", 0.01),
+    # ("irl", 0.1),
 ]
-chat_templates = ["simple_concat_with_space", "simple_chat", "tulu"]
+chat_templates = [
+    # "simple_concat_with_space", "simple_concat_with_new_line", "simple_chat", "zephyr",
+    "tulu"
+]
 
 lr_scheduler_type = "linear"  # TODO
 lr_warmup_ratio = 0.03  # TODO
@@ -37,7 +41,7 @@ proc_train_batch_size = 1
 proc_eval_batch_size = 2
 
 commands = []
-run_name = f"apertus3-70b-sweep"
+run_name = f"apertus3-8b-sweep"
 for (
     dataset,
     model,
