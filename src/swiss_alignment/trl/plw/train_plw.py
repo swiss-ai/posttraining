@@ -67,12 +67,10 @@ def main(config: DictConfig) -> None:
             "eval": config.dataset_args.debug_subsample.eval,
         },
         transform_fn=[
-            # "sft_filter_non_alternating_roles",
             "sft_tulu_tokenize_and_truncate",
             "sft_filter_has_assistant_tokens",
         ],
         transform_fn_args=[
-            # {},
             {"max_seq_length": training_args.max_seq_length},
             {},
         ],

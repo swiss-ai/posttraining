@@ -1,6 +1,6 @@
 from datetime import datetime
 
-models = ["apertus3-70b"]
+models = ["apertus-70b"]
 datasets = ["swissai-tulu-3-sft-0225"]
 
 num_epochs = 2
@@ -19,13 +19,11 @@ lr_scheduler_type = "linear"
 lr_warmup_ratio = 0.03
 
 trainer = "plw"  # can only take values: sft, plw, ln-plw, irl
-# prompt_loss_weight = [0.0, 0.01, 0.1, 0.5, 1.0]
 prompt_loss_weight = [
     0.0,
 ]  # where sft -> plw=1.0
 
 logging_steps = 1
-# eval_steps = 1000
 save_steps = 1000
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
@@ -73,9 +71,7 @@ for dataset in datasets:
                         f"training_args.warmup_ratio={lr_warmup_ratio} "
                         f"training_args.logging_steps={logging_steps} "
                         f"training_args.eval_strategy=no "
-                        # f"training_args.eval_steps={eval_steps} "
                         f"training_args.eval_on_start=false "
-                        # f"training_args.save_strategy=epoch "
                         f"training_args.save_strategy=steps "
                         f"training_args.save_steps={save_steps} "
                         f"tokenizer_args.chat_template_name=tulu "
@@ -89,6 +85,3 @@ for dataset in datasets:
                     nruns += 1
 
 print(nruns)
-
-# sbatch --dependency=afterany:545292 --nodes 32 --output=reproducibility-scripts/trl-plw/out-2025-07-08-17-08/Apertus70B-tokens10T-it858000-ademamix-swissai-tulu-3-sft-0225/plw-0.0-lr-2e-06.out ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero3.sh -m swiss_alignment.trl.plw.train_plw dataset=swissai-tulu-3-sft-0225 model=apertus3-70b.yaml model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens10T-it858000 tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens10T-it858000 trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_seq_length=4096 training_args.num_train_epochs=2 training_args.gradient_accumulation_steps=1 training_args.per_device_train_batch_size=1 training_args.per_device_eval_batch_size=2 training_args.learning_rate=2e-06 training_args.lr_scheduler_type=linear training_args.warmup_ratio=0.03 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_strategy=steps training_args.save_steps=1000 tokenizer_args.chat_template_name=tulu outputs_subdir=shared job_subdir=apertus3-70b-sweep/Apertus70B-tokens10T-it858000-ademamix-swissai-tulu-3-sft-0225 wandb.run_name=Apertus70B-tokens10T-it858000-ademamix-swissai-tulu-3-sft-0225 wandb.tags=[prod,plw] resuming.resume=True
-# sbatch --dependency=afterany:531442 --nodes 8 --output=reproducibility-scripts/trl-plw/out-2025-06-26-08-38/apertus3-8b_iter_1678000-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh -m swiss_alignment.trl.plw.train_plw dataset=swissai-tulu-3-sft-0225 model=apertus3-8b.yaml trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_seq_length=4096 training_args.num_train_epochs=2 training_args.gradient_accumulation_steps=4 training_args.per_device_train_batch_size=1 training_args.per_device_eval_batch_size=2 training_args.learning_rate=5e-06 training_args.lr_scheduler_type=linear training_args.warmup_ratio=0.03 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_strategy=steps training_args.save_steps=1000 tokenizer_args.chat_template_name=tulu outputs_subdir=shared job_subdir=apertus3-8b-sweep/apertus3-8b_iter_1678000-swissai-tulu-3-sft-0225 wandb.run_name=apertus3-8b_iter_1678000-swissai-tulu-3-sft-0225 wandb.tags=[prod,plw] resuming.resume=True

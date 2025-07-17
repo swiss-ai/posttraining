@@ -2,13 +2,13 @@
 
 model_args:
   torch_dtype: bfloat16
-  model_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2
+  model_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-7B-stage2-tokens4T
   attn_implementation: flash_attention_2
   trust_remote_code: true
   use_peft: false
 
 tokenizer_args:
-  tokenizer_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2
+  tokenizer_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-7B-stage2-tokens4T
   chat_template_name: tulu
   trust_remote_code: true
   padding_side: right

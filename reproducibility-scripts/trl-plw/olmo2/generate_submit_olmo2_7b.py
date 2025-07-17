@@ -1,6 +1,6 @@
 from datetime import datetime
 
-models = ["olmo-2"]
+models = ["olmo2-7b"]
 datasets = ["swissai-tulu-3-sft-0225"]
 
 num_epochs = 2
@@ -19,13 +19,11 @@ lr_scheduler_type = "linear"
 lr_warmup_ratio = 0.03
 
 trainer = "plw"  # can only take values: sft, plw, ln-plw, irl
-# prompt_loss_weight = [0.0, 0.01, 0.1, 0.5, 1.0]
 prompt_loss_weight = [
     0.0,
 ]  # where sft -> plw=1.0
 
 logging_steps = 1
-# eval_steps = 1000
 save_steps = 1000
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
@@ -42,16 +40,14 @@ for dataset in datasets:
         ]:
             for lr in learning_rates:
                 for plw in prompt_loss_weight:
-                    model_config = f"{iter}-ademamix-{dataset}"
+                    model_config = f"{iter}-{dataset}"
                     hp_config = f"{trainer}-{plw}-lr-{lr}"
                     command = (
                         f"sbatch "
                         f"--nodes {num_nodes} "
                         f"--output=reproducibility-scripts/trl-plw/out-{current_time}/{model_config}/{hp_config}.out "
-                        # "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh "
-                        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero2.sh "
-                        # f"-m swiss_alignment.trl.plw.train_plw "
-                        f"-m swiss_alignment.trl.plw.train_ademamix "
+                        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh "
+                        f"-m swiss_alignment.trl.plw.train_plw "
                         f"dataset={dataset} "
                         # f"dataset_args.debug_oom=true "
                         # f"dataset_args.debug_subsample.train=50_000 "
@@ -86,6 +82,3 @@ for dataset in datasets:
                     nruns += 1
 
 print(nruns)
-
-# Ademamix
-# sbatch --dependency=afterany:570720 --nodes 8 --output=reproducibility-scripts/trl-plw/out-2025-07-17-01-10/Olmo2-7B-stage2-tokens4T-ademamix-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero2.sh -m swiss_alignment.trl.plw.train_ademamix dataset=swissai-tulu-3-sft-0225 model=olmo-2.yaml model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-7B-stage2-tokens4T tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-7B-stage2-tokens4T trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_seq_length=4096 training_args.num_train_epochs=2 training_args.gradient_accumulation_steps=4 training_args.per_device_train_batch_size=1 training_args.per_device_eval_batch_size=2 training_args.learning_rate=5e-06 training_args.lr_scheduler_type=linear training_args.warmup_ratio=0.03 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_strategy=steps training_args.save_steps=1000 tokenizer_args.chat_template_name=tulu outputs_subdir=shared job_subdir=olmo2-7b-sweep/Olmo2-7B-stage2-tokens4T-ademamix-swissai-tulu-3-sft-0225 wandb.run_name=Olmo2-7B-stage2-tokens4T-ademamix-swissai-tulu-3-sft-0225 wandb.tags=[prod,plw] resuming.resume=True

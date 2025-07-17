@@ -2,14 +2,13 @@
 
 model_args:
   torch_dtype: bfloat16
-  model_name_or_path: allenai/OLMo-2-1124-7B
-  model_revision: stage1-step928646-tokens3896B
+  model_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-32B-stage2-tokens6T
   attn_implementation: flash_attention_2
   trust_remote_code: true
   use_peft: false
 
 tokenizer_args:
-  tokenizer_name_or_path: allenai/OLMo-2-1124-7B
+  tokenizer_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-32B-stage2-tokens6T
   chat_template_name: tulu
   trust_remote_code: true
   padding_side: right

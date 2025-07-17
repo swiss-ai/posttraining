@@ -1,6 +1,6 @@
 from datetime import datetime
 
-models = ["olmo-2"]
+models = ["olmo2-32b"]
 datasets = ["swissai-tulu-3-sft-0225"]
 
 num_epochs = 2
@@ -19,13 +19,11 @@ lr_scheduler_type = "linear"
 lr_warmup_ratio = 0.03
 
 trainer = "plw"  # can only take values: sft, plw, ln-plw, irl
-# prompt_loss_weight = [0.0, 0.01, 0.1, 0.5, 1.0]
 prompt_loss_weight = [
     0.0,
 ]  # where sft -> plw=1.0
 
 logging_steps = 1
-# eval_steps = 1000
 save_steps = 1000
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
@@ -72,9 +70,7 @@ for dataset in datasets:
                         f"training_args.warmup_ratio={lr_warmup_ratio} "
                         f"training_args.logging_steps={logging_steps} "
                         f"training_args.eval_strategy=no "
-                        # f"training_args.eval_steps={eval_steps} "
                         f"training_args.eval_on_start=false "
-                        # f"training_args.save_strategy=epoch "
                         f"training_args.save_strategy=steps "
                         f"training_args.save_steps={save_steps} "
                         f"tokenizer_args.chat_template_name=tulu "
