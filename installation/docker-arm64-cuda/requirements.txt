@@ -10,8 +10,11 @@ black
 accelerate
 deepspeed<=0.15.4
 peft
-git+https://github.com/swiss-ai/transformers.git@swissai-model # swiss-ai fork of transformers
+git+https://github.com/swiss-ai/transformers.git@v4.53.1+swissai # swiss-ai fork of transformers
+git+https://github.com/nickjbrowning/XIELU
 trl
+# Model Merging
+git+https://github.com/swiss-ai/mergekit.git # swiss-ai fork of mergekit
 # TRL extensions
 llm-blender
 diffusers
