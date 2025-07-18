@@ -24,7 +24,7 @@ tokenizer_args:
   chat_template_name: null
   trust_remote_code: true
   padding_side: right
-  add_bos: false
+  add_bos_to_chat_template: false
   model_pad_token_id: 0  # <unk>
   model_eos_token_id: null # keep default.
 
