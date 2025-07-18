@@ -132,13 +132,6 @@ CHAT_TEMPLATES = {
         "{%- endif %} "
         "{%- endfor %}"
     ),
-    # TODO: verify this -> <|im_start|> is tokenized to < | im _start | > might not be meaningful as for tulu
-    # '<|im_start|>user\nWhat is 2 + 2?<|im_end|>\n<|im_start|>assistant\nThe result is 4<|im_end|>\n'
-    "chatml": (
-        "{%- for message in messages %}"
-        "{{- '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n' }}"  # this should be maybe changed to our setup
-        "{%- endfor %}"
-    ),
 }
 
 
