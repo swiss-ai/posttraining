@@ -4,13 +4,7 @@ from typing import Optional
 
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
-from transformers import (
-    AutoTokenizer,
-    GPTNeoXTokenizerFast,
-    LlamaTokenizer,
-    LlamaTokenizerFast,
-    PreTrainedTokenizerFast,
-)
+from transformers import AutoTokenizer, PreTrainedTokenizerFast
 
 from swiss_alignment import utils
 
@@ -23,7 +17,7 @@ hydra_logger = logging.getLogger(__name__)
 # E.g. for [{"role": "user", "content": "What is 2 + 2?"}, {"role": "assistant", "content": "The result is 4"}]
 # with add_generation_prompt=False
 CHAT_TEMPLATES = {
-    # 'What is 2 + 2? The result is 4<|end_of_text|>'
+    # 'What is 2 + 2? The result is 4</s>'
     "simple_concat_with_space": (
         "{% for message in messages %}"
         "{{ ' ' if not loop.first else '' }}"
@@ -31,7 +25,7 @@ CHAT_TEMPLATES = {
         "{% if loop.last and not add_generation_prompt %}{{ eos_token }}{% endif %}"
         "{% endfor %}"
     ),
-    # 'What is 2 + 2?\nThe result is 4<|end_of_text|>'
+    # 'What is 2 + 2?\nThe result is 4</s>'
     "simple_concat_with_new_line": (
         "{% for message in messages %}"
         "{{ '\n' if not loop.first else '' }}"
@@ -39,7 +33,7 @@ CHAT_TEMPLATES = {
         "{% if loop.last and not add_generation_prompt %}{{ eos_token }}{% endif %}"
         "{% endfor %}"
     ),
-    # 'User: What is 2 + 2?\n\nAssistant: The result is 4<|end_of_text|>'
+    # 'User: What is 2 + 2?\n\nAssistant: The result is 4</s>'
     "simple_chat": (
         "{% for message in messages %}"
         "{{ '\n\n' if not loop.first else '' }}"
@@ -55,7 +49,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
-    # '<|user|>\nWhat is 2 + 2?<|end_of_text|>\n<|assistant|>\nThe result is 4<|end_of_text|>\n'
+    # '<|user|>\nWhat is 2 + 2?</s>\n<|assistant|>\nThe result is 4</s>\n'
     "zephyr": (
         "{% for message in messages %}"
         "{% if message['role'] == 'user' %}"
@@ -70,7 +64,7 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
-    # '<|user|>\nWhat is 2 + 2?\n<|assistant|>\nThe result is 4<|end_of_text|>'
+    # '<|user|>\nWhat is 2 + 2?\n<|assistant|>\nThe result is 4</s>'
     "tulu": (
         "{% for message in messages %}"
         "{% if message['role'] == 'system' %}"
@@ -89,62 +83,54 @@ CHAT_TEMPLATES = {
         "{% endif %}"
         "{% endfor %}"
     ),
-    # duplication of tulu template but w/o eos token for DPOTrainer compatibility
-    "tulu_no_eos": (
+    # '[INST]\nWhat is 2 + 2?\n[/INST]\nThe result is 4</s>'
+    "tulu_special_token": (
+        "{%- if messages[0]['role'] == 'system' %}"
+        "{%- set system_message = messages[0]['content'] %}"
+        "{%- set loop_messages = messages[1:] %}"
+        "{%- else %}"
+        "{%- set loop_messages = messages %}"
+        "{%- endif %}"
         "{% for message in messages %}"
-        "{% if message['role'] == 'system' %}"
-        "{{ '<|system|>\n' + message['content'] + '\n' }}"
-        "{% elif message['role'] == 'user' %}"
-        "{{ '<|user|>\n' + message['content'] + '\n' }}"
+        "{%- if message['role'] == 'user' %} "
+        "{%- if system_message is defined and loop.first %} "
+        "{{ '[INST]\n' + system_message + '\n\n' + message['content'] + '\n' }}"
+        "{%- else %} "
+        "{{ '[INST]\n' + message['content'] + '\n' }}"
+        "{%- endif %} "
         "{% elif message['role'] == 'assistant' %}"
         "{% if not loop.last %}"
-        "{{ '<|assistant|>\n'  + message['content'] + eos_token + '\n' }}"
+        "{{ '[/INST]\n'  + message['content'] + eos_token + '\n' }}"
         "{% else %}"
-        "{{ '<|assistant|>\n'  + message['content'] }}"
+        "{{ '[/INST]\n'  + message['content'] + eos_token }}"
         "{% endif %}"
         "{% endif %}"
         "{% if loop.last and add_generation_prompt %}"
-        "{{ '<|assistant|>\n' }}"
+        "{{ '[/INST]\n' }}"
         "{% endif %}"
         "{% endfor %}"
     ),
-    # 'A conversation between User and Assistant. The user asks a question ... <answer> answer here </answer>.\n\nUser: What is 2 + 2?\n\n\nAssistant: The result is 4\n'
-    "r1_simple_chat": (
-        "A conversation between User and Assistant. "
-        "The user asks a question, and the Assistant solves it. "
-        "The assistant first thinks about the reasoning process in "
-        "the mind and then provides the user with the answer. "
-        "The reasoning process and answer are enclosed within <think> </think> "
-        "and <answer> </answer> tags, respectively, "
-        "i.e., <think> reasoning process here </think> "
-        "<answer> answer here </answer>."
-        "\n\n"
-        "{% for message in messages %}"
-        "{{ '\n\n' if not loop.first else '' }}"
-        "{{ message['role'].capitalize() + ': ' + message['content'] + '\n' }}"
-        "{% if loop.last and add_generation_prompt %}"
-        "{{ 'Assistant:' }}"
-        "{% endif %}"
-        "{% endfor %}"
-    ),
-    #' A conversation between User and Assistant. The user asks a question ... <answer> answer here </answer>.\n\nUser: What is 2 + 2?\n\n\nAssistant: The result is 4\n'
-    "r1_simple_chat_postpend_think": (
-        "A conversation between User and Assistant. "
-        "The user asks a question, and the Assistant solves it. "
-        "The assistant first thinks about the reasoning process in "
-        "the mind and then provides the user with the answer. "
-        "The reasoning process and answer are enclosed within <think> </think> "
-        "and <answer> </answer> tags, respectively, "
-        "i.e., <think> reasoning process here </think> "
-        "<answer> answer here </answer>."
-        "\n\n"
-        "{% for message in messages %}"
-        "{{ '\n\n' if not loop.first else '' }}"
-        "{{ message['role'].capitalize() + ': ' + message['content'] + '\n' }}"
-        "{% if loop.last and add_generation_prompt %}"
-        "{{ 'Assistant: <think>' }}"
-        "{% endif %}"
-        "{% endfor %}"
+    # '[INST] What is 2 + 2?[/INST] The result is 4</s>'
+    "mistral": (
+        "{%- if messages[0]['role'] == 'system' %}"
+        "{%- set system_message = messages[0]['content'] %}"
+        "{%- set loop_messages = messages[1:] %}"
+        "{%- else %}"
+        "{%- set loop_messages = messages %}"
+        "{%- endif %}"
+        "{%- for message in loop_messages %}"
+        "{%- if message['role'] == 'user' %} "
+        "{%- if system_message is defined and loop.first %} "
+        "{{ '[INST] ' + system_message + '\n\n' + message['content'] + '[/INST]' }} "
+        "{%- else %} "
+        "{{ '[INST] ' + message['content'] + '[/INST]' }} "
+        "{%- endif %} "
+        "{%- elif message['role'] == 'assistant' %} "
+        "{{ ' ' + message['content']|trim + eos_token }} "
+        "{%- else %} "
+        "{{ raise_exception('Only user and assistant roles are supported!') }} "
+        "{%- endif %} "
+        "{%- endfor %}"
     ),
 }
 
@@ -154,7 +140,7 @@ class TokenizerConfig:
     model_name_or_path: str
     padding_side: str = "right"
     trust_remote_code: bool = True
-    add_bos: bool = False
+    add_bos_to_chat_template: bool = False
     chat_template_name: Optional[str] = None
     model_pad_token_id: Optional[int] = None
     model_eos_token_id: Optional[int] = None
@@ -199,13 +185,13 @@ def get_tokenizer(tc: TokenizerConfig):
                 f"Could not find chat template for {tc.model_name_or_path}."
             )
 
-    if tc.add_bos:
+    if tc.add_bos_to_chat_template:
         if tokenizer.chat_template.startswith("{{ bos_token }}") or (
             tokenizer.bos_token is not None
             and tokenizer.chat_template.startswith(tokenizer.bos_token)
         ):
             raise ValueError(
-                "You specified add_bos=True, but the chat template already has a bos_token at the beginning."
+                "You specified add_bos_to_chat_template=True, but the chat template already has a bos_token at the beginning."
             )
         # also add bos in the chat template if not already there
         tokenizer.chat_template = "{{ bos_token }}" + tokenizer.chat_template

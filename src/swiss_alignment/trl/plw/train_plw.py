@@ -49,7 +49,7 @@ def main(config: DictConfig) -> None:
     tokenizer_args = TokenizerConfig(
         model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
         padding_side=config.tokenizer_args.padding_side,
-        add_bos=config.tokenizer_args.add_bos,
+        add_bos_to_chat_template=config.tokenizer_args.add_bos_to_chat_template,
         trust_remote_code=config.tokenizer_args.trust_remote_code,
         chat_template_name=config.tokenizer_args.chat_template_name,
         model_pad_token_id=config.tokenizer_args.model_pad_token_id,
@@ -66,7 +66,10 @@ def main(config: DictConfig) -> None:
             "train": config.dataset_args.debug_subsample.train,
             "eval": config.dataset_args.debug_subsample.eval,
         },
-        transform_fn=["sft_tulu_tokenize_and_truncate", "sft_tulu_filter"],
+        transform_fn=[
+            "sft_tulu_tokenize_and_truncate",
+            "sft_filter_has_assistant_tokens",
+        ],
         transform_fn_args=[
             {"max_seq_length": training_args.max_seq_length},
             {},

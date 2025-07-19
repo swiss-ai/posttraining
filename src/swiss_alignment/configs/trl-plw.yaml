@@ -2,7 +2,7 @@ defaults:
   - setup
   - _self_
   # Model (from the configs/model/ directory).
-  - model: meta-llama-3-1-8b
+  - model: apertus-8b
   # Dataset (from the configs/dataset/ directory).
   - dataset: tulu-3-sft-mixture-split
   # Optional preset for training parameters.

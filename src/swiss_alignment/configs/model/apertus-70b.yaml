@@ -2,16 +2,16 @@
 
 model_args:
   torch_dtype: bfloat16
-  model_name_or_path: /capstor/store/cscs/swissai/a06/hf_checkpoints/Apertus3-8B_iter_900000
+  model_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens10T-it858000
   attn_implementation: flash_attention_2
   trust_remote_code: true
   use_peft: false
 
 tokenizer_args:
-  tokenizer_name_or_path: /capstor/store/cscs/swissai/a06/hf_checkpoints/Apertus3-8B_iter_900000
+  tokenizer_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens10T-it858000
   chat_template_name: tulu
   trust_remote_code: true
   padding_side: right
-  add_bos: false
+  add_bos_to_chat_template: true # 1: <s>
   model_pad_token_id: 10  # <pad>
   model_eos_token_id: null # keep default. (2: </s>)

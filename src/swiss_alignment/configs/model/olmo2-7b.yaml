@@ -1,0 +1,17 @@
+# @package _global_
+
+model_args:
+  torch_dtype: bfloat16
+  model_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-7B-stage2-tokens4T
+  attn_implementation: flash_attention_2
+  trust_remote_code: true
+  use_peft: false
+
+tokenizer_args:
+  tokenizer_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/olmo2/Olmo2-7B-stage2-tokens4T
+  chat_template_name: tulu
+  trust_remote_code: true
+  padding_side: right
+  add_bos_to_chat_template: true
+  model_pad_token_id: 100277  # <|pad|>
+  model_eos_token_id: null # keep default. (100257)
