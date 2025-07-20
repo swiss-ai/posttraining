@@ -7,14 +7,13 @@ wandb
 pre-commit
 black
 # Alignment
-accelerate
-deepspeed<=0.15.4
-peft
-git+https://github.com/swiss-ai/transformers.git@v4.53.1+swissai # swiss-ai fork of transformers
-git+https://github.com/nickjbrowning/XIELU
-trl
+accelerate==1.6.0
+deepspeed==0.15.4
+# deepspeed
+datasets==3.5.0
+# datasets
+peft==0.15.1
+trl==0.16.0
+#trl
 # Model Merging
 git+https://github.com/swiss-ai/mergekit.git # swiss-ai fork of mergekit
-# TRL extensions
-llm-blender
-diffusers

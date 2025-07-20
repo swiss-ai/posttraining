@@ -3,6 +3,8 @@ from datetime import datetime
 models = ["apertus-8b"]
 datasets = ["swissai-tulu-3-sft-0225"]
 
+ds_config = "ds-zero1"  # ds-zero1, ds-zero2, ds-zero3
+
 num_epochs = 2
 batch_size = 128
 max_seq_length = 4096
@@ -25,7 +27,6 @@ prompt_loss_weight = [
 
 logging_steps = 1
 save_steps = 1000
-
 
 current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
 run_name = f"apertus3-8b-sweep"
@@ -53,7 +54,7 @@ for dataset in datasets:
                         f"sbatch "
                         f"--nodes {num_nodes} "
                         f"--output=reproducibility-scripts/trl-plw/out-{current_time}/{model_config}/{hp_config}.out "
-                        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh "
+                        f"./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh "
                         f"-m swiss_alignment.trl.plw.train_plw "
                         f"dataset={dataset} "
                         f"model={model}.yaml "
@@ -76,7 +77,7 @@ for dataset in datasets:
                         f"training_args.save_strategy=steps "
                         f"training_args.save_steps={save_steps} "
                         f"tokenizer_args.chat_template_name=tulu "
-                        "outputs_subdir=shared "
+                        "artifacts_subdir=private "
                         f"job_subdir={run_name}/{model_config} "
                         f"wandb.run_name={model_config} "
                         f"wandb.tags=[prod,{trainer}] "

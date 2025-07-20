@@ -11,6 +11,8 @@ stdout_root = (
 models = ["apertus3-8b"]
 datasets = ["swissai-tulu-3-sft-0225"]
 
+ds_config = "ds-zero1"  # ds-zero1, ds-zero2, ds-zero3
+
 # Hyperparameters
 num_epochs = 2  # we save intermediate checkpoints
 max_seq_length = 4096
@@ -66,7 +68,7 @@ for (
         f"--nodes {num_nodes} "
         f"--output={stdout_root}/{hp_config}.out "
         f"--error={stdout_root}/{hp_config}.err "
-        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero3.sh "
+        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds.sh "
         f"-m swiss_alignment.trl.plw.train_plw "
         f"dataset={dataset} "
         f"model={model}.yaml "
@@ -87,7 +89,7 @@ for (
         f"training_args.eval_on_start=false "
         f"training_args.save_strategy=steps "
         f"training_args.save_steps=1000 "
-        "outputs_subdir=shared "
+        "artifacts_dir=shared "
         f"job_subdir={run_name}/{model_config}/{hp_config} "
         f"wandb.run_name={model_config} "
         f"wandb.tags=[prod,{trainer}] "

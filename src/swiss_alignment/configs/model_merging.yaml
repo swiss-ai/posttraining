@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 config_yml: ${hydra:runtime.cwd}/src/swiss_alignment/configs/model_merging/linear.yaml
-output_path: ${outputs_dir}/${outputs_subdir}/${hydra:job.name}/${job_subdir}/checkpoints
+output_path: ${artifacts_dir}/${output_artifacts_subdir}/${hydra:job.name}/${job_subdir}/checkpoints
 
 # https://github.com/arcee-ai/mergekit/blob/main/mergekit/options.py#L66
 gpu_rich: true

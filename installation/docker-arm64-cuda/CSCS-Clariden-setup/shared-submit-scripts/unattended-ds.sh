@@ -11,22 +11,14 @@
 # Change this to the path of your project (can be the /dev or /run copy)
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh $@
+export HF_TOKEN_AT=$HOME/.hf-token
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 
 export OMP_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 
-parse_for_deepspeed_plugin() {
-  for arg in "$@"; do
-    if [[ $arg =~ training_args\.gradient_accumulation_steps=([0-9]+) ]]; then
-      deepspeed_acc=${BASH_REMATCH[1]}
-    fi
-  done
-}
-parse_for_deepspeed_plugin "$@"
-
 srun \
-  --container-image=$CONTAINER_IMAGES/infra01+$(id -un)+swiss-alignment+arm64-cuda-root-latest.sqsh \
+  --container-image=/capstor/store/cscs/swissai/infra01/swiss-alignment/container-images/swiss-alignment+apertus-vllm.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/edf.toml" \
   --container-mounts=\
 $PROJECT_ROOT_AT,\
@@ -44,7 +36,7 @@ $HF_TOKEN_AT \
   bash -c "\
     bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
     exec accelerate launch \
-    --config-file src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
+    --config-file ${PROJECT_ROOT_AT}/src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
     --num_machines $SLURM_NNODES \
     --num_processes $((4*$SLURM_NNODES)) \
     --main_process_ip $(hostname) \

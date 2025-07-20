@@ -61,8 +61,11 @@ resuming:
   resume: false
   exclude_keys:
     - run_dir
-    - data_dir
-    - outputs_dir
+    - artifacts_dir
+    - artifacts_subdir
+    - input_artifacts_subdir
+    - output_artifacts_subdir
+    - job_subdir
     - resuming_dir
     - wandb
     - resuming.exclude_keys
