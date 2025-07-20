@@ -1,0 +1,20 @@
+accelerate
+datasets
+deepspeed
+einops
+hydra-core
+llamafactory
+more_itertools
+pandas
+peft
+tqdm
+transformers
+wandb
+
+# Additional dependencies for evaluation
+evaluate
+colorama
+lxml
+portalocker
+langdetect
+immutabledict

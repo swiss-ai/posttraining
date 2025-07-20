@@ -46,7 +46,7 @@ We provide the following guides for obtaining/building and running the environme
 Clone the git repository.
 
 ```bash
-git clone <HTTPS/SSH> swiss-alignment
+git clone git@github.com:swiss-ai/swiss-alignment.git swiss-alignment
 cd swiss-alignment
 ```
 
@@ -195,7 +195,7 @@ mv swiss-alignment swiss-alignment-tmp
 mkdir swiss-alignment
 mv swiss-alignment-tmp swiss-alignment/dev
 # Make sure to rerun your .env so that the new paths are correct.
-git clone <HTTPS/SSH> swiss-alignment/run
+git clone git@github.com:swiss-ai/swiss-alignment.git swiss-alignment/run
 # Then you can follow the same steps for .../run to run your experiments.
 # Remember to generate and edit the .env file there as well.
 ```

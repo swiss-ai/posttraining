@@ -46,6 +46,21 @@ PROJECT_ROOT/                  # In your home directory.
 ...
 ```
 
+Everything in `store` and `shared` should have group write permissions for `infra01` by default.
+If at any point this is not the case in some subdirectory you created, run the following:
+```bash
+cd the-problemetic-subdirectory
+chown -R :infra01 .
+chmod -R g+wrxs .
+setfacl -R -m group::rwx,default:group::rwx,group:infra01:rwx,default:group:infra01:rwx .
+
+# If you want to give another group read access:
+GROUP_NAME=some-other-group
+setfacl -R -m group:$GROUP_NAME:r-x,default:group:$GROUP_NAME:r-x .
+```
+
+```bash
+
 ### Clone the code and set up the storage
 
 It will look like this:
@@ -69,9 +84,17 @@ done
 
 ### Set up credentials
 
-TODO creadials for wandb, HF, etc.
+Mounted in the containers at runtime.
 
-Basically after this the unattended submit script should run.
+```bash
+# Weights & Biases
+echo <my-wandb-api-key> > $HOME/.wandb-api-key
+chmod 600 $HOME/.wandb-api-key
+
+# Hugging Face  
+echo <my-huggingface-api-key> > $HOME/.hf-token
+chmod 600 $HOME/.hf-token
+```
 
 ## What's next?
 

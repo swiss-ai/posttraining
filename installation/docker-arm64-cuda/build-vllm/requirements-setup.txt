@@ -1,0 +1,13 @@
+setuptools
+cmake
+ninja
+scikit-build
+scikit-build-core
+pybind11
+wheel
+setproctitle
+packaging
+torchao
+setuptools-scm
+hatchling
+setuptools-rust
