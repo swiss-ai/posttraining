@@ -7,15 +7,13 @@ wandb
 pre-commit
 black
 # Alignment
-accelerate
-deepspeed
-# deepspeed==0.15.4
-datasets<4.0.0
+accelerate==1.6.0
+deepspeed==0.15.4
+# deepspeed
+datasets==3.5.0
 # datasets
-peft
-trl==0.13.0
+peft==0.15.1
+trl==0.16.0
 #trl
-alpaca_eval
-fire
 # Model Merging
 git+https://github.com/swiss-ai/mergekit.git # swiss-ai fork of mergekit

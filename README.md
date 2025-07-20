@@ -121,6 +121,15 @@ output_artifacts_subdir: ${artifacts_subdir}
 
 TODO Juan
 
+just a few commands to start a training and see stuff on wandb.
+
+one for 8B.
+
+one for 70B.
+
+And then more below how change and run different trainings.
+(how to add a dataset, add it to the mix, change the loss.)
+
 ## Repository structure
 
 TODO Juan mention where to change what to get what.
@@ -151,10 +160,11 @@ You can also trigger them manually with `pre-commit run --all-files`.
 
 ### Where to change what
 
+TODO Juan
 
 ## Remote development
 
-TODO
+TODO Skander
 
 ## Rebuilding the container image
 
