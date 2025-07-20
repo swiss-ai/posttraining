@@ -15,7 +15,7 @@ This is how storage is organized:
 The absolute paths to the storage are the following:
 
 #### Scratch storage: shared and private
- 
+
 Use it to read and write during jobs.
 
 In `iopstor/scratch` (deletion policy: 30 days):  
@@ -127,19 +127,19 @@ A quick checklist for troubleshooting SSH agent forwarding.
     ```bash
     # generate new ssh key
     ssh-keygen -t ed25519 -C "your_email@example.com"
-    
+
     # Add the following to .zshrc
     ssh-add ~/.ssh/id_ed25519
-    
+
     # add public key id_ed25519.pub to your github account
     # Follow https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
-    
+
     # Try again
     ssh -T git@github.com
     ```
 - The key is forwarded by your SSH agent: `ssh-add -l # List the keys added to your SSH agent.` If not there,
     ```bash
-    ssh-add <the path to your SSH key, e.g., ~/.ssh/id_rsa> 
+    ssh-add <the path to your SSH key, e.g., ~/.ssh/id_rsa>
     # And add that to your bashrc or equivalent to automatically add it on login.
     ```
 - Agent forwarding is enabled on you SSH connection to Clariden: on Clariden `echo "$SSH_AUTH_SOCK"`. Otherwise, you are missing a field `ForwardAgent yes` in your `~/.ssh/config` config for clariden.
