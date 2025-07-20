@@ -123,9 +123,10 @@ TODO Juan
 
 just a few commands to start a training and see stuff on wandb.
 
-one for 8B.
+one sbatch for 8B.
+one sbatch for 70B.
 
-one for 70B.
+discuss what the command used: the reproducibility script etc.
 
 And then more below how change and run different trainings.
 (how to add a dataset, add it to the mix, change the loss.)
@@ -161,6 +162,8 @@ You can also trigger them manually with `pre-commit run --all-files`.
 ### Where to change what
 
 TODO Juan
+
+(how to add a dataset, add it to the mix, change the loss.)
 
 ## Remote development
 
