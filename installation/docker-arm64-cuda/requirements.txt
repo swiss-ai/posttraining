@@ -8,13 +8,14 @@ pre-commit
 black
 # Alignment
 accelerate
-deepspeed<=0.15.4
+deepspeed
+# deepspeed==0.15.4
+datasets<4.0.0
+# datasets
 peft
-git+https://github.com/swiss-ai/transformers.git@v4.53.1+swissai # swiss-ai fork of transformers
-git+https://github.com/nickjbrowning/XIELU
-trl
+trl==0.13.0
+#trl
+alpaca_eval
+fire
 # Model Merging
 git+https://github.com/swiss-ai/mergekit.git # swiss-ai fork of mergekit
-# TRL extensions
-llm-blender
-diffusers

@@ -9,8 +9,8 @@ ENV_TEXT=$(
 ## For building:
 # Which docker and compose binary to use
 # docker and docker compose in general or podman and podman-compose for CSCS Clariden
-DOCKER=docker
-COMPOSE="docker compose"
+DOCKER=podman
+COMPOSE="podman-compose"
 # Use the same USRID and GRPID as on the storage you will be mounting.
 # USR is used in the image name and must be lowercase.
 # It's fine if your username is not lowercase, jut make it lowercase.
