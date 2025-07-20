@@ -46,9 +46,11 @@ cd installation/docker-arm64-cuda
 
 1. Create an environment file for your personal configuration with
     ```bash
+    # Load the base image from a .sqsh file. (used by compose-base.yaml)
+
+    ./template.sh env
     # Make sure the Conda environment with podman-compose is activated.
     # mamba activate podman
-    ./template.sh env
     # Commit. It will be in the tag of the image. (or --ignore-uncommitted and will use the latest commit)
     ./template.sh build_generic
     ```

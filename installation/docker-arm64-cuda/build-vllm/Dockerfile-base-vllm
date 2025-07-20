@@ -18,10 +18,8 @@ ENV MAX_JOBS=64
 ENV NVCC_THREADS=8
 ENV USE_CUDNN=1
 ENV VLLM_FLASH_ATTN_VERSION=3
-ENV SGL_KERNEL_ENABLE_BF16=1
-ENV SGL_KERNEL_ENABLE_SM90A=1
 ENV USE_CUDNN=1
-ENV CMAKE_BUILD_PARALLEL_LEVEL=16
+ENV CMAKE_BUILD_PARALLEL_LEVEL=64
 ENV FLASHINFER_ENABLE_AOT=1
 ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
 
@@ -48,12 +46,12 @@ RUN pip install -v --no-cache-dir --no-build-isolation -U \
 RUN pip list --format=freeze | grep -E 'transformers' >> /workspace/frozen.txt && \
     echo "=== updated frozen.txt ===" && cat /workspace/frozen.txt && echo "=== end updated frozen.txt ==="
 
-RUN pip install --no-cache-dir --no-build-isolation -U \
-    -r /workspace/requirements-packages.txt \
-    --constraint /workspace/frozen.txt
+#RUN pip install --no-cache-dir --no-build-isolation -U \
+#    -r /workspace/requirements-packages.txt \
+#    --constraint /workspace/frozen.txt
 
 RUN pip install -v --no-cache-dir --no-build-isolation -U \
-    git+https://github.com/facebookresearch/xformers.git@v0.0.29.post3#egg=xformers \
+    git+https://github.com/facebookresearch/xformers.git@v0.0.30#egg=xformers \
     --constraint /workspace/frozen.txt
 
 RUN pip install -v --no-cache-dir --no-build-isolation -U \
@@ -66,7 +64,3 @@ RUN git clone https://github.com/vllm-project/vllm.git /workspace/vllm && \
     python use_existing_torch.py && \
     pip install -v --no-cache-dir --no-build-isolation --constraint /workspace/frozen.txt -r requirements/build.txt && \
     pip install -v --no-cache-dir --no-build-isolation --constraint /workspace/frozen.txt -e .
-
-RUN pip install -v --no-cache-dir --no-build-isolation  -U \
-    "lm-eval[vllm] @ git+https://github.com/swiss-ai/lm-evaluation-harness.git@main" \
-    --constraint /workspace/frozen.txt
