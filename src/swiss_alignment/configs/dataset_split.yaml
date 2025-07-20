@@ -5,8 +5,8 @@ defaults:
   - _self_
 
 dataset_args:
-  dataset_name: ${data_dir}/shared/datasets/tulu-3-sft-mixture # or equivalently allenai/tulu-3-sft-mixture
-  output_path: ${data_dir}/shared/datasets/tulu-3-sft-mixture-split
+  dataset_name: ${artifacts_dir}/${input_artifacts_subdir}/datasets/tulu3/tulu-3-sft-mixture # or equivalently allenai/tulu-3-sft-mixture
+  output_path: ${artifacts_dir}/${output_artifacts_subdir}/datasets/tulu3/tulu-3-sft-mixture-split
   train_split:
     name: train
   eval_split:

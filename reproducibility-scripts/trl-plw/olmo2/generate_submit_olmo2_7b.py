@@ -3,6 +3,8 @@ from datetime import datetime
 models = ["olmo2-7b"]
 datasets = ["swissai-tulu-3-sft-0225"]
 
+ds_config = "ds-zero1"  # ds-zero1, ds-zero2, ds-zero3
+
 num_epochs = 2
 batch_size = 128
 max_seq_length = 4096
@@ -72,7 +74,7 @@ for dataset in datasets:
                         f"training_args.save_strategy=steps "
                         f"training_args.save_steps={save_steps} "
                         f"tokenizer_args.chat_template_name=tulu "
-                        "outputs_subdir=shared "
+                        "artifacts_dir=shared "
                         f"job_subdir={run_name}/{model_config} "
                         f"wandb.run_name={model_config} "
                         f"wandb.tags=[prod,{trainer}] "
