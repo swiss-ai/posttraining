@@ -109,6 +109,16 @@ Check the sections below:
 
 ## Running the typical training experiment
 
+### How to choose which artifacts directory is used (shared/private/store)
+
+You can reuse these Hydra config keys in the code to configure the input and output artifacts directories.
+
+```bash
+artifacts_subdir: private  # Can be private, shared, ...
+input_artifacts_subdir: ${artifacts_subdir}
+output_artifacts_subdir: ${artifacts_subdir}
+```
+
 TODO Juan
 
 ## Repository structure
