@@ -13,6 +13,8 @@ cuda_strong_deterministic: false
 # The root data and output directories to be used in experiments.
 artifacts_dir: ${hydra:runtime.cwd}/artifacts
 artifacts_subdir: private  # Can be private, shared, ...
+input_artifacts_subdir: ${artifacts_subdir}
+output_artifacts_subdir: ${artifacts_subdir}
 
 # Outputs are saved in artifacts/${artifacts_subdir}/...
 # so you can store them in different physical locations if you want
@@ -30,7 +32,7 @@ job_subdir: dev
 hydra:
   run:
     # Finally, this is where the outputs of an individual run will be stored.
-    dir: ${artifacts_dir}/${artifacts_subdir}/outputs/${hydra.job.name}/${job_subdir}/runs/${now:%Y-%m-%d--%H-%M-%S-%f}
+    dir: ${artifacts_dir}/${output_artifacts_subdir}/outputs/${hydra.job.name}/${job_subdir}/runs/${now:%Y-%m-%d--%H-%M-%S-%f}
   job:
     chdir: true
   verbose: false  # Set to true for logging at debug level.
@@ -62,6 +64,8 @@ resuming:
     - run_dir
     - artifacts_dir
     - artifacts_subdir
+    - input_artifacts_subdir
+    - output_artifacts_subdir
     - job_subdir
     - resuming_dir
     - wandb
