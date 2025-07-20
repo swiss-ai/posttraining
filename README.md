@@ -1,6 +1,8 @@
 # SwissAI Alignment Codebase
 
-## Getting Started for (SwissAI users)
+Docs for SwissAI users. To update when open-sourcing if we want to support other users. Editing the template docs should help for this.
+
+## Getting Started
 
 ### Preliminaries
 
@@ -65,12 +67,21 @@ for INSTANCE in dev run; do
 done
 ```
 
-## What's next? (SwissAI user)
+### Set up credentials
+
+TODO creadials for wandb, HF, etc.
+
+Basically after this the unattended submit script should run.
+
+## What's next?
 
 Check the sections below:
 - [Running the typical training experiment](#running-the-typical-training-experiment): how to run a training experiment with the codebase.
 - [Repository structure](#repository-structure): where to find what in the codebase.
 - [Contributing](#contributing): good practices and guides for changing specific parts of the codebase.
+- [Remote development](#remote-development): every user does this differently and we won't support your for this.
+  We however have comprehensive documentation in TODO.
+- [Rebuilding the container image](#rebuilding-the-container-image): how to rebuild the container image if you change the dependencies.
 
 
 ## Running the typical training experiment
@@ -108,6 +119,14 @@ You can also trigger them manually with `pre-commit run --all-files`.
 ### Where to change what
 
 
+## Remote development
+
+TODO
+
+## Rebuilding the container image
+
+Follow the instructions in `installation/docker-arm64/CSCS-Clariden-setup/building-the-iamge.md`.
+
 
 ## Licenses and acknowledgements
 
@@ -118,7 +137,7 @@ with the LICENSE.ml-template file.
 
 Additional LICENSE files may be present in subdirectories of the project.
 
-## Getting started - Troubleshooting and extra information
+## Getting started - Troubleshooting and extra information (for SwissAI users)
 
 ### GitHub authentication through SSH Agent Forwarding
 
