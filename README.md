@@ -146,7 +146,7 @@ Check the sections below:
 python -c "import datasets; datasets.load_dataset('Magpie-Align/Magpie-Air-DPO-100K-v0.1').save_to_disk('data/shared/datasets/magpieair')"
 ```
 
-- _Step 2_: Create a configuration file in `config/dataset/` to specify dataset attributes for training. Below is an example configuration:
+- _Step 2_: Create a configuration file in `src/config/dataset/` to specify dataset attributes for training. Below is an example configuration:
 ```bash
 # @package _global_
 
@@ -165,8 +165,9 @@ training_args:
 ```
 
 #### Creating an eval set
+
 The `swiss_alignment.trl.dataset_split` module facilitates subsampling a training dataset from a single
-source (either a HF dataset or a local path) defined in `config/dataset_split.yaml` into distinct training and evaluation sets.
+source (either a HF dataset or a local path) defined in `src/config/dataset_split.yaml` into distinct training and evaluation sets.
 For instance, the following command was used to subsample the [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture)
 dataset, generating a split version saved as `tulu-3-sft-mixture-split`.
 ```bash
@@ -174,7 +175,8 @@ exec python -m swiss_alignment.trl.dataset_split dataset_args.dataset_name=${art
 ```
 
 #### Creating dataset mixtures
-A dataset mixture is a tailored combination of datasets, configured in the `config/dataset_mixture.yaml` file.
+
+A dataset mixture is a tailored combination of datasets, configured in the `src/config/dataset_mixture.yaml` file.
 The `dataset_mixer` attribute is defined as a list of objects, each specifying details for a dataset to include
 in the mixture. These objects contain the following fields:
 - **`dataset_name`**: The name of the dataset (e.g., `allenai/tulu-3-sft-mixture-split`), not correctly used.
