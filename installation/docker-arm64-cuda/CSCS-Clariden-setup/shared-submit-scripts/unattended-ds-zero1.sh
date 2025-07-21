@@ -9,7 +9,7 @@
 
 # Variables used by the entrypoint script
 # Change this to the path of your project (can be the /dev or /run copy)
-export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
+export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/dev
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh $@
 export HF_TOKEN_AT=$HOME/.hf-token
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
@@ -34,6 +34,7 @@ $HF_TOKEN_AT \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
   bash -c "\
+    pip install bitsandbytes && \
     bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
     exec accelerate launch \
     --config-file ${PROJECT_ROOT_AT}/src/swiss_alignment/configs/accelerate/ds-zero1.yaml \

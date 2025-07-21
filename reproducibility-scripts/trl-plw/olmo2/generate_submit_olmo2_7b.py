@@ -8,7 +8,7 @@ batch_size = 128
 max_seq_length = 4096
 num_nodes = 8
 num_proc_per_node = 4
-proc_train_batch_size = 1
+proc_train_batch_size = 2
 accumulation_steps = batch_size // (
     num_nodes * num_proc_per_node * proc_train_batch_size
 )
@@ -40,13 +40,13 @@ for dataset in datasets:
         ]:
             for lr in learning_rates:
                 for plw in prompt_loss_weight:
-                    model_config = f"{iter}-{dataset}"
+                    model_config = f"{iter}-ademamix-{dataset}"
                     hp_config = f"{trainer}-{plw}-lr-{lr}"
                     command = (
                         f"sbatch "
                         f"--nodes {num_nodes} "
                         f"--output=reproducibility-scripts/trl-plw/out-{current_time}/{model_config}/{hp_config}.out "
-                        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero1.sh "
+                        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero2.sh "
                         f"-m swiss_alignment.trl.plw.train_plw "
                         f"dataset={dataset} "
                         # f"dataset_args.debug_oom=true "
@@ -72,8 +72,8 @@ for dataset in datasets:
                         f"training_args.save_strategy=steps "
                         f"training_args.save_steps={save_steps} "
                         f"tokenizer_args.chat_template_name=tulu "
-                        "artifacts_dir=shared "
-                        f"job_subdir={run_name}/{model_config} "
+                        "artifacts_subdir=shared "
+                        f"job_subdir={run_name}/optimizer/{model_config} "
                         f"wandb.run_name={model_config} "
                         f"wandb.tags=[prod,{trainer}] "
                         "resuming.resume=True "

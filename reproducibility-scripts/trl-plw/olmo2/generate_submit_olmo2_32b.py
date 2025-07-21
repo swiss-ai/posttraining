@@ -74,7 +74,7 @@ for dataset in datasets:
                         f"training_args.save_strategy=steps "
                         f"training_args.save_steps={save_steps} "
                         f"tokenizer_args.chat_template_name=tulu "
-                        "artifacts_dir=shared "
+                        "artifacts_subdir=shared "
                         f"job_subdir={run_name}/{model_config} "
                         f"wandb.run_name={model_config} "
                         f"wandb.tags=[prod,{trainer}] "

@@ -37,9 +37,13 @@ for dataset in datasets:
             # "Apertus70B-tokens5T-it560000",
             # "Apertus70B-tokens6T-it619500",
             # "Apertus70B-tokens7T-it679000",
-            "Apertus70B-tokens8T-it739000",
+            # "Apertus70B-tokens8T-it739000",
             # "Apertus70B-tokens9T-it798250",
             # "Apertus70B-tokens10T-it858000",
+            "Apertus70B-tokens11T-it917500",
+            "Apertus70B-tokens12T-it977250",
+            "Apertus70B-tokens13T-it1036750",
+            "Apertus70B-tokens14T-it1096250",
         ]:
             for lr in learning_rates:
                 for plw in prompt_loss_weight:
@@ -75,7 +79,7 @@ for dataset in datasets:
                         f"training_args.save_strategy=steps "
                         f"training_args.save_steps={save_steps} "
                         f"tokenizer_args.chat_template_name=tulu "
-                        "artifacts_dir=shared "
+                        "artifacts_subdir=shared "
                         f"job_subdir={run_name}/{model_config} "
                         f"wandb.run_name={model_config} "
                         f"wandb.tags=[prod,{trainer}] "
