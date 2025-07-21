@@ -180,7 +180,8 @@ sbatch
    training_args.save_strategy=steps
    training_args.save_steps=1000
    tokenizer_args.chat_template_name=tulu
-   artifacts_dir=shared job_subdir=apertus3-70b-sweep/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225
+   artifacts_subdir=private
+   job_subdir=apertus3-70b-sweep/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225
    wandb.run_name=Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225
    wandb.tags=[prod,plw]
    resuming.resume=True
