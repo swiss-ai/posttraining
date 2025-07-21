@@ -17,7 +17,6 @@ from trl import (
 )
 
 from swiss_alignment import utils
-from swiss_alignment.trl.optimizer import AdEMAMix
 from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
 from swiss_alignment.trl.trainers import (
     CustomSFTTrainer,
@@ -137,22 +136,6 @@ def main(config: DictConfig) -> None:
     trainer_args = {
         "model": model_args.model_name_or_path,
         "args": training_args,
-        "optimizer_cls_and_kwargs": (
-            AdEMAMix,
-            {
-                "lr": training_args.learning_rate,
-                "betas": (
-                    training_args.adam_beta1,
-                    training_args.adam_beta2,
-                    config.ademamix_args.beta3,
-                ),
-                "eps": training_args.adam_epsilon,
-                "alpha": config.ademamix_args.alpha,
-                "beta3_warmup": config.ademamix_args.beta3_warmup,
-                "alpha_warmup": config.ademamix_args.alpha_warmup,
-                "weight_decay": training_args.weight_decay,
-            },
-        ),
         "train_dataset": ds["train"],
         "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
         "processing_class": tokenizer,

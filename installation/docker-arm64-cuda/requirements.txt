@@ -15,5 +15,6 @@ datasets==3.5.0
 peft==0.15.1
 trl==0.16.0
 #trl
+bitsandbytes
 # Model Merging
 git+https://github.com/swiss-ai/mergekit.git # swiss-ai fork of mergekit
