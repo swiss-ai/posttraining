@@ -29,6 +29,12 @@ irl_args:
   lambda_td: 0.5
   gamma: 1.0
 
+ademamix_args:
+  beta3: 0.9999
+  beta3_warmup: 13446
+  alpha: 8.0
+  alpha_warmup: 13446
+
 training_args:
   bf16: true
   max_seq_length: 4096
@@ -36,6 +42,9 @@ training_args:
   learning_rate: 5.0e-06
   lr_scheduler_type: linear
   warmup_ratio: 0.03
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1e-8
   weight_decay: 0.0
   num_train_epochs: 2
   packing: false
