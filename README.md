@@ -61,8 +61,9 @@ setfacl -R -m group:$GROUP_NAME:r-x,default:group:$GROUP_NAME:r-x .
 
 ### Clone the code and set up the storage
 
-```bash
+
 It will look like this:
+
 ```bash
 $HOME/projects/swiss_alignment
 ├── dev/    # A dev instance of the repo for development jobs, which can be broken at any time.
