@@ -28,7 +28,7 @@ Private: `/iopsstor/scratch/cscs/$USER/projects/swiss-alignment/artifacts/privat
 
 Move valuable permanent assets there, like good final checkpoints, checkpoints to keep for the release, container images...  
 
-In `iopstor/store`: `/capstor/store/cscs/swissai/infra01/swiss-alignment/artifacts`.
+In `capstor/store`: `/capstor/store/cscs/swissai/infra01/swiss-alignment/artifacts`.
 
 #### Storage summary:
 
