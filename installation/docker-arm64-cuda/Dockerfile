@@ -44,7 +44,7 @@ RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-before-pip-
 
 COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
 RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
-    pip install -r ${DEPENDENCIES_DIR}/requirements.txt
+    pip install --no-build-isolation -r ${DEPENDENCIES_DIR}/requirements.txt
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-after-pip-install.txt
 RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-after-pip-install.txt
 
