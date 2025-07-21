@@ -2,8 +2,8 @@ services:
   build-args:
     build:
       args:
-        BASE_IMAGE: localhost/vllm:v0.9.0.1-apertus-vllm
-        # vLLM custom-build image from https://github.com/skandermoalla/vllm-build/blob/custom-v0.7.3/Dockerfile
+        BASE_IMAGE: docker.io/skandermoalla/vllm:v0.7.3-56982c83-arm64-cuda-gh200
+        # vLLM custom-build image from https://github.com/skandermoalla/vllm-build
         # Bsed on the nvcr.io/nvidia/pytorch:24.10-py3
         # With Pytorch 2.5.0a0+e000cf0ad9, NVIDIA CUDA 12.6.2, NVIDIA NCCL 2.22.3, Python 3.10.
         # https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-10.html

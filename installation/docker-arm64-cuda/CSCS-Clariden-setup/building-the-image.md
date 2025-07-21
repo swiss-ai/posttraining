@@ -46,12 +46,20 @@ cd installation/docker-arm64-cuda
 
 1. Create an environment file for your personal configuration with
     ```bash
-    # Load the base image from a .sqsh file. (used by compose-base.yaml)
+    # The base image is built in ./build-vllm.
+    # One with the SwissAI Apertus vLLM fork and one with the base vllm.
+    # Both include the SwissAI Apertus Transformers fork.
+    # You can check what it contains in the `pip-list-(base|apertus)-vllm.txt` files.
 
-    ./template.sh env
+    # Load the base image from a .sqsh file. (used by compose-base.yaml)
+    podman load -i /capstor/store/cscs/swissai/infra01/swiss-alignment/container-images/(apertus|base)-vllm.tar
+
+    # Change the `compose-base.yaml` file to use the base image you want.
+
     # Make sure the Conda environment with podman-compose is activated.
     # mamba activate podman
     # Commit. It will be in the tag of the image. (or --ignore-uncommitted and will use the latest commit)
+    ./template.sh env
     ./template.sh build_generic
     ```
 2. Export the image to a file and move it to a directory where you keep the images.
