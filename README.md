@@ -1,6 +1,6 @@
 # SwissAI Alignment Codebase
 
-Docs for SwissAI users. To update when open-sourcing if we want to support other users. Editing the template docs should help for this.
+Docs for SwissAI users. To update when open-sourcing, if we want to support other users. Editing the template docs should help for this.
 
 ## Getting Started
 
@@ -59,10 +59,9 @@ GROUP_NAME=some-other-group
 setfacl -R -m group:$GROUP_NAME:r-x,default:group:$GROUP_NAME:r-x .
 ```
 
-```bash
-
 ### Clone the code and set up the storage
 
+```bash
 It will look like this:
 ```bash
 $HOME/projects/swiss_alignment
