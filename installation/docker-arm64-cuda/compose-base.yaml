@@ -2,11 +2,11 @@ services:
   build-args:
     build:
       args:
-        BASE_IMAGE: docker.io/skandermoalla/vllm:v0.7.3-56982c83-arm64-cuda-gh200
-        # vLLM custom-build image from https://github.com/skandermoalla/vllm-build
-        # Bsed on the nvcr.io/nvidia/pytorch:24.10-py3
-        # With Pytorch 2.5.0a0+e000cf0ad9, NVIDIA CUDA 12.6.2, NVIDIA NCCL 2.22.3, Python 3.10.
-        # https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-10.html
+        BASE_IMAGE: localhost/vllm:v0.9.0.1-apertus-vllm
+        # vLLM custom-build from ./build-vllm/Dockerfile-apertus-vllm
+        # Bsed on the nvcr.io/nvidia/pytorch:25.02-py3
+        # With  Python 3.12. Pytorch 2.7.0a0+ecf3bae40a.nv25.2
+        # https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-25-0.2.html
         # https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch
         GIT_IMAGE: docker.io/alpine/git:2.40.1            # https://hub.docker.com/r/alpine/git/tags
         # You can find the entrypoint by running `docker inspect BASE_IMAGE | grep -A 3 Entrypoint`
