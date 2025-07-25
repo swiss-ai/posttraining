@@ -365,7 +365,7 @@ Refer to `installation/docker-arm64/CSCS-Clariden-setup/remote-development.md`.
 
 ## Rebuilding the container image
 
-Follow the instructions in `installation/docker-arm64/CSCS-Clariden-setup/building-the-iamge.md`.
+Follow the instructions in `installation/docker-arm64/CSCS-Clariden-setup/building-the-image.md`.
 
 ## Licenses and acknowledgements
 

@@ -8,13 +8,12 @@ pre-commit
 black
 # Alignment
 accelerate==1.6.0
-deepspeed
-# deepspeed
+deepspeed==0.16.9
 datasets==3.5.0
-# datasets
 peft==0.15.1
 trl==0.16.0
 #trl
 bitsandbytes
 # Model Merging
-git+https://github.com/swiss-ai/mergekit.git # swiss-ai fork of mergekit
+# swiss-ai fork of mergekit
+git+https://github.com/swiss-ai/mergekit.git

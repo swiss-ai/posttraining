@@ -38,7 +38,8 @@ for dataset in datasets:
             # "Apertus8B-tokens5T-it1194000",
             # "Apertus8B-tokens6T-it1432000",
             # "Apertus8B-tokens7T-it1670000",
-            "Apertus8B-tokens7.04T-it1678000",
+            # "Apertus8B-tokens7.04T-it1678000",
+            "Apertus8B-tokens7.4T-it1728000",
             # "Apertus8B-tokens7.09T-it1690000-phase3",
             # "Apertus8B-tokens7.09T-it1690000-phase4",
             # "Apertus8B-tokens7.09T-it1690000-phase4-provenance-flan-short",
@@ -46,13 +47,13 @@ for dataset in datasets:
         ]:
             for lr in learning_rates:
                 for plw in prompt_loss_weight:
-                    model_config = f"{iter}-{dataset}"
+                    model_config = f"{iter}-ademamix-{dataset}"
                     hp_config = f"{trainer}-{plw}-lr-{lr}"
                     command = (
                         f"sbatch "
                         f"--nodes {num_nodes} "
                         f"--output=reproducibility-scripts/trl-plw/out-{current_time}/{model_config}/{hp_config}.out "
-                        f"./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero1.sh "
+                        f"./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero2.sh "
                         f"-m swiss_alignment.trl.plw.train_plw "
                         f"dataset={dataset} "
                         f"model={model}.yaml "
@@ -76,7 +77,7 @@ for dataset in datasets:
                         f"training_args.save_steps={save_steps} "
                         f"tokenizer_args.chat_template_name=tulu "
                         "artifacts_subdir=shared "
-                        f"job_subdir={run_name}/{model_config} "
+                        f"job_subdir={run_name}/token-count/{model_config} "
                         f"wandb.run_name={model_config} "
                         f"wandb.tags=[prod,{trainer}] "
                         "resuming.resume=True "
@@ -85,3 +86,5 @@ for dataset in datasets:
                     nruns += 1
 
 print(nruns)
+
+# sbatch --dependency=afterany:584612 --nodes 8 --output=reproducibility-scripts/trl-plw/out-2025-07-25-15-33/Apertus8B-tokens7.4T-it1728000-ademamix-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero2.sh -m swiss_alignment.trl.plw.train_plw dataset=swissai-tulu-3-sft-0225 model=apertus-8b.yaml model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.4T-it1728000 tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.4T-it1728000 trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_seq_length=4096 training_args.num_train_epochs=2 training_args.gradient_accumulation_steps=4 training_args.per_device_train_batch_size=1 training_args.per_device_eval_batch_size=2 training_args.learning_rate=5e-06 training_args.lr_scheduler_type=linear training_args.warmup_ratio=0.03 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_strategy=steps training_args.save_steps=1000 tokenizer_args.chat_template_name=tulu artifacts_subdir=shared job_subdir=apertus3-8b-sweep/token-count/Apertus8B-tokens7.4T-it1728000-ademamix-swissai-tulu-3-sft-0225 wandb.run_name=Apertus8B-tokens7.4T-it1728000-ademamix-swissai-tulu-3-sft-0225 wandb.tags=[prod,plw] resuming.resume=True

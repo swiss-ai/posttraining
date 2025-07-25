@@ -11,22 +11,21 @@
 # Change this to the path of your project (can be the /dev or /run copy)
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/dev
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh $@
-export HF_TOKEN_AT=$HOME/.hf-token
+unset HF_TOKEN_AT
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
 
 export OMP_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 
 srun \
-  --container-image=/capstor/store/cscs/swissai/infra01/swiss-alignment/container-images/swiss-alignment+apertus-vllm.sqsh \
+  --container-image=/capstor/store/cscs/swissai/infra01/swiss-alignment/container-images/swiss-alignment+apertus-vllm-78e77f1.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/edf.toml" \
   --container-mounts=\
 $PROJECT_ROOT_AT,\
 $SCRATCH,\
 $SWISS_AI_STORAGE,\
 /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/,\
-$WANDB_API_KEY_FILE_AT,\
-$HF_TOKEN_AT \
+$WANDB_API_KEY_FILE_AT \
   --container-workdir=$PROJECT_ROOT_AT \
   --no-container-mount-home \
   --no-container-remap-root \
@@ -34,7 +33,6 @@ $HF_TOKEN_AT \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
   bash -c "\
-    pip install bitsandbytes && \
     bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
     exec accelerate launch \
     --config-file ${PROJECT_ROOT_AT}/src/swiss_alignment/configs/accelerate/ds-zero2.yaml \

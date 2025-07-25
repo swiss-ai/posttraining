@@ -35,7 +35,7 @@ for dataset in datasets:
             # "Olmo2-32B-stage1-step121000-tokens1016B",
             # "Olmo2-32B-stage1-step239000-tokens2005B",
             # "Olmo2-32B-stage1-step358000-tokens3004B",
-            "Olmo2-32B-stage1-step477000-tokens4002B",
+            # "Olmo2-32B-stage1-step477000-tokens4002B",
             # "Olmo2-32B-stage1-step596000-tokens5000B",
             # "Olmo2-32B-stage1-step716000-tokens6007B",
             "Olmo2-32B-stage2-tokens6T",
