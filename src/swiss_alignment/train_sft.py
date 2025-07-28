@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 from pathlib import Path
 
 import accelerate
@@ -8,28 +9,35 @@ from accelerate.logging import get_logger
 from accelerate.state import PartialState
 from omegaconf import DictConfig, OmegaConf
 from trl import (
-    DPOConfig,
-    DPOTrainer,
     ModelConfig,
     ScriptArguments,
+    SFTConfig,
     get_kbit_device_map,
     get_peft_config,
     get_quantization_config,
 )
 
 from swiss_alignment import utils
-from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
-from swiss_alignment.trl.trainers import CustomDPOTrainer
+from swiss_alignment.data_sft.tokenization import TokenizerConfig, get_tokenizer
+from swiss_alignment.data_sft.utils_for_dataset import DatasetConfig, get_dataset
+from swiss_alignment.trainers.sft import (
+    CustomSFTTrainer,
+    IRLTrainer,
+    LengthNormalizedPLWTrainer,
+    PLWDataCollator,
+    PLWTrainer,
+)
 from swiss_alignment.utils import utils_for_trl
-from swiss_alignment.utils.utils_for_dataset import DatasetConfig, get_dataset
 
 utils.config.register_resolvers()
-acc_state = PartialState()
+acc_state = PartialState(
+    **accelerate.InitProcessGroupKwargs(timeout=timedelta(hours=4)).to_kwargs()
+)
 acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../../configs", config_name="trl-dpo")
+@hydra.main(version_base=None, config_path="configs", config_name="train-sft")
 def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
 
@@ -37,43 +45,47 @@ def main(config: DictConfig) -> None:
     # full_config is a merge with the TRL arg dataclasses
     # The args dataclasses are used by the HF classes, and the full_config by the template.
     script_args = ScriptArguments(**OmegaConf.to_container(config.script_args))
-    training_args = DPOConfig(
+    training_args = SFTConfig(
         **OmegaConf.to_container(config.training_args), output_dir=str(Path.cwd())
     )
     model_args = ModelConfig(**OmegaConf.to_container(config.model_args))
-    if config.tokenizer_args.chat_template_name == "tulu":
-        # DPOTrainer manually adds EOS tokens to the end of chosen and rejected
-        config.tokenizer_args.chat_template_name = "tulu_no_eos"
-
     tokenizer_args = TokenizerConfig(
         model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
         padding_side=config.tokenizer_args.padding_side,
-        add_bos=config.tokenizer_args.add_bos,
+        add_bos_to_chat_template=config.tokenizer_args.add_bos_to_chat_template,
         trust_remote_code=config.tokenizer_args.trust_remote_code,
         chat_template_name=config.tokenizer_args.chat_template_name,
         model_pad_token_id=config.tokenizer_args.model_pad_token_id,
         model_eos_token_id=config.tokenizer_args.model_eos_token_id,
     )
-
     dataset_config = DatasetConfig(
         dataset_name=script_args.dataset_name,
         dataset_split_names={
             "train": script_args.dataset_train_split,
             "eval": script_args.dataset_test_split,
         },
+        debug_oom=config.dataset_args.debug_oom,
         dataset_subsample={
             "train": config.dataset_args.debug_subsample.train,
             "eval": config.dataset_args.debug_subsample.eval,
         },
         transform_fn=[
-            # transformation done inside DPOTrainer class
+            "sft_tulu_tokenize_and_truncate",
+            "sft_filter_has_assistant_tokens",
         ],
         transform_fn_args=[
-            # transformation done inside DPOTrainer class
+            {"max_seq_length": training_args.max_seq_length},
+            {},
         ],
         target_columns=[
-            # target columns are not applicable
+            "input_ids",
+            "labels",
+            "attention_mask",
+            "prompt_mask",
+            "completion_mask",
         ],
+        shuffle=config.dataset_args.shuffle,
+        seed=config.seed,
     )
 
     quantization_config = get_quantization_config(model_args)
@@ -87,9 +99,6 @@ def main(config: DictConfig) -> None:
         quantization_config=quantization_config,
     )
     training_args.model_init_kwargs = model_kwargs
-    # the same ref model config
-    training_args.ref_model_init_kwargs = model_kwargs
-
     peft_config = get_peft_config(model_args)
 
     full_config = utils_for_trl.merge_and_save_config(
@@ -105,21 +114,21 @@ def main(config: DictConfig) -> None:
     ############################ Dataset Setup ############################
     ds = get_dataset(dataset_config, tokenizer, acc_state)
 
-    # Shuffle at the end to preserve previous cache across seeds.
-    ds = ds.shuffle(seed=config.seed)
-
     ############################ Trainer Setup ############################
 
     # Find the last checkpoint
     resuming_dir = Path.cwd()
-    last_checkpoint_number = max(
-        (
-            int(item.name.split("-")[-1])
-            for item in resuming_dir.iterdir()
-            if item.is_dir() and item.name.startswith("checkpoint-")
-        ),
-        default=0,
-    )
+    # Handle resuming
+    last_checkpoint_number = 0
+    for item in resuming_dir.iterdir():
+        if item.is_dir() and item.name.startswith("checkpoint-"):
+            if (item / "scheduler.pt").is_file() and (
+                item / "trainer_state.json"
+            ).is_file():
+                last_checkpoint_number = max(
+                    last_checkpoint_number, int(item.name.split("-")[-1])
+                )
+
     if last_checkpoint_number > 0:
         acc_logger.info(
             f"TRL will attempt to resume from last checkpoint: {last_checkpoint_number}"
@@ -130,17 +139,44 @@ def main(config: DictConfig) -> None:
 
     trainer_args = {
         "model": model_args.model_name_or_path,
-        "ref_model": model_args.model_name_or_path,
         "args": training_args,
         "train_dataset": ds["train"],
         "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
         "processing_class": tokenizer,
+        "data_collator": PLWDataCollator(tokenizer=tokenizer, mlm=False),
         "peft_config": peft_config,
     }
-
-    trainer = CustomDPOTrainer(
-        **trainer_args,
-    )
+    if config.trainer == "sft":
+        acc_logger.info("Starting sft trainer.")
+        trainer = CustomSFTTrainer(
+            **trainer_args,
+        )
+    elif config.trainer == "plw":
+        acc_logger.info(f"Starting plw={config.plw_args.prompt_loss_weight} trainer.")
+        trainer = PLWTrainer(
+            prompt_loss_weight=config.plw_args.prompt_loss_weight,
+            **trainer_args,
+        )
+    elif config.trainer == "ln-plw":
+        acc_logger.info(
+            f"Starting ln-plw={config.plw_args.prompt_loss_weight} trainer."
+        )
+        trainer = LengthNormalizedPLWTrainer(
+            prompt_loss_weight=config.plw_args.prompt_loss_weight,
+            **trainer_args,
+        )
+    elif config.trainer == "irl":
+        acc_logger.info(
+            f"Starting irl trainer: ln-plw={config.plw_args.prompt_loss_weight} lambda_td={config.irl_args.lambda_td} gamma={config.irl_args.gamma}."
+        )
+        trainer = IRLTrainer(
+            prompt_loss_weight=config.plw_args.prompt_loss_weight,
+            lambda_td=config.irl_args.lambda_td,
+            gamma=config.irl_args.gamma,
+            **trainer_args,
+        )
+    else:
+        raise ValueError(f"Unknown trainer type: {config.trainer}")
 
     # Apply the token patches to the model
     if tokenizer_args.model_eos_token_id is not None:
@@ -152,17 +188,24 @@ def main(config: DictConfig) -> None:
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")
+
+    last_eval_file = resuming_dir / f"eval_results.json"
     if training_args.eval_strategy != "no":
-        metrics = trainer.evaluate()
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
-    acc_logger.info("Final evaluation completed.")
+        if last_eval_file.exists():
+            acc_logger.info("Last evaluation already performed.")
+        else:
+            acc_logger.info("Performing final evaluation.")
+            metrics = trainer.evaluate()
+            trainer.log_metrics("eval", metrics)
+            trainer.save_metrics("eval", metrics)
+            acc_logger.info("Final evaluation completed.")
 
     if training_args.num_train_epochs == 0:
         acc_logger.info("Training skipped. Saving the model.")
         trainer.save_model()
 
     acc_state.wait_for_everyone()
+    acc_logger.info("Training completed. Checkpoints saved.")
     if acc_state.is_main_process:
         wandb.finish()
     acc_state.wait_for_everyone()

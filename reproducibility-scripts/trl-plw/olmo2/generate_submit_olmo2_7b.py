@@ -47,7 +47,7 @@ for dataset in datasets:
                         f"--nodes {num_nodes} "
                         f"--output=reproducibility-scripts/trl-plw/out-{current_time}/{model_config}/{hp_config}.out "
                         "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero1.sh "
-                        f"-m swiss_alignment.trl.plw.train_plw "
+                        f"-m swiss_alignment.trl.plw.train_sft "
                         f"dataset={dataset} "
                         # f"dataset_args.debug_oom=true "
                         # f"dataset_args.debug_subsample.train=50_000 "

@@ -4,14 +4,14 @@ import hydra
 from omegaconf import DictConfig
 
 from swiss_alignment import utils
-from swiss_alignment.utils.utils_for_dataset import get_mix_datasets
+from swiss_alignment.data_sft.utils_for_dataset import get_mix_datasets
 
 utils.config.register_resolvers()
 hydra_logger = logging.getLogger(__name__)
 
 
 # Dataset mixture
-@hydra.main(version_base=None, config_path="../configs", config_name="dataset_mixture")
+@hydra.main(version_base=None, config_path="../configs", config_name="dataset-mixture")
 def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
     utils.seeding.seed_everything(config)

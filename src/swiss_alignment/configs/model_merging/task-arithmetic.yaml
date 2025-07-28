@@ -1,4 +1,4 @@
-merge_method: task_arithmetic
+merge_method: task-arithmetic
 
 base_model: /capstor/store/cscs/swissai/a06/hf_checkpoints/Apertus3-8B_iter_900000 # used to compute task vectors
 models: # ft models
