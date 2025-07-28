@@ -25,7 +25,7 @@ lr_scheduler_types = [
     "cosine",
 ]
 lr_warmup_ratio = 0.03
-batch_size = [(64, 16), (128, 32), (256, 64)]
+batch_size = [(64, 8), (128, 16), (256, 32)]
 grad_clipping = [2]
 trainers = [  # Trainers available: sft, plw, ln-plw, irl
     ("plw", 0.0)
@@ -42,7 +42,7 @@ chat_templates = [
 ]
 
 commands = []
-run_name = f"apertus-8b-sweep"
+run_name = f"apertus3-8b-sweep"
 for (
     dataset,
     model,
@@ -63,13 +63,13 @@ for (
     chat_templates,
 ):
     model_config = f"{model}-{dataset}-hyperparam_search"
-    hp_config = f"lr={lr}-scheduler={lr_scheduler_type}-bs={bs}-grad_clip={grad_clip}-trainer={trainer}-plw_weight={plw_weight}-chat_template={chat_template}"
+    hp_config = f"lr_{lr}-scheduler_{lr_scheduler_type}-bs_{bs}-grad_clip_{grad_clip}-trainer_{trainer}-plw_weight_{plw_weight}-chat_template_{chat_template}"
     command = (
         f"sbatch "
         f"--nodes {num_nodes} "
-        f"--output={stdout_root}/{hp_config}.out "
-        f"--error={stdout_root}/{hp_config}.err "
-        "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero2.sh "
+        f"--output=./out/{hp_config}.out "
+        f"--error=./err/{hp_config}.err "
+        "$PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero2.sh "
         f"-m swiss_alignment.trl.plw.train_plw "
         f"dataset={dataset} "
         f"model={model}.yaml "
@@ -90,9 +90,9 @@ for (
         f"training_args.eval_on_start=false "
         f"training_args.save_strategy=steps "
         f"training_args.save_steps=1000 "
-        "artifacts_subdir=private "
+        "artifacts_subdir=shared "
         f"job_subdir={run_name}/{model_config}/{hp_config} "
-        f"wandb.run_name={model_config} "
+        f"wandb.run_name={model_config}-{hp_config} "
         f"wandb.tags=[prod,{trainer}] "
         "resuming.resume=True "
     )
