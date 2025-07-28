@@ -16,7 +16,7 @@ export OMP_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 
 srun \
-  --container-image=/capstor/store/cscs/swissai/infra01/swiss-alignment/container-images/swiss-alignment+apertus-vllm-78e77f1.sqsh \
+  --container-image=/capstor/store/cscs/swissai/infra01/swiss-alignment/container-images/swiss-alignment+apertus-vllm-38c6036.sqsh \
   --environment="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/edf.toml" \
   --container-mounts=\
 $PROJECT_ROOT_AT,\
