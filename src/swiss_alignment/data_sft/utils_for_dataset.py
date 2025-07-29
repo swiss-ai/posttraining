@@ -405,17 +405,28 @@ def sft_to_chatml_format(
     row: Dict[str, Any],
     tokenizer: PreTrainedTokenizer,
 ):
-    chat = [
-        {"content": row["system_prompt"]["content"], "role": "system"}
-        if "system_prompt" in row
-        else {},
-        {"content": row["initial_prompt"]["content"], "role": "user"},
-    ]
+    chat = []
+    if "system_prompt" in row:
+        chat.append(
+            {
+                MESSAGES_CONTENT: row["system_prompt"]["content"],
+                MESSAGES_ROLE_KEY: "system",
+            }
+        )
+    chat.append(
+        {MESSAGES_CONTENT: row["initial_prompt"]["content"], MESSAGES_ROLE_KEY: "user"}
+    )
+
     # Add the conversational messages
     for branch in row["conversation_branches"]:
         for message in branch["messages"]:
-            chat.append({"content": message["content"], "role": message["role"]})
-    return {"messages": chat}
+            chat.append(
+                {
+                    MESSAGES_CONTENT: message["content"],
+                    MESSAGES_ROLE_KEY: message["role"],
+                }
+            )
+    return {DEFAULT_SFT_MESSAGES_KEY: chat}
 
 
 def sft_tokenize(
