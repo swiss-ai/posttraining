@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="train_plw" type="PythonConfigurationType" factoryName="Python">
+  <configuration default="false" name="train_sft" type="PythonConfigurationType" factoryName="Python">
     <module name="dev" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
@@ -15,7 +15,7 @@
     <option name="ADD_SOURCE_ROOTS" value="false" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="accelerate.commands.launch" />
-    <option name="PARAMETERS" value="--config-file src/swiss_alignment/configs/accelerate/ds-zero3.yaml --num_processes 4 -m swiss_alignment.trl.plw.train_plw model=apertus-8b tokenizer_args.chat_template_name=tulu dataset=swissai-tulu-3-sft-0225 dataset_args.debug_oom=false dataset_args.debug_subsample.train=10_000 dataset_args.debug_subsample.eval=0 trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_grad_norm=10 training_args.per_device_train_batch_size=1 training_args.gradient_accumulation_steps=1 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_steps=100 training_args.average_tokens_across_devices=true artifacts_subdir=private job_subdir=test wandb.run_name=dev-plw resuming.resume=false" />
+    <option name="PARAMETERS" value="--config-file src/swiss_alignment/configs/accelerate/ds-zero3.yaml --num_processes 4 -m swiss_alignment.train_sft model=apertus-8b tokenizer_args.chat_template_name=tulu dataset=swissai-tulu-3-sft-0225 dataset_args.debug_oom=false dataset_args.debug_subsample.train=10_000 dataset_args.debug_subsample.eval=0 trainer=plw plw_args.prompt_loss_weight=0.0 training_args.max_grad_norm=10 training_args.per_device_train_batch_size=1 training_args.gradient_accumulation_steps=1 training_args.logging_steps=1 training_args.eval_strategy=no training_args.eval_on_start=false training_args.save_steps=100 training_args.average_tokens_across_devices=true artifacts_subdir=private job_subdir=test wandb.run_name=dev-plw resuming.resume=false" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="true" />

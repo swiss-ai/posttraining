@@ -38,7 +38,7 @@ training_args:
   lr_scheduler_type: linear
   warmup_ratio: 0.03
   optim: ademamix
-  optim_args: "beta3=0.9999,t_beta3=13446,alpha=8.0,t_alpha=13446"
+  optim_args: "beta3=0.9999,alpha=8.0" # t_beta3 and t_alpha are automatically calculated in train_sft.py
   adam_beta1: 0.9
   adam_beta2: 0.999
   adam_epsilon: 1e-8
