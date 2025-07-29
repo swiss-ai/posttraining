@@ -70,11 +70,13 @@ def main(config: DictConfig) -> None:
             "eval": config.dataset_args.debug_subsample.eval,
         },
         transform_fn=[
+            "sft_to_chatml_format",
             # "sft_filter_non_alternating_roles",
             "sft_tulu_tokenize_and_truncate",
             "sft_filter_has_assistant_tokens",
         ],
         transform_fn_args=[
+            {},
             # {},
             {"max_seq_length": training_args.max_seq_length},
             {},
@@ -187,7 +189,7 @@ def main(config: DictConfig) -> None:
     )
     total_steps = training_args.num_train_epochs * num_steps_per_epoch
     training_args.optim_args += f",t_beta3={total_steps},t_alpha={total_steps}"
-    acc_logger.info(f"trainer args: {trainer.args.optim_args}")
+    acc_logger.info(f"AdEMAMix args: t_beta3=t_alpha={trainer.args.optim_args}")
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")
