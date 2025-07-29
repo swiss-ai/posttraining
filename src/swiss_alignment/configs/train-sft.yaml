@@ -25,12 +25,10 @@ script_args:
   dataset_train_split: ${dataset_args.train_split.name}
   dataset_test_split: ${dataset_args.eval_split.name}
 
+accelerate_config: "src/swiss_alignment/configs/accelerate/ds-zero1.yaml"
 trainer: plw # can only take values: sft, plw, ln-plw, irl
 plw_args:
   prompt_loss_weight: 0.0
-irl_args:
-  lambda_td: 0.5
-  gamma: 1.0
 
 training_args:
   bf16: true

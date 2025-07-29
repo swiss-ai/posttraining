@@ -248,16 +248,12 @@ training_args:
 The PLW trainer supports four modes: SFT, PLW, LN-PLW, and IRL. Set the desired mode in `src/swiss-alignment/configs/trl-plw.yaml`:
 - **SFT**: Trains on full sequence (prompt + completion).
 - **PLW/LN-PLW**: Applies `prompt_loss_weight` to prompt loss.
-- **IRL**: Uses LN-PLW as backbone for inverse reinforcement learning.
 
 **Example Configuration:**
 ```yaml
 trainer: ln-plw # Options: sft, plw, ln-plw, irl
 plw_args:
   prompt_loss_weight: 0.1
-irl_args:
-  lambda_td: 0.5
-  gamma: 1.0
 ```
 
 To add new trainers, update `src/swiss-alignment/trl/trainers.py` following the project standard.
