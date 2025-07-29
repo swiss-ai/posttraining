@@ -19,8 +19,8 @@ stdout_root = (
 job_name = "datasets-with-chosen-rewards"
 
 datasets = ["olmo2-32b-preference"]
-splits = ["train_split"]
-reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b"]
+splits = ["train_split", "eval_split"]
+reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b", "armorm-llama3-8b"]
 
 num_nodes_per_job = 1
 save_interval = 8192
@@ -39,6 +39,8 @@ for dataset in datasets:
                 dataset_config = yaml.safe_load(file)
             split_config = dataset_config["dataset_args"][split]
             split_name = split_config["name"]
+            if split_name is None:
+                continue
             split_size = split_config["end"] - split_config["start"]
 
             commands.append(
