@@ -1,4 +1,5 @@
 export SLURM_ONE_ENTRYPOINT_SCRIPT_PER_NODE=1
+export HYDRA_FULL_ERROR=1
 export PROJECT_NAME=swiss-alignment
 export PACKAGE_NAME=swiss_alignment
 export STORE=/capstor/store/cscs/swissai/infra01/

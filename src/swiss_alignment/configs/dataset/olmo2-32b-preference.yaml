@@ -1,0 +1,17 @@
+# @package _global_
+
+# https://huggingface.co/datasets/allenai/olmo-2-0325-32b-preference-mix
+
+
+dataset_args:
+  dataset_name: ${artifacts_dir}/shared/datasets/preference/olmo2-32b-preference
+  train_split:
+    name: train
+    start: 0
+    end: 377809 # after filter 367478
+  eval_split:
+    name: null
+
+training_args:
+  eval_strategy: "no"
+  eval_steps: null

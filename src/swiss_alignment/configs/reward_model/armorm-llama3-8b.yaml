@@ -1,0 +1,8 @@
+# @package _global_
+
+# https://huggingface.co/RLHFlow/ArmoRM-Llama3-8B-v0.1
+reward_model_args:
+  torch_dtype: bfloat16
+  pretrained_model_name_or_path: ${artifacts_dir}/shared/reward-models/armorm-llama3-8b
+  attn_implementation: flash_attention_2
+  trust_remote_code: true

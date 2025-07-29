@@ -17,6 +17,10 @@ export SSH_SERVER=1
 export NO_SUDO_NEEDED=1
 export JETBRAINS_SERVER_AT=$HOME/jetbrains-server
 export PYCHARM_IDE_AT=a72a92099e741_pycharm-professional-2024.3.3-aarch64
+# Lazy hack.
+if [ "$(whoami)" = "smoalla" ]; then
+  export PYCHARM_IDE_AT=926eda376fbe6_pycharm-2025.1.3.1-aarch64
+fi
 export VSCODE_SERVER_AT=$SCRATCH/vscode-server
 mkdir -p $JETBRAINS_SERVER_AT
 mkdir -p $VSCODE_SERVER_AT

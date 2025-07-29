@@ -1,8 +1,10 @@
 # @package _global_
 
+# https://huggingface.co/meta-llama/Llama-3.2-1B
+
 model_args:
   torch_dtype: bfloat16
-  model_name_or_path: ${artifacts_dir}/shared/models/llama3-1b/.
+  model_name_or_path: ${artifacts_dir}/shared/models/llama3-1b
   attn_implementation: flash_attention_2
   trust_remote_code: true
   use_peft: false

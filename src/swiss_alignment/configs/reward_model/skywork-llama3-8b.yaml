@@ -1,0 +1,8 @@
+# @package _global_
+
+# https://huggingface.co/Skywork/Skywork-Reward-V2-Llama-3.1-8B
+reward_model_args:
+  torch_dtype: bfloat16
+  pretrained_model_name_or_path: ${artifacts_dir}/shared/reward-models/skywork-llama3-8b
+  attn_implementation: flash_attention_2
+  num_labels: 1

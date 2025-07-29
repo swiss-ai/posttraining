@@ -1,8 +1,9 @@
 # @package _global_
 
 # https://huggingface.co/datasets/allenai/tulu-3-sft-olmo-2-mixture-0225
+
 dataset_args:
-  dataset_name: ${artifacts_dir}/shared/datasets/swissai/tulu-3-sft-mixture-0225-swissai-harcoded-15x-no-openai
+  dataset_name: ${artifacts_dir}/shared/datasets/sft/olmo2-32b-sft
   train_split:
     name: train
   eval_split:
