@@ -149,5 +149,6 @@ artifacts/*
 
 wandb
 **/*.out
+**/*.err
 
 third-party
