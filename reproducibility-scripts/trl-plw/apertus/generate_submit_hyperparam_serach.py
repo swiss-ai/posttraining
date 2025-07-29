@@ -67,7 +67,7 @@ for (
         f"--output={stdout_root}/{hp_config}.out "
         f"--error={stdout_root}/{hp_config}.err "
         "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-accelerate.sh "
-        f"-m swiss_alignment.trl.plw.train_sft "
+        f"-m swiss_alignment.train_sft "
         f"dataset={dataset} "
         f"model={model}.yaml "
         f"tokenizer_args.chat_template_name={chat_template} "
