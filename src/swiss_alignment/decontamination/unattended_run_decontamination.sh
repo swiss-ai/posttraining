@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH -J swiss-alignment-run_acereason
+#SBATCH -J swiss-alignment-run_tome
 #SBATCH -t 12:00:00
 #SBATCH -A a-infra01-1
-#SBATCH --output=sunattended_acereason.out
+#SBATCH --output=sunattended_tome.out
 #SBATCH --nodes 1
 
 # Variables used by the entrypoint script

@@ -18,9 +18,9 @@ export SSH_SERVER=1
 export NO_SUDO_NEEDED=1
 # For the first time, mkdir -p $HOME/jetbrains-server, and comment out PYCHARM_IDE_AT
 export JETBRAINS_SERVER_AT=$HOME/jetbrains-server
-export PYCHARM_IDE_AT=a72a92099e741_pycharm-professional-2024.3.3-aarch64
+export PYCHARM_IDE_AT=e581c82df1794_pycharm-2025.1.3.1-aarch64
 # or
-export VSCODE_SERVER_AT=$SCRATCH/vscode-server
+# export VSCODE_SERVER_AT=$SCRATCH/vscode-server
 
 export OMP_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
@@ -33,12 +33,11 @@ $PROJECT_ROOT_AT,\
 $SCRATCH,\
 $HOME/projects/,\
 $SWISS_AI_STORAGE,\
-/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/,\
+/iopsstor/scratch/cscs/bpasztor/projects/swiss-alignment/,\
 $WANDB_API_KEY_FILE_AT,\
 $HF_TOKEN_AT,\
 $HOME/.gitconfig,\
 $HOME/.bashrc,\
-$HOME/.oh-my-bash,\
 $JETBRAINS_SERVER_AT,\
 $HOME/.ssh \
   --container-workdir=$PROJECT_ROOT_AT \
@@ -50,6 +49,9 @@ $HOME/.ssh \
   bash -c "\
       bash ${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/hot-pip-install.sh && \
       exec sleep infinity"
+
+# Removed from the container-mounts
+# $HOME/.oh-my-bash,\
 
 # additional options
 # --container-env to override environment variables defined in the container

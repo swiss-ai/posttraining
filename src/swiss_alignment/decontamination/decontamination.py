@@ -78,7 +78,6 @@ def main(args):
         benchmark_list = args.benchmark_name if isinstance(args.benchmark_name, list) else [args.benchmark_name]
     print("Benchmarks to consider: ", benchmark_list)
 
-
     # Load and preprocess training data
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, use_fast=True)
     assert "03_license_filtered" in args.train_dataset, "Training dataset must be in the 03_license_filtered directory"
@@ -96,11 +95,12 @@ def main(args):
         },
         batched=True,
     )
-    print("Prompts tokenized")
-    with Pool(args.num_proc) as p:
-        train_ngrams = p.map(partial(process_tokens, ngram_length=args.ngram_length), train_data["prompt_token_ids"])  # train_ngrams: List[{"ngram": List[set], "tokens": List[int]}]
+    train_data_prompts_token_ids = train_data["prompt_token_ids"]
     train_conversation_ids = train_data["conversation_id"]
     del train_data  # Remove the training data for memory free-up
+    print("Prompts tokenized")
+    with Pool(args.num_proc) as p:
+        train_ngrams = p.map(partial(process_tokens, ngram_length=args.ngram_length), train_data_prompts_token_ids)  # train_ngrams: List[{"ngram": List[set], "tokens": List[int]}]
     print("Training ngrams converted")
     gc.collect()
 

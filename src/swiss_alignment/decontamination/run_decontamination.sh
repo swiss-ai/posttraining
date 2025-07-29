@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/dev
-data_root_folder="/capstor/store/cscs/swissai/infra01/posttrain_data/"
+data_root_folder="/capstor/store/cscs/swissai/infra01/posttrain_data"
 decontamination_prompts_path="${data_root_folder}/04_decontaminated/decontamination_prompts"
 
 # if decontamination_prompts_path does not exist, then create it
@@ -15,11 +15,13 @@ else
 fi
 
 #dataset_name="Llama-Nemotron-Post-Training-Dataset"
+#dataset_name="Llama-Nemotron-Post-Training-Dataset_wo_math_code"
 #dataset_name="tulu-3-sft-mixture"
 #dataset_name="EuroBlocks-SFT-Synthetic-1124"
 #dataset_name="smoltalk"
-#dataset_name="The-Tome"
-dataset_name="AceReason-1.1-SFT"
+#dataset_name="smoltalk2"
+dataset_name="The-Tome"
+#dataset_name="AceReason-1.1-SFT"
 python $PROJECT_ROOT_AT/src/swiss_alignment/decontamination/decontamination.py \
 --decontamination_prompts "${decontamination_prompts_path}" \
 --train_dataset "${data_root_folder}/03_license_filtered/${dataset_name}" \
