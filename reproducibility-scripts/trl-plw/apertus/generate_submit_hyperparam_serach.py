@@ -8,15 +8,25 @@ stdout_root = (
 )
 
 
-models = ["apertus3-8b"]
+models = ["apertus-8b"]
 datasets = ["swissai-tulu-3-sft-0225"]
+
+num_proc_per_node = 4
+proc_train_batch_size = 2
+proc_eval_batch_size = 2
 
 # Hyperparameters
 num_epochs = 2  # we save intermediate checkpoints
 max_seq_length = 4096
-learning_rates = [5e-6]  # 8b: 5e-6; 70b: 2e-6
-batch_size = [(128, 32)]  # bs, num_nodes
-grad_clipping = [1_000]
+learning_rates = [5e-7, 1e-6, 5e-6, 1e-5]
+lr_scheduler_types = [
+    "constant",
+    "linear",
+    "cosine",
+]
+lr_warmup_ratio = 0.03
+batch_size = [(64, 8), (128, 16), (256, 32)]
+grad_clipping = [2]
 trainers = [  # Trainers available: sft, plw, ln-plw, irl
     ("plw", 0.0)
     # ("ln-plw", 0.0),
@@ -31,21 +41,13 @@ chat_templates = [
     "tulu"
 ]
 
-lr_scheduler_type = "linear"  # TODO
-lr_warmup_ratio = 0.03  # TODO
-
-
-# TODO
-num_proc_per_node = 4
-proc_train_batch_size = 1
-proc_eval_batch_size = 2
-
 commands = []
 run_name = f"apertus3-8b-sweep"
 for (
     dataset,
     model,
     lr,
+    lr_scheduler_type,
     (bs, num_nodes),
     grad_clip,
     (trainer, plw_weight),
@@ -54,13 +56,14 @@ for (
     datasets,
     models,
     learning_rates,
+    lr_scheduler_types,
     batch_size,
     grad_clipping,
     trainers,
     chat_templates,
 ):
-    model_config = f"{model}-{dataset}"
-    hp_config = f"lr={lr}-bs={bs}-grad_clip={grad_clip}-trainer={trainer}-plw_weight={plw_weight}-chat_template={chat_template}"
+    model_config = f"{model}-{dataset}-hyperparam_search"
+    hp_config = f"lr_{lr}-scheduler_{lr_scheduler_type}-bs_{bs}-grad_clip_{grad_clip}-trainer_{trainer}-plw_weight_{plw_weight}-chat_template_{chat_template}"
     command = (
         f"sbatch "
         f"--nodes {num_nodes} "
@@ -90,7 +93,7 @@ for (
         f"training_args.save_steps=1000 "
         "artifacts_subdir=private "
         f"job_subdir={run_name}/{model_config}/{hp_config} "
-        f"wandb.run_name={model_config} "
+        f"wandb.run_name={model_config}-{hp_config} "
         f"wandb.tags=[prod,{trainer}] "
         "resuming.resume=True "
     )

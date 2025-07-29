@@ -8,7 +8,7 @@ batch_size = 128
 max_seq_length = 4096
 num_nodes = 8
 num_proc_per_node = 4
-proc_train_batch_size = 1
+proc_train_batch_size = 2
 accumulation_steps = batch_size // (
     num_nodes * num_proc_per_node * proc_train_batch_size
 )
@@ -40,7 +40,7 @@ for dataset in datasets:
         ]:
             for lr in learning_rates:
                 for plw in prompt_loss_weight:
-                    model_config = f"{iter}-{dataset}"
+                    model_config = f"{iter}-ademamix-{dataset}"
                     hp_config = f"{trainer}-{plw}-lr-{lr}"
                     command = (
                         f"sbatch "

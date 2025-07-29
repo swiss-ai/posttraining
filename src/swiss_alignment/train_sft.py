@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import timedelta
 from pathlib import Path
 
@@ -69,10 +70,12 @@ def main(config: DictConfig) -> None:
             "eval": config.dataset_args.debug_subsample.eval,
         },
         transform_fn=[
+            # "sft_filter_non_alternating_roles",
             "sft_tulu_tokenize_and_truncate",
             "sft_filter_has_assistant_tokens",
         ],
         transform_fn_args=[
+            # {},
             {"max_seq_length": training_args.max_seq_length},
             {},
         ],
@@ -114,7 +117,6 @@ def main(config: DictConfig) -> None:
     ds = get_dataset(dataset_config, tokenizer, acc_state)
 
     ############################ Trainer Setup ############################
-
     # Find the last checkpoint
     resuming_dir = Path.cwd()
     # Handle resuming
@@ -174,6 +176,18 @@ def main(config: DictConfig) -> None:
         acc_logger.info(
             f"Overriding model eos token id to {tokenizer_args.model_eos_token_id}"
         )
+
+    # Computing the warmup steps for beta3 and alpha in AdEMAMix
+    len_ds = len(ds["train"])
+    total_batch_size = trainer.get_total_train_batch_size(training_args)
+    num_steps_per_epoch = int(
+        len_ds // total_batch_size
+        if training_args.dataloader_drop_last
+        else math.ceil(len_ds / total_batch_size)
+    )
+    total_steps = training_args.num_train_epochs * num_steps_per_epoch
+    training_args.optim_args += f",t_beta3={total_steps},t_alpha={total_steps}"
+    acc_logger.info(f"trainer args: {trainer.args.optim_args}")
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")

@@ -28,6 +28,7 @@ srun \
 "$(
   printf "%s," \
     "$PROJECT_ROOT_AT" \
+    "$SCRATCH" \
     "$SHARED_SCRATCH" \
     "$STORE" \
     "$WANDB_API_KEY_FILE_AT" \

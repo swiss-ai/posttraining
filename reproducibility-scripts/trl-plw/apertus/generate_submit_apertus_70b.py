@@ -37,13 +37,18 @@ for dataset in datasets:
             # "Apertus70B-tokens5T-it560000",
             # "Apertus70B-tokens6T-it619500",
             # "Apertus70B-tokens7T-it679000",
-            "Apertus70B-tokens8T-it739000",
+            # "Apertus70B-tokens8T-it739000",
             # "Apertus70B-tokens9T-it798250",
             # "Apertus70B-tokens10T-it858000",
+            "Apertus70B-tokens11T-it917500",
+            "Apertus70B-tokens12T-it977250",
+            "Apertus70B-tokens13T-it1036750",
+            "Apertus70B-tokens14T-it1096250",
+            "Apertus70B-tokens15T-it1155828",
         ]:
             for lr in learning_rates:
                 for plw in prompt_loss_weight:
-                    model_config = f"{iter}-{dataset}"
+                    model_config = f"{iter}-ademamix-{dataset}"
                     hp_config = f"{trainer}-{plw}-lr-{lr}"
                     command = (
                         f"sbatch "
