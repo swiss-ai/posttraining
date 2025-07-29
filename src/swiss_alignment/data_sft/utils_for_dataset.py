@@ -8,7 +8,13 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import torch
 from accelerate import PartialState
-from datasets import DatasetDict, concatenate_datasets, load_dataset, load_from_disk
+from datasets import (
+    Dataset,
+    DatasetDict,
+    concatenate_datasets,
+    load_dataset,
+    load_from_disk,
+)
 from transformers import PreTrainedTokenizer
 
 hydra_logger = logging.getLogger(__name__)
@@ -395,6 +401,23 @@ TOKENIZED_SFT_DATASET_KEYS = [
 ]
 
 
+def sft_to_chatml_format(
+    row: Dict[str, Any],
+    tokenizer: PreTrainedTokenizer,
+):
+    chat = [
+        {"content": row["system_prompt"]["content"], "role": "system"}
+        if "system_prompt" in row
+        else {},
+        {"content": row["initial_prompt"]["content"], "role": "user"},
+    ]
+    # Add the conversational messages
+    for branch in row["conversation_branches"]:
+        for message in branch["messages"]:
+            chat.append({"content": message["content"], "role": message["role"]})
+    return {"messages": chat}
+
+
 def sft_tokenize(
     row: Dict[str, Any],
     tokenizer: PreTrainedTokenizer,
@@ -578,6 +601,7 @@ def sft_filter_non_alternating_roles(
 
 
 TRANSFORM_FNS = {
+    "sft_to_chatml_format": (sft_to_chatml_format, "map"),
     "sft_tokenize": (sft_tokenize, "map"),
     "sft_tokenize_mask_out_prompt": (sft_tokenize_mask_out_prompt, "map"),
     "sft_tulu_tokenize_and_truncate": (sft_tulu_tokenize_and_truncate, "map"),
@@ -656,16 +680,25 @@ def get_dataset(
 
     with acc_state.main_process_first():
         ds = load_dataset_flexible(dc.dataset_name)
-        ds = DatasetDict(
-            {
-                "train": ds[dc.dataset_split_names["train"]],
-                **(
-                    {"eval": ds[dc.dataset_split_names["eval"]]}
-                    if dc.dataset_split_names["eval"] is not None
-                    else {}
-                ),
-            }
-        )
+
+        if isinstance(ds, DatasetDict):
+            ds = DatasetDict(
+                {
+                    "train": ds[dc.dataset_split_names["train"]],
+                    **(
+                        {"eval": ds[dc.dataset_split_names["eval"]]}
+                        if dc.dataset_split_names["eval"] is not None
+                        else {}
+                    ),
+                }
+            )
+        elif isinstance(ds, Dataset):
+            # Convert Dataset to DatasetDict with train split
+            ds = DatasetDict(
+                {
+                    "train": ds,
+                }
+            )
 
         # beaker specific logic; we may get assigned 15.5 CPU, so we convert it to float then int
         num_proc = int(
@@ -722,6 +755,7 @@ def get_dataset(
                     ds[split] = ds[split].map(
                         fn,
                         fn_kwargs=fn_kwargs,
+                        load_from_cache_file=False,
                         remove_columns=[
                             col
                             for col in ds[split].column_names
@@ -737,6 +771,7 @@ def get_dataset(
                     ds[split] = ds[split].filter(
                         fn,
                         fn_kwargs=fn_kwargs,
+                        load_from_cache_file=False,
                         num_proc=get_num_proc(
                             len(ds[split]), num_proc, FILTER_EXAMPLE_PER_SECOND_PER_CPU
                         ),
