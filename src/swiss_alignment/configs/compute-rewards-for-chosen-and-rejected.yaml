@@ -17,7 +17,7 @@ defaults:
 split: ${dataset_args.train_split.name} # train or eval
 subpartition_number: 0 # (gpu level) subsection in the partition to process
 save_interval: 8192 # Saving every save_interval prompt (should be multiple of batch_size)
-batch_size: 8
+batch_size: 2
 max_seq_length: 4096
 
 # Used instead of job_subdir, because job_subdir will be populated at runtime with the subpartition number
