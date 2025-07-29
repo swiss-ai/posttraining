@@ -12,10 +12,6 @@ Docs for SwissAI users. To update when open-sourcing, if we want to support othe
 
 ### Understand the storage structure
 
-This is how storage is organized:
-
-The absolute paths to the storage are the following:
-
 #### Scratch storage: shared and private
 
 Use it to read and write during jobs.
@@ -32,8 +28,8 @@ In `capstor/store`: `/capstor/store/cscs/swissai/infra01/swiss-alignment/artifac
 
 #### Storage summary:
 
-But these will all be symlinked and all you have to remember are the following relative paths from the project root:  
-So use these relative paths in the code so that it works for everyone.
+These paths are symlinked  under the git root and all you have to remember are the following relative paths from the project root.  
+Use these relative paths in the code so that it works for everyone.
 
 ```
 PROJECT_ROOT/                  # In your home directory.
@@ -45,6 +41,8 @@ PROJECT_ROOT/                  # In your home directory.
 │   └── swiss_alignment/
 ...
 ```
+
+#### Note
 
 Everything in `store` and `shared` should have group write permissions for `infra01` by default.
 If at any point this is not the case in some subdirectory you created, run the following:
@@ -113,39 +111,49 @@ The `reproducibility-scripts` directory includes scripts to generate SLURM jobs 
 Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using [generate_submit_apertus_8b.py](https://github.com/swiss-ai/swiss-alignment/blob/main/reproducibility-scripts/trl-plw/apertus/generate_submit_apertus_8b.py)
 and [generate_submit_apertus_70b.py](https://github.com/swiss-ai/swiss-alignment/blob/refactor-and-guidelienes/reproducibility-scripts/trl-plw/apertus/generate_submit_apertus_70b.py)
 
+Run these scripts from the dev project root and their outputs will be saved in its
+`reproducibility-scripts/trl-plw/out-test` directory.
+```
+cd $HOME/projects/swiss_alignment/dev
+```
+In both cases the code used to run will be the one in the stable `$HOME/projects/swiss_alignment/run` repo.
+
+These are foolproof examples that use hardcoded checkpoints from `store`, please don't manually edit them to run
+scaled experiments, use the script generators instead.
+
 <details>
 <summary>Apertus 8B sbatch command</summary>
 
 ```bash
-sbatch
-  --nodes 8
-  --output=reproducibility-scripts/trl-plw/out-2025-07-21-10-35/Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out
-  ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero1.sh
-  -m swiss_alignment.trl.plw.train_plw
-  dataset=swissai-tulu-3-sft-0225
-  model=apertus-8b.yaml
-  model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.04T-it1678000
-  tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.04T-it1678000
-  trainer=plw
-  plw_args.prompt_loss_weight=0.0
-  training_args.max_seq_length=4096
-  training_args.num_train_epochs=2
-  training_args.gradient_accumulation_steps=4
-  training_args.per_device_train_batch_size=1
-  training_args.per_device_eval_batch_size=2
-  training_args.learning_rate=5e-06
-  training_args.lr_scheduler_type=linear
-  training_args.warmup_ratio=0.03
-  training_args.logging_steps=1
-  training_args.eval_strategy=no
-  training_args.eval_on_start=false
-  training_args.save_strategy=steps
-  training_args.save_steps=1000
-  tokenizer_args.chat_template_name=tulu
-  artifacts_subdir=private
-  job_subdir=apertus3-8b-sweep/Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225
-  wandb.run_name=Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225
-  wandb.tags=[prod,plw]
+sbatch \
+  --nodes 8 \
+  --output=reproducibility-scripts/train-sft/out-test/Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out \
+  ./cscs-shared-submit-scripts/unattended-accelerate.sh \
+  -m swiss_alignment.train_sft \
+  dataset=swissai-tulu-3-sft-0225 \
+  model=apertus-8b \
+  model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.04T-it1678000 \
+  tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.04T-it1678000 \
+  trainer=plw \
+  accelerate_config=src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
+  plw_args.prompt_loss_weight=0.0 \
+  training_args.max_seq_length=4096 \
+  training_args.num_train_epochs=2 \
+  training_args.gradient_accumulation_steps=4 \
+  training_args.per_device_train_batch_size=1 \
+  training_args.per_device_eval_batch_size=2 \
+  training_args.learning_rate=5e-06 \
+  training_args.lr_scheduler_type=linear \
+  training_args.warmup_ratio=0.03 \
+  training_args.eval_strategy=no \
+  training_args.eval_on_start=false \
+  training_args.save_strategy=steps \
+  training_args.save_steps=1000 \
+  tokenizer_args.chat_template_name=tulu \
+  artifacts_subdir=private \
+  job_subdir=apertus3-8b-sweep/Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225 \
+  wandb.run_name=Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225 \
+  wandb.tags=[dev,plw] \
   resuming.resume=True
 ```
 
@@ -155,42 +163,42 @@ sbatch
 <summary>Apertus 70B sbatch command</summary>
 
 ```bash
-sbatch
-  --nodes 32
-  --output=reproducibility-scripts/trl-plw/out-2025-07-21-10-37/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225/plw-0.0-lr-2e-06.out
-  ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-ds-zero3.sh
-   -m swiss_alignment.trl.plw.train_plw
-   dataset=swissai-tulu-3-sft-0225
-   model=apertus-70b.yaml
-   model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens8T-it739000
-   tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens8T-it739000
-   trainer=plw
-   plw_args.prompt_loss_weight=0.0
-   training_args.max_seq_length=4096
-   training_args.num_train_epochs=2
-   training_args.gradient_accumulation_steps=1
-   training_args.per_device_train_batch_size=1
-   training_args.per_device_eval_batch_size=2
-   training_args.learning_rate=2e-06
-   training_args.lr_scheduler_type=linear
-   training_args.warmup_ratio=0.03
-   training_args.logging_steps=1
-   training_args.eval_strategy=no
-   training_args.eval_on_start=false
-   training_args.save_strategy=steps
-   training_args.save_steps=1000
-   tokenizer_args.chat_template_name=tulu
-   artifacts_subdir=private
-   job_subdir=apertus3-70b-sweep/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225
-   wandb.run_name=Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225
-   wandb.tags=[prod,plw]
+sbatch \
+  --nodes 32 \
+  --output=reproducibility-scripts/train-sft/out-test/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225/plw-0.0-lr-2e-06.out \
+  ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-accelerate.sh \
+   -m swiss_alignment.train_sft \
+   dataset=swissai-tulu-3-sft-0225 \
+   model=apertus-70b \
+   model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens8T-it739000 \
+   tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens8T-it739000 \
+   trainer=plw \
+   accelerate_config=src/swiss_alignment/configs/accelerate/ds-zero3.yaml \
+   plw_args.prompt_loss_weight=0.0 \
+   training_args.max_seq_length=4096 \
+   training_args.num_train_epochs=2 \
+   training_args.gradient_accumulation_steps=1 \
+   training_args.per_device_train_batch_size=1 \
+   training_args.per_device_eval_batch_size=2 \
+   training_args.learning_rate=2e-06 \
+   training_args.lr_scheduler_type=linear \
+   training_args.warmup_ratio=0.03 \
+   training_args.eval_strategy=no \
+   training_args.eval_on_start=false \
+   training_args.save_strategy=steps \
+   training_args.save_steps=1000 \
+   tokenizer_args.chat_template_name=tulu \
+   artifacts_subdir=private \
+   job_subdir=apertus3-70b-sweep/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225 \
+   wandb.run_name=Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225 \
+   wandb.tags=[dev,plw] \
    resuming.resume=True
 ```
 
 </details>
 
 These scripts configure the model, dataset, and override training parameters from `src/swiss-alignment/configs/trl-plw.yaml`.
-Training outputs are saved to `artifacts/private/outputs/train_plw/{job_subdir}`.
+Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`.
 
 > [!NOTE]
 > **Artifact directories**:
@@ -232,7 +240,7 @@ dataset_args:
   eval_split:
     name: null
 training_args:
-  eval_strategy: no
+  eval_strategy: "no"
   eval_steps: null
 ```
 
@@ -240,16 +248,12 @@ training_args:
 The PLW trainer supports four modes: SFT, PLW, LN-PLW, and IRL. Set the desired mode in `src/swiss-alignment/configs/trl-plw.yaml`:
 - **SFT**: Trains on full sequence (prompt + completion).
 - **PLW/LN-PLW**: Applies `prompt_loss_weight` to prompt loss.
-- **IRL**: Uses LN-PLW as backbone for inverse reinforcement learning.
 
 **Example Configuration:**
 ```yaml
 trainer: ln-plw # Options: sft, plw, ln-plw, irl
 plw_args:
   prompt_loss_weight: 0.1
-irl_args:
-  lambda_td: 0.5
-  gamma: 1.0
 ```
 
 To add new trainers, update `src/swiss-alignment/trl/trainers.py` following the project standard.
@@ -318,26 +322,25 @@ The `src/swiss_alignment/trl/model_merging/model_merging.py` file initializes th
         │   ├── accelerate/                       # DeepSpeed configs (stages 1/2/3).
         │   ├── dataset/                          # Dataset definitions (local paths or HF datasets).
         │   ├── model/                            # Model/tokenizer configs.
-        │   ├── model_merging/                    # Model merging techniques configs.
-        │   ├── dataset_mixture.yaml              # Defines dataset mixtures for training.
-        │   ├── dataset_split.yaml                # Configures (stratified) evaluation splits.
-        │   ├── model_merging.yaml                # Hydra config for model merging (requires a model_merging/ config).
+        │   ├── model-merging/                    # Model merging techniques configs.
+        │   ├── dataset-mixture.yaml              # Defines dataset mixtures for training.
+        │   ├── dataset-split.yaml                # Configures (stratified) evaluation splits.
+        │   ├── model-merging.yaml                # Hydra config for model merging (requires a model_merging/ config).
         │   ├── setup.yaml                        # Base Hydra template inherited by other configs.
-        │   └── trl-plw.yaml                      # Hydra config for plw trainer (e.g. training arguments).
-        ├── trl/                              # Training and related logic.
-        │   ├── model_merging/                    # Model merging module.
-        │   │   └── model_merging.py                  # Implements model merging using mergekit.
-        │   ├── plw/                              # Prompt-Loss-Weight training modules.
-        │   │   ├── gen_ratios.py                     # Calculates generation ratio (=completion length / prompt length) for datasets.
-        │   │   └── train_plw.py                      # Core training logic.
-        │   ├── dataset_mixture.py                # Creates dataset mixtures (logic in utils_for_dataset.py).
+        │   └── train-sft.yaml                    # Hydra config for SFT (e.g. training arguments).
+        ├── model_merging/                    # Model merging module.
+        │   └── model_merging.py                  # Implements model merging using mergekit.
+        ├── data_sft/                         # SFT Data related logic.
+        │   ├── dataset_mixture.py                # Creates SFT dataset mixtures (logic in utils_for_dataset.py).
         │   ├── dataset_split.py                  # Generates (stratified) evaluation splits.
+        │   ├── prompt_generation_ratios.py       # Calculates generation ratio (=completion length / prompt length) for datasets.
         │   ├── tokenization.py                   # Configures tokenizer, BOS/PAD/EOS tokens, and chat templates.
-        │   └── trainers.py                       # Implements all trainers.
-        └── utils/                            # Utility functions.
-            ├── utils_for_dataset.py              # Handles dataset loading, dataset mixing, message format conversion, and tokenization.
-            ├── utils_for_gen_ratio.py            # Contains all generation ratio logic.
-            └── utils_for_plw.py                  # Contains PLWDataCollator for PLW trainers
+        │   ├── utils_for_dataset.py              # Handles dataset loading, dataset mixing, message format conversion, and tokenization.
+        │   └── utils_for_gen_ratio.py            # Contains all generation ratio logic.
+        ├── trainers/                         # Core training logic.
+        │   └── sft.py                            # SFT and Prompt-Loss-Weight training modules.
+        ├── utils/                            # Infra utility functions.  
+        └── train_sft.py                  # SFT training entrypoint
 ```
 
 

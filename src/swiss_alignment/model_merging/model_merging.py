@@ -13,7 +13,7 @@ utils.config.register_resolvers()
 hydra_logger = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../../configs", config_name="model_merging")
+@hydra.main(version_base=None, config_path="../configs", config_name="model-merging")
 def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
     # Ensure model merging config is readable

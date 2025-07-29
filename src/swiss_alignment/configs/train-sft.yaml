@@ -10,6 +10,9 @@ defaults:
 
 ######################################################################
 
+wandb:
+  project: swiss-alignment-sft
+
 dataset_args:
   debug_oom: false # Reorder the dataset with largest batch first to test OOM
   debug_subsample:
@@ -22,17 +25,15 @@ script_args:
   dataset_train_split: ${dataset_args.train_split.name}
   dataset_test_split: ${dataset_args.eval_split.name}
 
-trainer: sft # can only take values: sft, plw, ln-plw, irl
+accelerate_config: "src/swiss_alignment/configs/accelerate/ds-zero1.yaml"
+trainer: plw # can only take values: sft, plw, ln-plw, irl
 plw_args:
   prompt_loss_weight: 0.0
-irl_args:
-  lambda_td: 0.5
-  gamma: 1.0
 
 training_args:
   bf16: true
   max_seq_length: 4096
-  max_grad_norm: 1_000 # clipping (1_000 represents no clipping)
+  max_grad_norm: 1e6 # Effectively no clipping
   learning_rate: 5.0e-06
   lr_scheduler_type: linear
   warmup_ratio: 0.03
@@ -53,13 +54,13 @@ training_args:
     use_reentrant: false # https://pytorch.org/docs/stable/checkpoint.html, https://github.com/huggingface/trl/issues/1348
   average_tokens_across_devices: true # More accurate loss.
   logging_first_step: true
-  logging_steps: 25
+  logging_steps: 1
   per_device_eval_batch_size: 2
   eval_strategy: steps # use "no" for no evaluation
-  eval_steps: 50
-  eval_on_start: true
+  eval_steps: 100
+  eval_on_start: false
   save_strategy: epoch
-  # save_steps: 50 # only required if save_strategy=steps
+  save_steps: 1000
   report_to: wandb
   seed: ${seed}
   dataset_num_proc: 8

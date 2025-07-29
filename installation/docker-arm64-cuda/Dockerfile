@@ -42,16 +42,18 @@ ENV PIP_CACHE_DIR=/root/.cache/pip
 RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-before-pip-install.txt
 RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-before-pip-install.txt
 
-COPY requirements.txt ${DEPENDENCIES_DIR}/requirements.txt
+# To build a new image you will likely use this.
+COPY requirements-initial.txt ${DEPENDENCIES_DIR}/requirements-initial.txt
 RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
-    pip install --no-build-isolation -r ${DEPENDENCIES_DIR}/requirements.txt
-RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-after-pip-install.txt
-RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-after-pip-install.txt
+    pip install --no-build-isolation -r ${DEPENDENCIES_DIR}/requirements-initial.txt
 
-# For reproducible requirements use the following after getting the requirements-freeze.txt file from the first build.
+# To reproduce a build use the following after getting the requirements-freeze.txt file from the first build.
 #COPY requirements-freeze.txt ${DEPENDENCIES_DIR}/requirements-freeze.txt
 #RUN --mount=type=cache,target=${PIP_CACHE_DIR} \
-#    pip install --no-deps -r ${DEPENDENCIES_DIR}/requirements-freeze.txt
+#    pip install --no-deps --no-build-isolation -r ${DEPENDENCIES_DIR}/requirements-freeze.txt
+
+RUN pip freeze > ${DEPENDENCIES_DIR}/requirements-freeze-after-pip-install.txt
+RUN pip list --format freeze > ${DEPENDENCIES_DIR}/requirements-list-after-pip-install.txt
 
 ########################################################################
 # Here you can install other software
@@ -72,10 +74,13 @@ RUN git clone --depth 1 ${ZSHS_URL} /opt/zsh/zsh-syntax-highlighting
 
 ########################################################################
 # This stage is the final user-agnostic (generic) stage.
-# This layer can be distributed so that subsequent users
 
 FROM runtime-deps AS runtime-generic
 
+ARG PROJECT_NAME
+ARG PACKAGE_NAME
+ENV PROJECT_NAME=${PROJECT_NAME}
+ENV PACKAGE_NAME=${PACKAGE_NAME}
 ENV HYDRA_FULL_ERROR=1
 
 # A final record of the dependencies from pip freeze.

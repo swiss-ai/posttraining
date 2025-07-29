@@ -1,5 +1,7 @@
 import dataclasses
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 from accelerate.utils import broadcast_object_list as accelerate_broadcast_object_list
@@ -28,6 +30,7 @@ def merge_and_save_config(config, script_args, training_args, model_args, acc_st
 
 
 def setup_config_and_resuming(config, acc_state, acc_logger, postprocess_func=None):
+    acc_logger.info(f"Running command: {subprocess.list2cmdline(sys.argv)}")
     acc_logger.info(f"Init directory: {Path.cwd()}")
     if acc_state.is_main_process:
         utils.config.setup_resuming_dir(config)
@@ -35,7 +38,6 @@ def setup_config_and_resuming(config, acc_state, acc_logger, postprocess_func=No
     acc_logger.info(f"Run can be resumed from the directory: {config.resuming_dir}")
     if config.resuming.resume:
         os.chdir(config.resuming_dir)
-        acc_logger.info(f"Resuming from the directory: {Path.cwd()}")
 
     Path(f"config/process-{acc_state.process_index}").mkdir(exist_ok=True, parents=True)
     utils.config.save_or_check_config(
@@ -52,5 +54,10 @@ def setup_config_and_resuming(config, acc_state, acc_logger, postprocess_func=No
     utils.config.save_or_check_config(
         config, f"config/process-{acc_state.process_index}/config-postprocessed.yaml"
     )
+
+    acc_logger.info(f"Resuming from the directory: {Path.cwd()}")
+    acc_logger.info(f"Running with config: \n{OmegaConf.to_yaml(config)}")
+    if config.resuming.resume:
+        acc_logger.info(f"Resuming from the directory: {Path.cwd()}")
 
     return config

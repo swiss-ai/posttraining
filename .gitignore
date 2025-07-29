@@ -143,6 +143,10 @@ data/*
 outputs/*
 !outputs/README.md
 
+artifacts/*
+!artifacts/README.md
+!artifacts/.setup-symlinks.sh
+
 wandb
 **/*.out
 

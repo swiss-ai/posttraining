@@ -1,12 +1,11 @@
 import logging
-import os
 
 import hydra
 from datasets import ClassLabel
 from omegaconf import DictConfig
 
 from swiss_alignment import utils
-from swiss_alignment.utils.utils_for_dataset import (
+from swiss_alignment.data_sft.utils_for_dataset import (
     load_dataset_flexible,
     save_dataset_flexible,
 )
@@ -15,7 +14,7 @@ utils.config.register_resolvers()
 hydra_logger = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="dataset_split")
+@hydra.main(version_base=None, config_path="../configs", config_name="dataset-split")
 def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
     utils.seeding.seed_everything(config)

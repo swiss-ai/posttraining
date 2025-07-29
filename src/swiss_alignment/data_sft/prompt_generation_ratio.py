@@ -11,8 +11,9 @@ from omegaconf import DictConfig, OmegaConf
 from trl import ScriptArguments
 
 from swiss_alignment import utils
-from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
-from swiss_alignment.utils import utils_for_gen_ratio, utils_for_trl
+from swiss_alignment.data_sft import utils_for_gen_ratio
+from swiss_alignment.data_sft.tokenization import TokenizerConfig, get_tokenizer
+from swiss_alignment.utils import utils_for_trl
 
 utils.config.register_resolvers()
 acc_state = PartialState()
@@ -28,7 +29,7 @@ def main(config: DictConfig) -> None:
     tokenizer_args = TokenizerConfig(
         model_name_or_path=config.tokenizer_args.tokenizer_name_or_path,
         padding_side=config.tokenizer_args.padding_side,
-        add_bos=config.tokenizer_args.add_bos,
+        add_bos_to_chat_template=config.tokenizer_args.add_bos,
         trust_remote_code=config.tokenizer_args.trust_remote_code,
         chat_template_name=config.tokenizer_args.chat_template_name,
         model_pad_token_id=config.tokenizer_args.model_pad_token_id,

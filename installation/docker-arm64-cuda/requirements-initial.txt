@@ -12,6 +12,7 @@ bitsandbytes
 deepspeed==0.16.9
 datasets==3.5.0
 peft==0.15.1
+bitsandbytes==0.46.1
 trl==0.16.0
 # Model Merging
 # swiss-ai fork of mergekit
