@@ -127,9 +127,9 @@ scaled experiments, use the script generators instead.
 ```bash
 sbatch \
   --nodes 8 \
-  --output=reproducibility-scripts/trl-plw/out-test/Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out \
+  --output=reproducibility-scripts/train-sft/out-test/Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out \
   ./cscs-shared-submit-scripts/unattended-accelerate.sh \
-  -m swiss_alignment.trl.plw.train_sft \
+  -m swiss_alignment.train_sft \
   dataset=swissai-tulu-3-sft-0225 \
   model=apertus-8b \
   model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.04T-it1678000 \
@@ -165,9 +165,9 @@ sbatch \
 ```bash
 sbatch \
   --nodes 32 \
-  --output=reproducibility-scripts/trl-plw/out-test/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225/plw-0.0-lr-2e-06.out \
+  --output=reproducibility-scripts/train-sft/out-test/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225/plw-0.0-lr-2e-06.out \
   ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-accelerate.sh \
-   -m swiss_alignment.trl.plw.train_sft \
+   -m swiss_alignment.train_sft \
    dataset=swissai-tulu-3-sft-0225 \
    model=apertus-70b \
    model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens8T-it739000 \
