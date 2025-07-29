@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -J dpr-rew-chosen
-#SBATCH -t 6:00:00
+#SBATCH -t 11:00:00
 #SBATCH -A a-infra01-1
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 4
