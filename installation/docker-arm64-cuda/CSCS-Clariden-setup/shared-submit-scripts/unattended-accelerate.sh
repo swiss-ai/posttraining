@@ -1,14 +1,27 @@
 #!/bin/bash
 
-#SBATCH -J swiss-alignment-run
+#SBATCH -J swiss-alignment-run-accelerate
 #SBATCH -t 12:00:00
 #SBATCH -A a-infra01-1
 #SBATCH --nodes 1
+#SBATCH --ntasks-per-node 1
 
 # Variables used by the entrypoint script
 # Change this to the path of your project (can be the /dev or /run copy)
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh
+
+
+# Parse some args:
+# accelerate config
+for arg in "$@"; do
+  if [[ $arg == accelerate_config=* ]]; then
+    # remove the prefix “accelerate_config=”…
+    ACCELERATE_CONFIG="${arg#accelerate_config=}"
+    break
+  fi
+done
+
 
 srun \
   --container-image=$CONTAINER_IMAGE \
@@ -25,6 +38,13 @@ $WANDB_API_KEY_FILE_AT \
   --no-container-entrypoint \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
-  "$@"
+  bash -c "\
+    exec accelerate launch \
+    --config-file $ACCELERATE_CONFIG \
+    --num_machines $SLURM_NNODES \
+    --num_processes $((4*$SLURM_NNODES)) \
+    --main_process_ip $(hostname) \
+    --machine_rank \$SLURM_NODEID \
+    $*"
 
 exit 0

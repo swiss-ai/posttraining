@@ -9,7 +9,6 @@ from accelerate.state import PartialState
 from omegaconf import DictConfig, OmegaConf
 from trl import (
     DPOConfig,
-    DPOTrainer,
     ModelConfig,
     ScriptArguments,
     get_kbit_device_map,
@@ -18,10 +17,10 @@ from trl import (
 )
 
 from swiss_alignment import utils
+from swiss_alignment.data_sft.utils_for_dataset import DatasetConfig, get_dataset
 from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
 from swiss_alignment.trl.trainers import CustomDPOTrainer
 from swiss_alignment.utils import utils_for_trl
-from swiss_alignment.utils.utils_for_dataset import DatasetConfig, get_dataset
 
 utils.config.register_resolvers()
 acc_state = PartialState()

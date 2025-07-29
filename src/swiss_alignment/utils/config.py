@@ -155,12 +155,12 @@ def setup_resuming_dir(config):
 
 
 def setup_config_and_resuming(config, postprocess_func=None, logger=_logger):
+    logger.info(f"Running command: {subprocess.list2cmdline(sys.argv)}")
     logger.info(f"Init directory: {Path.cwd()}")
     utils.config.setup_resuming_dir(config)
     logger.info(f"Run can be resumed from the directory: {config.resuming_dir}")
     if config.resuming.resume:
         os.chdir(config.resuming_dir)
-        logger.info(f"Resuming from the directory: {Path.cwd()}")
 
     Path(f"config").mkdir(exist_ok=True, parents=True)
     utils.config.save_or_check_config(
@@ -176,15 +176,21 @@ def setup_config_and_resuming(config, postprocess_func=None, logger=_logger):
     # Save the resolved config.
     utils.config.save_or_check_config(config, f"config/config-postprocessed.yaml")
 
+    logger.info(f"Working directory: {Path.cwd()}")
+    logger.info(f"Running with config: \n{OmegaConf.to_yaml(config)}")
+    if config.resuming.resume:
+        logger.info(f"Resuming from the directory: {Path.cwd()}")
+
     return config
 
 
 def setup_wandb(config, logger=_logger):
+    wandb_config = OmegaConf.to_container(config)
     wandb.init(
         id=config.wandb.run_id,
         name=config.wandb.run_name,
         resume="allow" if config.resuming.resume else "never",
-        config=OmegaConf.to_container(config),
+        config=wandb_config,
         project=config.wandb.project,
         tags=config.wandb.tags,
         mode=config.wandb.mode,

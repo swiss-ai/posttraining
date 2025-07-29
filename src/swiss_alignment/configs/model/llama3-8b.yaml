@@ -2,16 +2,16 @@
 
 model_args:
   torch_dtype: bfloat16
-  model_name_or_path: meta-llama/Llama-3.2-1B
+  model_name_or_path: ${artifacts_dir}/shared/models/llama3-8b
   attn_implementation: flash_attention_2
   trust_remote_code: true
   use_peft: false
 
 tokenizer_args:
-  tokenizer_name_or_path: meta-llama/Llama-3.2-1B
+  tokenizer_name_or_path: ${artifacts_dir}/shared/models/llama3-8b
   chat_template_name: tulu
   trust_remote_code: true
   padding_side: right
-  add_bos_to_chat_template: false
+  add_bos_to_chat_template: true
   model_pad_token_id: 128004  # <|finetune_right_pad_id|>
   model_eos_token_id: null # keep default. (128001)

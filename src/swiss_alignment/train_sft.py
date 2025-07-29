@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 from pathlib import Path
 
 import accelerate
@@ -17,24 +18,25 @@ from trl import (
 )
 
 from swiss_alignment import utils
-from swiss_alignment.trl.tokenization import TokenizerConfig, get_tokenizer
-from swiss_alignment.trl.trainers import (
+from swiss_alignment.data_sft.tokenization import TokenizerConfig, get_tokenizer
+from swiss_alignment.data_sft.utils_for_dataset import DatasetConfig, get_dataset
+from swiss_alignment.trainers.sft import (
     CustomSFTTrainer,
-    IRLTrainer,
     LengthNormalizedPLWTrainer,
+    PLWDataCollator,
     PLWTrainer,
 )
 from swiss_alignment.utils import utils_for_trl
-from swiss_alignment.utils.utils_for_dataset import DatasetConfig, get_dataset
-from swiss_alignment.utils.utils_for_plw import PLWDataCollator
 
 utils.config.register_resolvers()
-acc_state = PartialState()
+acc_state = PartialState(
+    **accelerate.InitProcessGroupKwargs(timeout=timedelta(hours=4)).to_kwargs()
+)
 acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="../../configs", config_name="trl-plw")
+@hydra.main(version_base=None, config_path="configs", config_name="train-sft")
 def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
 
@@ -115,14 +117,17 @@ def main(config: DictConfig) -> None:
 
     # Find the last checkpoint
     resuming_dir = Path.cwd()
-    last_checkpoint_number = max(
-        (
-            int(item.name.split("-")[-1])
-            for item in resuming_dir.iterdir()
-            if item.is_dir() and item.name.startswith("checkpoint-")
-        ),
-        default=0,
-    )
+    # Handle resuming
+    last_checkpoint_number = 0
+    for item in resuming_dir.iterdir():
+        if item.is_dir() and item.name.startswith("checkpoint-"):
+            if (item / "scheduler.pt").is_file() and (
+                item / "trainer_state.json"
+            ).is_file():
+                last_checkpoint_number = max(
+                    last_checkpoint_number, int(item.name.split("-")[-1])
+                )
+
     if last_checkpoint_number > 0:
         acc_logger.info(
             f"TRL will attempt to resume from last checkpoint: {last_checkpoint_number}"
@@ -159,16 +164,8 @@ def main(config: DictConfig) -> None:
             prompt_loss_weight=config.plw_args.prompt_loss_weight,
             **trainer_args,
         )
-    elif config.trainer == "irl":
-        acc_logger.info(
-            f"Starting irl trainer: ln-plw={config.plw_args.prompt_loss_weight} lambda_td={config.irl_args.lambda_td} gamma={config.irl_args.gamma}."
-        )
-        trainer = IRLTrainer(
-            prompt_loss_weight=config.plw_args.prompt_loss_weight,
-            lambda_td=config.irl_args.lambda_td,
-            gamma=config.irl_args.gamma,
-            **trainer_args,
-        )
+    else:
+        raise ValueError(f"Unknown trainer type: {config.trainer}")
 
     # Apply the token patches to the model
     if tokenizer_args.model_eos_token_id is not None:
@@ -180,17 +177,24 @@ def main(config: DictConfig) -> None:
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")
+
+    last_eval_file = resuming_dir / f"eval_results.json"
     if training_args.eval_strategy != "no":
-        metrics = trainer.evaluate()
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
-    acc_logger.info("Final evaluation completed.")
+        if last_eval_file.exists():
+            acc_logger.info("Last evaluation already performed.")
+        else:
+            acc_logger.info("Performing final evaluation.")
+            metrics = trainer.evaluate()
+            trainer.log_metrics("eval", metrics)
+            trainer.save_metrics("eval", metrics)
+            acc_logger.info("Final evaluation completed.")
 
     if training_args.num_train_epochs == 0:
         acc_logger.info("Training skipped. Saving the model.")
         trainer.save_model()
 
     acc_state.wait_for_everyone()
+    acc_logger.info("Training completed. Checkpoints saved.")
     if acc_state.is_main_process:
         wandb.finish()
     acc_state.wait_for_everyone()

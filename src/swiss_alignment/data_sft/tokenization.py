@@ -3,13 +3,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 from accelerate.logging import get_logger
-from accelerate.state import PartialState
-from transformers import AutoTokenizer, PreTrainedTokenizerFast
+from transformers import AutoTokenizer
 
-from swiss_alignment import utils
-
-utils.config.register_resolvers()
-acc_state = PartialState()
 acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
