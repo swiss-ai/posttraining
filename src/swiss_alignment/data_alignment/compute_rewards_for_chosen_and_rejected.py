@@ -16,7 +16,7 @@ utils.config.register_resolvers()
 logger = logging.getLogger(__name__)
 
 
-def compute_chosen_and_rejected_rewards_batch(reward_model, batch, tokenizer):
+def compute_chosen_and_rejected_rewards_batch(reward_model, batch, tokenizer, device):
     """
     Takes in one batch (from the filtered data), prepares inputs,
     then does a single forward pass to get chosen/rejected scores.
@@ -28,7 +28,7 @@ def compute_chosen_and_rejected_rewards_batch(reward_model, batch, tokenizer):
         return_tensors="pt",
         padding=True,
         return_dict=True,
-    ).to("cuda")
+    ).to(device)
 
     with torch.no_grad():
         output = reward_model(
@@ -57,7 +57,7 @@ def main(config: DictConfig) -> None:
 
     # Load reward model + tokenizer
     reward_model = AutoModelForSequenceClassification.from_pretrained(
-        device_map="cuda", **config.reward_model_args
+        device_map=f"cuda:{str(config.subpartition_number)}", **config.reward_model_args
     )
     tokenizer = AutoTokenizer.from_pretrained(
         config.reward_model_args.pretrained_model_name_or_path, use_fast=True
@@ -155,7 +155,10 @@ def main(config: DictConfig) -> None:
                 chosen_rewards_batch,
                 rejected_rewards_batch,
             ) = compute_chosen_and_rejected_rewards_batch(
-                reward_model, batch, tokenizer
+                reward_model,
+                batch,
+                tokenizer,
+                f"cuda:{str(config.subpartition_number)}",
             )
             chosen_rewards += chosen_rewards_batch
             rejected_rewards += rejected_rewards_batch
