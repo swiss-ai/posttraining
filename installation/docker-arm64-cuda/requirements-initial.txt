@@ -8,7 +8,6 @@ pre-commit
 black
 # Alignment
 accelerate==1.6.0
-bitsandbytes
 deepspeed==0.16.9
 datasets==3.5.0
 peft==0.15.1

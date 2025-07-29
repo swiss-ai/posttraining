@@ -91,7 +91,7 @@ for (
         f"training_args.eval_on_start=false "
         f"training_args.save_strategy=steps "
         f"training_args.save_steps=1000 "
-        "artifacts_subdir=shared "
+        "artifacts_subdir=private "
         f"job_subdir={run_name}/{model_config}/{hp_config} "
         f"wandb.run_name={model_config}-{hp_config} "
         f"wandb.tags=[prod,{trainer}] "
