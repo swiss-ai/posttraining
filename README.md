@@ -247,7 +247,18 @@ training_args:
 #### Configuring Loss Functions
 The PLW trainer supports four modes: SFT, PLW, LN-PLW, and IRL. Set the desired mode in `src/swiss-alignment/configs/trl-plw.yaml`:
 - **SFT**: Trains on full sequence (prompt + completion).
-- **PLW/LN-PLW**: Applies `prompt_loss_weight` to prompt loss.
+- **PLW/LN-PLW**: Applies `prompt_loss_weight` to the prompt token loss.
+
+<details>
+<summary>Definitions</summary>
+For a sequence of tokens $x = [x_{1}, ..., x_{n}]$, with a prompt $[x_1, \dots, x_m]$ and a completion $[x_{m+1}, \dots, x_n]$.
+
+- **PLW**: Performs a weighted MLE objective where the prompt tokens are weighted by $w_i \in [0,1]$ and $w_i = 1$ if $x_i$ is in the completion.
+$$\mathcal{L}_{\text{PLW}} = - \frac{\sum_{i=1}^{n} w_i \cdot \log p(x_i | x_{\text{<}i}) }{\sum_{i=1}^{N} w_i}$$
+
+- **LN-PLW**: Separates the prompt/completion by weighting their average losses independently and summing them.
+$$\mathcal{L}_{\text{LN-PLW}} = \frac{w}{m} \sum_{i=1}^{m} \log p(x_i | x_{\text{<}i}) + \frac{1}{n-m} \sum_{i=m+1}^{n} \log p(x_i | x_{\text{<}i} )$$
+</details>
 
 **Example Configuration:**
 ```yaml
