@@ -7,7 +7,7 @@
 #SBATCH --ntasks-per-node 1
 
 # Variables used by the entrypoint script
-export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/dev
+export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh
 unset HF_TOKEN_AT
 
