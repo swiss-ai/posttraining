@@ -766,7 +766,6 @@ def get_dataset(
                     ds[split] = ds[split].map(
                         fn,
                         fn_kwargs=fn_kwargs,
-                        load_from_cache_file=False,
                         remove_columns=[
                             col
                             for col in ds[split].column_names
@@ -782,7 +781,6 @@ def get_dataset(
                     ds[split] = ds[split].filter(
                         fn,
                         fn_kwargs=fn_kwargs,
-                        load_from_cache_file=False,
                         num_proc=get_num_proc(
                             len(ds[split]), num_proc, FILTER_EXAMPLE_PER_SECOND_PER_CPU
                         ),
