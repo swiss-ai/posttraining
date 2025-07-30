@@ -8,9 +8,9 @@
 
 # Variables used by the entrypoint script
 # Change this to the path of your project (can be the /dev or /run copy)
-export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
+export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/dev
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh
-
+unset HF_TOKEN_AT
 
 # Parse some args:
 # accelerate config
