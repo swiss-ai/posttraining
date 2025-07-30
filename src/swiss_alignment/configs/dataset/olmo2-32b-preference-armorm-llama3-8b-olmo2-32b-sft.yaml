@@ -4,11 +4,11 @@
 
 
 dataset_args:
-  dataset_name: ${artifacts_dir}/shared/datasets/alignment-pipeline/datasets-with-chosen-rewards/merged/olmo2-32b-preference-armorm-llama3-8b
+  dataset_name: ${artifacts_dir}/shared/datasets/alignment-pipeline/datasets-with-chosen-rewards/filtered/olmo2-32b-preference-armorm-llama3-8b
   train_split:
     name: train
     start: 0
-    end: 367913 # After filtering rows on reward_tokenizer(prompt + chosen/reject) <= 4096
+    end: 365263 # After filtering rows on model_tokenizer(prompt + chosen/reject) <= 4096
   eval_split:
     name: null
 
