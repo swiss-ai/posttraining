@@ -10,6 +10,7 @@
 # Change this to the path of your project (can be the /dev or /run copy)
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh
+export TORCHINDUCTOR_CACHE_DIR=./.cache/$SLURM_PROCID/
 
 srun \
   --container-image=$CONTAINER_IMAGE \
@@ -31,5 +32,7 @@ $WANDB_API_KEY_FILE_AT \
     exec python -m swiss_alignment.data_alignment.generate_ref_completions_with_vllm \
     subpartition_number=\$SLURM_PROCID \
     $*"
+
+# Stagger the start because of vllm issues with cache.
 
 exit 0
