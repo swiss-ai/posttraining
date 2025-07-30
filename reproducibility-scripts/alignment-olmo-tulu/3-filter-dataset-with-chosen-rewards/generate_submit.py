@@ -4,11 +4,11 @@ from pathlib import Path
 """Nomenclature:
 
 dataset = f"{dataset}"
-model = f"{base_model}"
+model = f"{sft_model}"
 reward_model = f"{reward_model}"
 
 dataset_with_chosen_rewards = f"{dataset}-{reward_model}"
-dataset_with_chosen_rewards_for_model = f"{dataset}-{reward_model}-{base_model}"
+dataset_with_chosen_rewards_for_model = f"{dataset}-{reward_model}-{model}"
 
 """
 

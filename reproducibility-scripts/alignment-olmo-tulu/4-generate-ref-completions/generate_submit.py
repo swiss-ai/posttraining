@@ -6,15 +6,16 @@ import yaml
 """Nomenclature:
 
 dataset = f"{dataset}"
-model = f"{base_model}"
+model = f"{sft_model}"
 reward_model = f"{reward_model}"
 
 dataset_with_chosen_rewards = f"{dataset}-{reward_model}"
+dataset_with_chosen_rewards_for_model = f"{dataset}-{reward_model}-{model}"
 
 model_sftid = f"{model}-(sftid)"
                = f"{model}-(sftid)"
 
-dataset_with_ref_completions = f"{dataset_with_chosen_rewards}-{model_sftid}-Nref{NRefDataset}"
+dataset_with_ref_completions = f"{dataset_with_chosen_rewards_for_model}-(sftid)-Nref{NRefDataset}"
                              = f"{dataset}-{reward_model}-{model}-(sftid)-Nref{NRefDataset}"
 
 dataset_with_ref_rewards = f"{dataset_with_ref_completions}-(offline|offpolicy|mix)"
@@ -72,11 +73,14 @@ for dataset in datasets:
             for sftid in sftids:
                 for split in splits:
                     dataset_with_chosen_rewards = f"{dataset}-{reward_model}"
+                    dataset_with_chosen_rewards_for_model = (
+                        f"{dataset_with_chosen_rewards}-{model}"
+                    )
                     model_sftid = f"{model}-{sftid}"
                     dataset_with_ref_completions = f"{dataset_with_chosen_rewards}-{model_sftid}-Nref{n_completions}"
 
                     with open(
-                        f"src/swiss_alignment/configs/dataset/{dataset_with_chosen_rewards}.yaml",
+                        f"src/swiss_alignment/configs/dataset/{dataset_with_chosen_rewards_for_model}.yaml",
                         "r",
                     ) as file:
                         dataset_config = yaml.safe_load(file)
@@ -102,7 +106,7 @@ for dataset in datasets:
                                 "./cscs-shared-submit-scripts/unattended-generate-ref-completions-with-vllm.sh "
                                 f"model={model} "
                                 f"model_args.model_name_or_path='{model_path}' "
-                                f"dataset={dataset_with_chosen_rewards} "
+                                f"dataset={dataset_with_chosen_rewards_for_model} "
                                 f"split={split_name} "
                                 f"n_completions={n_completions} "
                                 f"partition_start_idx={partition_start_idx} "
