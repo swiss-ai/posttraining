@@ -1,0 +1,25 @@
+# @package _global_
+
+# https://huggingface.co/allenai/OLMo-2-0325-32B-SFT
+
+model_args:
+  torch_dtype: bfloat16
+  model_name_or_path: ${artifacts_dir}/shared/models/olmo2-32b-sft
+  attn_implementation: flash_attention_2
+  trust_remote_code: true
+  use_peft: false
+
+tokenizer_args:
+  pad_token_id: 100277  #  # <|pad|>
+
+model_vllm_config:
+  model_impl: transformers
+
+model_generation_config:
+  temperature: 1.0
+  top_p: 1.0
+
+model_eval_generation_config:
+  # TODO. Not clear what are the best params for olmo.
+  temperature: 0.6
+  top_p: 0.9

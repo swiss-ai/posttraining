@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#SBATCH -J dpr-rew-chosen
-#SBATCH -t 8:00:00
+#SBATCH -J dpr-run-generate
+#SBATCH -t 6:00:00
 #SBATCH -A a-infra01-1
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 4
@@ -28,7 +28,7 @@ $WANDB_API_KEY_FILE_AT \
   /opt/template-entrypoints/pre-entrypoint.sh \
   bash -c "\
     sleep 60; \
-    exec python -m swiss_alignment.data_alignment.compute_rewards_for_chosen_and_rejected \
+    exec python -m swiss_alignment.data_alignment.generate_ref_completions_with_vllm \
     subpartition_number=\$SLURM_PROCID \
     $*"
 

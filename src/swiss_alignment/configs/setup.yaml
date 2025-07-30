@@ -62,7 +62,6 @@ resuming:
     # Can be a deep key e.g. model.optimizer.lr
     # To resume if stared in a different location.
     - run_dir
-    - artifacts_dir
     - artifacts_subdir
     - input_artifacts_subdir
     - output_artifacts_subdir

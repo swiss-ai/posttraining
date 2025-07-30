@@ -1,6 +1,8 @@
+import os
 import time
 
 import torch
+from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 
 # # Backend for attention computation
@@ -14,44 +16,27 @@ from vllm import LLM, SamplingParams
 # lambda: os.getenv("VLLM_ATTENTION_BACKEND", None),
 
 # set backend for attention
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# os.environ["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
 
 if __name__ == "__main__":
+    # model = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/outputs/train_sft/apertus-8b-sweep/chat-template/Apertus8B-tokens7.04T-it1678000-tulu_special_token-swissai-tulu-3-sft-0225/checkpoints/9b811fb20bdd09a4/checkpoint-9000"
+    # model = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/models/olmo2-7b-sft"
+    model = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/models/olmo2-32b-sft"
+    # model = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/models/llama3-8b-sft"
+
+    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
     llm = LLM(
-        model="/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/outputs/shared/train_plw/apertus3-8b-sweep/chat-template/Apertus8B-tokens7.04T-it1678000-tulu_special_token-swissai-tulu-3-sft-0225/checkpoints/9b811fb20bdd09a4/checkpoint-9000",
-        gpu_memory_utilization=0.85,
+        model=model,
+        model_impl="vllm",
+        gpu_memory_utilization=0.90,
     )
 
     @torch.no_grad()
-    def generate_from_scratch(n_tokens=100, batch_size=1, print_output=False):
-        sampling_params = SamplingParams(
-            min_tokens=n_tokens,
-            max_tokens=n_tokens,
-        )
-        prompts = [""] * batch_size
-        start = time.time()
-        outputs = llm.generate(prompts, sampling_params)
-        end = time.time()
-        if print_output:
-            for output in outputs:
-                prompt = output.prompt
-                generated_text = output.outputs[0].text
-                print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
-        latency = (end - start) / n_tokens
-        throughput = batch_size * n_tokens / (end - start)
-
-        print(
-            f"Latency: takes {latency*1000:.2f} ms/token on average for {batch_size} sequences of {n_tokens} tokens\n"
-            f"Throughput: generates {throughput:.2f} tokens/sec for {batch_size} sequences of {n_tokens} tokens\n"
-            f"Time: takes {end - start:.2f} seconds to generate {batch_size} sequences of {n_tokens} tokens"
-        )
-
-        return throughput, latency
-
-    @torch.no_grad()
     def benchmark(print_output=False):
-        print("Benchmarking on 100 prompts")
+        print("Benchmarking on 128 prompts")
         sampling_params = SamplingParams(max_tokens=100)
-        batch_size = 100
+        batch_size = 128
         prompts = batch_size * [
             "Create a list of 3 startup ideas in enterprise B2B SaaS. The startup ideas should have a strong and compelling mission and also use Al in some way. Avoid cryptocurrency or blockchain. The startup ideas should have a cool and interesting name. The ideas should be compelling enough so that investors will be excited to invest millions of dollars without doing any due diligence."
         ]
@@ -79,6 +64,37 @@ if __name__ == "__main__":
 
         return throughput, avg_latency
 
+    @torch.no_grad()
+    def generate_from_scratch(n_tokens=100, batch_size=1, print_output=False):
+        sampling_params = SamplingParams(
+            min_tokens=n_tokens,
+            max_tokens=n_tokens,
+        )
+        prompt = tokenizer.apply_chat_template(
+            [{"role": "user", "content": "Write 10000 random words"}],
+            add_generation_prompt=True,
+            tokenize=False,
+        )
+        prompts = [prompt] * batch_size
+        start = time.time()
+        outputs = llm.generate(prompts, sampling_params)
+        end = time.time()
+        if print_output:
+            for output in outputs:
+                prompt = output.prompt
+                generated_text = output.outputs[0].text
+                print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
+        latency = (end - start) / n_tokens
+        throughput = batch_size * n_tokens / (end - start)
+
+        print(
+            f"Latency: takes {latency*1000:.2f} ms/token on average for {batch_size} sequences of {n_tokens} tokens\n"
+            f"Throughput: generates {throughput:.2f} tokens/sec for {batch_size} sequences of {n_tokens} tokens\n"
+            f"Time: takes {end - start:.2f} seconds to generate {batch_size} sequences of {n_tokens} tokens"
+        )
+
+        return throughput, latency
+
     # benchmark
     benchmark()
     benchmark()
@@ -101,8 +117,8 @@ if __name__ == "__main__":
 
     # Put in a table and print
     res = dict()
-    for batch_size in [1, 32, 64]:
-        for n_tokens in [1, 100, 1000]:
+    for batch_size in [8, 32]:
+        for n_tokens in [1024, 4096]:
             t, l = generate_from_scratch(n_tokens, batch_size)
             res[(n_tokens, batch_size)] = (round(l * 1000, 2), round(t, 2))
     print(res)
