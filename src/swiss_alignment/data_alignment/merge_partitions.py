@@ -47,8 +47,9 @@ from pathlib import Path
 import datasets
 import hydra
 from datasets import DatasetDict, load_from_disk
-from dpr import utils
 from omegaconf import DictConfig
+
+from swiss_alignment import utils
 
 utils.config.register_resolvers()
 logger = logging.getLogger(__name__)
