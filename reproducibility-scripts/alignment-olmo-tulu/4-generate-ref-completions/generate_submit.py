@@ -33,7 +33,8 @@ job_name = "datasets-with-ref-completions"
 datasets = ["olmo2-32b-preference"]
 splits = ["train_split", "eval_split"]
 models = ["olmo2-32b-sft"]
-reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b", "armorm-llama3-8b"]
+# reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b", "armorm-llama3-8b"]
+reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b"]
 sftids = ["default"]
 
 model_sftid_path_prefix = "\${artifacts_dir}/shared/"

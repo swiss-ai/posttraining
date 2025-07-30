@@ -10,7 +10,7 @@
 # Change this to the path of your project (can be the /dev or /run copy)
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh
-export TORCHINDUCTOR_CACHE_DIR=./.cache/$SLURM_PROCID/
+export VLLM_DISABLE_COMPILE_CACHE=1
 
 srun \
   --container-image=$CONTAINER_IMAGE \

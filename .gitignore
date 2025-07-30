@@ -152,3 +152,5 @@ wandb
 **/*.err
 
 third-party
+
+to-submit.sh
