@@ -78,7 +78,9 @@ class PLWDataCollator(DataCollatorForLanguageModeling):
 
 # Adapted from: https://github.com/davidsvaughn/prompt-loss-weight/blob/main/run_plw.py
 class PLWTrainer(CustomSFTTrainer):
-    def __init__(self, *args, prompt_loss_weight=1.0, **kwargs):
+    def __init__(
+        self, *args, prompt_loss_weight=1.0, sequence_level_loss=False, **kwargs
+    ):
         kwargs.update(
             {
                 "preprocess_logits_for_metrics": self.preprocess_logits_for_metrics,
@@ -89,6 +91,7 @@ class PLWTrainer(CustomSFTTrainer):
         self.plw = torch.tensor(
             prompt_loss_weight, dtype=self.model.dtype, device=self.args.device
         )
+        self.sequence_level_loss = sequence_level_loss
 
         # Store eval masks as tensors if eval_dataset is provided
         if self.eval_dataset is not None:
@@ -172,13 +175,22 @@ class PLWTrainer(CustomSFTTrainer):
         loss_fct = CrossEntropyLoss(reduction="none")
         token_losses = loss_fct(shift_logits.transpose(1, 2), shift_labels)
 
-        if num_items_in_batch is not None:
-            loss = (token_losses * shift_weights).sum() / num_items_in_batch
+        if self.sequence_level_loss:
+            sequence_losses = (token_losses * shift_weights).sum(
+                dim=1
+            ) / shift_weights.sum(dim=1)
+            loss = sequence_losses.mean() / self.args.gradient_accumulation_steps
         else:
-            loss = (token_losses * shift_weights).sum() / shift_weights.sum()
+            if num_items_in_batch is not None:
+                loss = (token_losses * shift_weights).sum() / num_items_in_batch
+            else:
+                loss = (token_losses * shift_weights).sum() / shift_weights.sum()
 
-        if self.args.average_tokens_across_devices and num_items_in_batch is not None:
-            loss *= self.accelerator.num_processes
+            if (
+                self.args.average_tokens_across_devices
+                and num_items_in_batch is not None
+            ):
+                loss *= self.accelerator.num_processes
 
         return (loss, outputs) if return_outputs else loss
 
@@ -309,24 +321,42 @@ class LengthNormalizedPLWTrainer(PLWTrainer):
         loss_fct = CrossEntropyLoss(reduction="none")
         token_losses = loss_fct(shift_logits.transpose(1, 2), shift_labels)
 
-        # only occurs for eval
-        if num_items_in_batch is not None:
-            num_prompt_in_batch, num_completion_in_batch = num_items_in_batch
-            prompt_loss = (token_losses * shift_prompt_mask).sum() / num_prompt_in_batch
-            completion_loss = (
-                token_losses * shift_completion_mask
-            ).sum() / num_completion_in_batch
-            loss = prompt_loss * self.plw + completion_loss
-        else:
-            prompt_loss = (
-                token_losses * shift_prompt_mask
-            ).sum() / shift_prompt_mask.sum()
-            completion_loss = (
-                token_losses * shift_completion_mask
-            ).sum() / shift_completion_mask.sum()
-            loss = prompt_loss * self.plw + completion_loss
+        if self.sequence_level_loss:
+            sequence_prompt_losses = (token_losses * shift_prompt_mask).sum(
+                dim=1
+            ) / shift_prompt_mask.sum(dim=1)
+            sequence_completion_losses = (token_losses * shift_completion_mask).sum(
+                dim=1
+            ) / shift_completion_mask.sum(dim=1)
 
-        if self.args.average_tokens_across_devices and num_items_in_batch is not None:
-            loss *= self.accelerator.num_processes
+            sequence_losses = (
+                sequence_prompt_losses * self.plw + sequence_completion_losses
+            )
+            loss = sequence_losses.mean() / self.args.gradient_accumulation_steps
+        else:
+            # only occurs for eval
+            if num_items_in_batch is not None:
+                num_prompt_in_batch, num_completion_in_batch = num_items_in_batch
+                prompt_loss = (
+                    token_losses * shift_prompt_mask
+                ).sum() / num_prompt_in_batch
+                completion_loss = (
+                    token_losses * shift_completion_mask
+                ).sum() / num_completion_in_batch
+                loss = prompt_loss * self.plw + completion_loss
+            else:
+                prompt_loss = (
+                    token_losses * shift_prompt_mask
+                ).sum() / shift_prompt_mask.sum()
+                completion_loss = (
+                    token_losses * shift_completion_mask
+                ).sum() / shift_completion_mask.sum()
+                loss = prompt_loss * self.plw + completion_loss
+
+            if (
+                self.args.average_tokens_across_devices
+                and num_items_in_batch is not None
+            ):
+                loss *= self.accelerator.num_processes
 
         return (loss, outputs) if return_outputs else loss
