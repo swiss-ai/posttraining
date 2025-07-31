@@ -90,7 +90,13 @@ def compute_rewards_batch(batch, reward_model, tokenizer, config):
             completions_reward_tokens,
             completions_reward_tokens_len,
             completions_reward_texts,
-        ) = compute_rewards_for_row(reward_model, sample, tokenizer, config)
+        ) = compute_rewards_for_row(
+            reward_model,
+            sample,
+            tokenizer,
+            config,
+            f"cuda:{str(config.subpartition_number)}",
+        )
         ref_rewards.append(rewards)
         ref_completions_reward_tokens.append(completions_reward_tokens)
         ref_completions_reward_tokens_len.append(completions_reward_tokens_len)
@@ -189,13 +195,7 @@ def main(config: DictConfig) -> None:
             ref_completions_reward_tokens,
             ref_completions_reward_tokens_len,
             ref_completions_reward_texts,
-        ) = compute_rewards_batch(
-            current_slice_data,
-            reward_model,
-            tokenizer,
-            config,
-            f"cuda:{str(config.subpartition_number)}",
-        )
+        ) = compute_rewards_batch(current_slice_data, reward_model, tokenizer, config)
         local_end_idx = local_start_idx + len(current_slice_data)
         current_slice_data = subpartition_data.select(range(*current_slice))
         current_slice_data = current_slice_data.add_column("ref_rewards", ref_rewards)
