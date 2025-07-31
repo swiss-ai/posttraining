@@ -158,6 +158,7 @@ def main(config: DictConfig) -> None:
         acc_logger.info(f"Starting plw={config.plw_args.prompt_loss_weight} trainer.")
         trainer = PLWTrainer(
             prompt_loss_weight=config.plw_args.prompt_loss_weight,
+            sequence_level_loss=False,  # TODO: add to the config
             **trainer_args,
         )
     elif config.trainer == "ln-plw":
@@ -166,6 +167,7 @@ def main(config: DictConfig) -> None:
         )
         trainer = LengthNormalizedPLWTrainer(
             prompt_loss_weight=config.plw_args.prompt_loss_weight,
+            sequence_level_loss=False,
             **trainer_args,
         )
     else:
