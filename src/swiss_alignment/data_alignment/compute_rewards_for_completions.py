@@ -127,13 +127,13 @@ def main(config: DictConfig) -> None:
 
     # Load reward model + tokenizer
     reward_model = AutoModelForSequenceClassification.from_pretrained(
-        config.reward_model_args.model_name_or_path,
+        config.reward_model_args.pretrained_model_name_or_path,
         device_map="cuda",
         trust_remote_code=config.reward_model_args.trust_remote_code,
         torch_dtype=config.reward_model_args.torch_dtype,
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        config.reward_model_args.model_name_or_path, use_fast=True
+        config.reward_model_args.pretrained_model_name_or_path, use_fast=True
     )
 
     # End index is exclusive

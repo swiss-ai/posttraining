@@ -28,7 +28,7 @@ $WANDB_API_KEY_FILE_AT \
   /opt/template-entrypoints/pre-entrypoint.sh \
   bash -c "\
     sleep 60; \
-    exec python -m swiss_alignment.data_alignment.generation.compute_rewards_for_completions \
+    exec python -m swiss_alignment.data_alignment.compute_rewards_for_completions \
     subpartition_number=\$SLURM_PROCID \
     $*"
 
