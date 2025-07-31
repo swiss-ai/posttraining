@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 # Function to compute rewards for a single row
-def compute_rewards_for_row(reward_model, sample, tokenizer, config):
+def compute_rewards_for_row(reward_model, sample, tokenizer, config, device):
     prompt = sample[0]
     ref_model_completions = json.loads(sample[1]["content"])
     ref_inputs = [
@@ -63,10 +63,10 @@ def compute_rewards_for_row(reward_model, sample, tokenizer, config):
             output = reward_model(
                 input_ids=tokenized_ref_inputs["input_ids"][
                     i * config.batch_size : (i + 1) * config.batch_size
-                ].to("cuda"),
+                ].to(device),
                 attention_mask=tokenized_ref_inputs["attention_mask"][
                     i * config.batch_size : (i + 1) * config.batch_size
-                ].to("cuda"),
+                ].to(device),
             )
             ref_rewards.append(output.logits.cpu().float())
 
@@ -189,7 +189,13 @@ def main(config: DictConfig) -> None:
             ref_completions_reward_tokens,
             ref_completions_reward_tokens_len,
             ref_completions_reward_texts,
-        ) = compute_rewards_batch(current_slice_data, reward_model, tokenizer, config)
+        ) = compute_rewards_batch(
+            current_slice_data,
+            reward_model,
+            tokenizer,
+            config,
+            f"cuda:{str(config.subpartition_number)}",
+        )
         local_end_idx = local_start_idx + len(current_slice_data)
         current_slice_data = subpartition_data.select(range(*current_slice))
         current_slice_data = current_slice_data.add_column("ref_rewards", ref_rewards)
