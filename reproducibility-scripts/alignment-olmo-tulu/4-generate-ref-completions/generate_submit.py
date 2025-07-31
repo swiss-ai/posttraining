@@ -33,8 +33,7 @@ job_name = "datasets-with-ref-completions"
 datasets = ["olmo2-32b-preference"]
 splits = ["train_split", "eval_split"]
 models = ["olmo2-32b-sft"]
-# reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b", "armorm-llama3-8b"]
-reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b"]
+reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b", "armorm-llama3-8b"]
 sftids = ["default"]
 
 model_sftid_path_prefix = "\${artifacts_dir}/shared/"
@@ -42,7 +41,7 @@ model_sftid_paths = {
     "olmo2-32b-sft-default": "models/olmo2-32b-sft",
 }
 
-n_completions = 10
+dataset_num_ref_reward = 10
 
 # Reference numbers for 8B
 ## ~6000 tokens per second
@@ -78,7 +77,7 @@ for dataset in datasets:
                         f"{dataset_with_chosen_rewards}-{model}"
                     )
                     model_sftid = f"{model}-{sftid}"
-                    dataset_with_ref_completions = f"{dataset_with_chosen_rewards}-{model_sftid}-Nref{n_completions}"
+                    dataset_with_ref_completions = f"{dataset_with_chosen_rewards}-{model_sftid}-Nref{dataset_num_ref_reward}"
 
                     with open(
                         f"src/swiss_alignment/configs/dataset/{dataset_with_chosen_rewards_for_model}.yaml",
@@ -109,7 +108,7 @@ for dataset in datasets:
                                 f"model_args.model_name_or_path='{model_path}' "
                                 f"dataset={dataset_with_chosen_rewards_for_model} "
                                 f"split={split_name} "
-                                f"n_completions={n_completions} "
+                                f"n_completions={dataset_num_ref_reward} "
                                 f"partition_start_idx={partition_start_idx} "
                                 f"partition_end_idx={partition_end_idx} "
                                 f"save_interval={save_interval} "
