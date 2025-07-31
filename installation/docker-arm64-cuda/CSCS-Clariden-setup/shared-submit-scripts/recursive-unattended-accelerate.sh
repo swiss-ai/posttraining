@@ -11,16 +11,6 @@ export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh
 unset HF_TOKEN_AT
 
-# Parse some args:
-# accelerate config
-for arg in "$@"; do
-  if [[ $arg == accelerate_config=* ]]; then
-    # remove the prefix “accelerate_config=”…
-    ACCELERATE_CONFIG="${arg#accelerate_config=}"
-    break
-  fi
-done
-
 # Retry mechanism --------------------------
 # Initialize retry counter
 export MAX_RETRIES=${MAX_RETRIES:-3}
@@ -72,6 +62,16 @@ job_id=$(sbatch \
     "$SCRIPT_PATH" "$@" | awk '{print $4}')
 
 # Executing srun -------------------------------------
+# Parse some args:
+# accelerate config
+for arg in "$@"; do
+  if [[ $arg == accelerate_config=* ]]; then
+    # remove the prefix “accelerate_config=”…
+    ACCELERATE_CONFIG="${arg#accelerate_config=}"
+    break
+  fi
+done
+
 srun \
   --container-image=$CONTAINER_IMAGE \
   --environment=$CONTAINER_ENV_FILE \
@@ -95,8 +95,11 @@ $WANDB_API_KEY_FILE_AT \
     --main_process_ip $(hostname) \
     --machine_rank \$SLURM_NODEID \
     $*"
+SRUN_EXIT_CODE=$?
 
 # If srun successful delete duplicate run ------------
-scancel $job_id
+if [ $SRUN_EXIT_CODE -eq 0 ]; then
+  scancel $job_id
+fi
 
 exit 0
