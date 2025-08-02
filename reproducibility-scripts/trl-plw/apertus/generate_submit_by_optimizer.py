@@ -32,7 +32,7 @@ for model in models:
 
         batch_size, num_nodes = hp["batch_size"]
         accumulation_steps = batch_size // (
-            batch_size * num_proc_per_node * hp["proc_train_batch_size"]
+            num_nodes * num_proc_per_node * hp["proc_train_batch_size"]
         )
 
         trainer, plw = hp["trainer"]
