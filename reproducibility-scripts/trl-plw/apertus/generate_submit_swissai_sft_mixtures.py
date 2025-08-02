@@ -26,7 +26,7 @@ hyper_params = {
         "batch_size": (256, 32),  # bs, num_nodes
         "learning_rate": 2e-6,
         "num_proc_per_node": num_proc_per_node,
-        "proc_train_batch_size": 1,
+        "proc_train_batch_size": 2,
         "trainer": ("plw", 0.0),
         "chat_template": "tulu",
     },
