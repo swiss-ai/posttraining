@@ -6,11 +6,11 @@ defaults:
 
 dataset_mixer:
   - dataset_name: allenai/tulu-3-sft-mixture-split
-    dataset_path: ${artifacts_dir}/${input_artifacts_subdir}/datasets/tulu-3-0225/tulu-3-sft-mixture-0225-no-hardcoded-no-openai
+    dataset_path: ${artifacts_dir}/shared/datasets/tulu-3-0225/tulu-3-sft-mixture-0225-no-hardcoded-no-openai
     train_splits: [train]
     eval_splits: []
   - dataset_name: swissai/hardcoded-prompts
-    dataset_path: ${artifacts_dir}/${input_artifacts_subdir}/datasets/swissai/swissai_hardcoded_prompts.jsonl
+    dataset_path: ${artifacts_dir}/shared/datasets/swissai/swissai_hardcoded_prompts.jsonl
     train_splits: [train]
     eval_splits: []
     duplication_factor: 10
@@ -19,4 +19,4 @@ columns_to_keep: [messages]
 need_columns: null
 keep_ids: true
 shuffle: false
-save_data_dir: ${artifacts_dir}/${output_artifacts_subdir}/datasets/swissai/tulu-3-sft-mixture-0225-swissai-harcoded-no-openai
+save_data_dir: ${artifacts_dir}/${artifacts_subdir}/datasets/swissai/tulu-3-sft-mixture-0225-swissai-harcoded-no-openai

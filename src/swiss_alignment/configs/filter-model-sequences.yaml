@@ -15,6 +15,6 @@ defaults:
 max_seq_length: 4096
 dataset_id: null
 dataset_type: null
-dataset_path: ${artifacts_dir}/shared/datasets/alignment-pipeline/${dataset_type}/merged/${dataset_id}
-save_path: ${artifacts_dir}/shared/datasets/alignment-pipeline/${dataset_type}/filtered/${dataset_id}
+dataset_path: ${artifacts_dir}/${artifacts_subdir}/datasets/alignment-pipeline/${dataset_type}/merged/${dataset_id}
+save_path: ${artifacts_dir}/${artifacts_subdir}/datasets/alignment-pipeline/${dataset_type}/filtered/${dataset_id}
 seed: 43

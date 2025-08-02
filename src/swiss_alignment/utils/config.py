@@ -32,26 +32,24 @@ def register_resolvers():
         )
 
 
-def save_or_check_config(config: DictConfig, path: str) -> None:
+def save_or_check_config(config: DictConfig, config_to_check_path: str) -> None:
     """
     Save if it doesn't exist; otherwise (in case of resuming) assert that the
     config is the same. If they differ, log the differing key(s).
     """
-    path_obj = Path(path)
-    if not path_obj.exists():
-        OmegaConf.save(config, path_obj)
+    config_to_check_path = Path(config_to_check_path)
+    if not config_to_check_path.exists():
+        OmegaConf.save(config, config_to_check_path)
         return
 
-    # Copy and remove excluded keys (in-place removal) from both new and existing config
     new_config = config.copy()
-    existing_config = OmegaConf.load(path_obj)
+    existing_config = OmegaConf.load(config_to_check_path)
 
-    # Convert both configs to Python dictionaries
     OmegaConf.resolve(new_config)
     OmegaConf.resolve(existing_config)
 
-    remove_excluded_keys(new_config, config.resuming.exclude_keys)
-    remove_excluded_keys(existing_config, config.resuming.exclude_keys)
+    remove_ignored_keys(new_config, config.resuming.ignore_keys)
+    remove_ignored_keys(existing_config, config.resuming.ignore_keys)
 
     new_config_dict = OmegaConf.to_container(new_config, resolve=True)
     existing_config_dict = OmegaConf.to_container(existing_config, resolve=True)
@@ -61,23 +59,25 @@ def save_or_check_config(config: DictConfig, path: str) -> None:
     if differences:
         diff_msg = "\n".join(differences)
         _logger.error(
-            f"Config to resume is different from the one saved in {path}.\n"
+            f"Config to resume is different from the one saved in {config_to_check_path}.\n"
             f"Differences:\n{diff_msg}"
         )
         raise AssertionError(
-            f"Config differs from the existing config at {path}. See logs for details."
+            f"Config differs from the existing config at {config_to_check_path}. See logs for details."
         )
 
-    _logger.info(f"Configs match the one in {path}. Resuming with the same config.")
+    _logger.info(
+        f"Configs match the one in {config_to_check_path}. Resuming with the same config."
+    )
 
 
-def remove_excluded_keys(config: DictConfig, exclude_keys: list[str]) -> None:
+def remove_ignored_keys(config: DictConfig, ignore_keys: list[str]) -> None:
     """
-    Remove keys from the config that are specified in exclude_keys.
+    Remove keys from the config that are specified in ignore_keys.
     Exclude keys can be specified as dot-paths, e.g., "key1.key2.key3".
     """
     with omegaconf.open_dict(config):
-        for key in exclude_keys:
+        for key in ignore_keys:
             try:
                 path_segments = key.split(".")
                 node = config
@@ -119,21 +119,18 @@ def dictionary_diff(d1: dict, d2: dict, path: str = "") -> list[str]:
 
 def setup_resuming_dir(config):
     """Create a unique identifier of the experiment used to specify a resuming/checkpoint directory.
-    The identifier is a hash of the config, excluding keys specified in config.resuming.exclude_keys.
+    The identifier is a hash of the config, excluding keys specified in config.resuming.ignore_keys.
     If config.resuming.use_commit is True, the commit hash is appended to the identifier.
     I.e. the checkpoint directory is defined by: the config - the excluded config keys + the commit hash (if specified)
     """
     if config.resuming_dir is not None:
-        return Path(config.resuming_dir), Path(config.resuming_dir).name
+        return
 
-    resuming_hash = ""
     config_to_hash = config.copy()
-
-    # resolve config
     OmegaConf.resolve(config_to_hash)
-    remove_excluded_keys(config_to_hash, config.resuming.exclude_keys)
+    remove_ignored_keys(config_to_hash, config.resuming.ignore_keys)
     config_hash = blake2b(str(config_to_hash).encode(), digest_size=8).hexdigest()
-    resuming_hash += config_hash
+    resuming_hash = config_hash
     if config.resuming.use_commit:
         commit_hash = (
             subprocess.check_output(["git", "rev-parse", "HEAD"])

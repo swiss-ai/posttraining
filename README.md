@@ -201,12 +201,10 @@ These scripts configure the model, dataset, and override training parameters fro
 Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`.
 
 > [!NOTE]
-> **Artifact directories**:
-> Artifact directories for input and outputs need to be specified in the config file:
+> **Artifact subdirectory**:
+> Artifact subdirectory for outputs need to be specified in the config file:
 > ```bash
 > artifacts_subdir: private  # Can be private/shared/store
-> input_artifacts_subdir: ${artifacts_subdir}
-> output_artifacts_subdir: ${artifacts_subdir}
 > ```
 
 > [!NOTE]

@@ -59,14 +59,13 @@ seed: 42
 
 resuming:
   resume: false
-  exclude_keys:
+  ignore_keys:
     - run_dir
+    - resuming_dir
+    - resuming_hash
     - artifacts_dir
     - artifacts_subdir
-    - input_artifacts_subdir
-    - output_artifacts_subdir
     - job_subdir
-    - resuming_dir
     - wandb
-    - resuming.exclude_keys
+    - resuming.ignore_keys
     - training_args.logging_dir

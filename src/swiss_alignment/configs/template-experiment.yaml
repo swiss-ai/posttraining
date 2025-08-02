@@ -15,3 +15,27 @@ some_arg: "some_default_value"
 some_number: 10
 n: 10
 is_this_key_overridden: no
+seed: 10
+foo: ${artifacts_dir}/${artifacts_subdir}
+
+
+resuming:
+  resume: false
+  use_commit: false
+  wandb_cache_bust: 0 # Limitation of wandb. Cannot create runs with the same ID if deleted previously.
+                      # Use this to refresh the id of the run and make it a "new" run.
+  ignore_keys:
+    # Keys in the config to ignore when checking that the run is resuming with the same config.
+    # Can be a deep key e.g. model.optimizer.lr
+    # To resume if stared in a different location.
+    - run_dir
+    - resuming_dir
+    - resuming_hash
+    - artifacts_dir
+    - artifacts_subdir
+    - job_subdir
+    - wandb
+    - seed
+    - foo
+    # To be able to add keys on the fly and force resume.
+    - resuming.ignore_keys
