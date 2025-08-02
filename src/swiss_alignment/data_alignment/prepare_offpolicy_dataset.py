@@ -73,6 +73,12 @@ def process_row_offpolicy2random(sample: Dict[str, Any]) -> Dict[str, Any]:
     completions = json.loads(sample["ref_completions"][1]["content"])
     rewards = sample["ref_rewards"]
 
+    # TODO: remove path. Fix it in compute ref rewards.
+    if hasattr(rewards[0], "__len__"):
+        # flatten the rewards if they are lists.
+        rewards = [r[0] for r in rewards]
+    sample["ref_rewards"] = rewards
+
     if rewards[1] >= rewards[0]:
         best_idx = 1
         worst_idx = 0
@@ -81,35 +87,6 @@ def process_row_offpolicy2random(sample: Dict[str, Any]) -> Dict[str, Any]:
         worst_idx = 1
 
     return replace_chosen_rejected(sample, best_idx, worst_idx, completions, rewards)
-
-
-"""
-2. offpolicy6random logic
-
-We do it in two steps:
-    A) Replicate each row 3 times using efficient indexing,
-       and add a new column "pair_idx" with values in {0,1,2}.
-    B) For each row, pick the chosen/rejected completions for the given pair.
-"""
-
-
-def replicate_3x(dataset: Dataset) -> Dataset:
-    """
-    Efficiently replicate the dataset 3x by selecting repeated indices and then adding
-    a new column "pair_idx" which indicates which pair (0,1,2) the row corresponds to.
-    """
-    logger.info("Replicating dataset using index-based selection...")
-    N = len(dataset)
-    # Create an index list where each original index is repeated 3 times.
-    indices = np.repeat(np.arange(N), 3).tolist()
-    replicated_ds = dataset.select(indices)
-    # Create the pair_idx column: for each original row, values 0,1,2.
-    pair_idx = np.tile(np.arange(3), N).tolist()
-    replicated_ds = replicated_ds.add_column("pair_idx", pair_idx)
-    logger.info(
-        f"Replication complete: {N} rows expanded to {len(replicated_ds)} rows."
-    )
-    return replicated_ds
 
 
 def replicate_Kx(dataset: Dataset, K: int) -> Dataset:
@@ -129,29 +106,6 @@ def replicate_Kx(dataset: Dataset, K: int) -> Dataset:
         f"Replication complete: {N} rows expanded to {len(replicated_ds)} rows."
     )
     return replicated_ds
-
-
-def pick_pair_offpolicy6random(sample: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    For each row with a given pair_idx, pick the chosen/rejected completions from:
-       pair_idx = 0 -> use completions at indices (0, 1)
-       pair_idx = 1 -> use completions at indices (2, 3)
-       pair_idx = 2 -> use completions at indices (4, 5)
-    The better (higher reward) becomes 'chosen', and the lower becomes 'rejected'.
-    """
-    completions = json.loads(sample["ref_completions"][1]["content"])
-    rewards = sample["ref_rewards"]
-
-    pair_idx_to_indices = {0: (0, 1), 1: (2, 3), 2: (4, 5)}
-    i1, i2 = pair_idx_to_indices[sample["pair_idx"]]
-
-    # Choose best/worst based on reward.
-    if rewards[i1] >= rewards[i2]:
-        best_idx, worst_idx = i1, i2
-    else:
-        best_idx, worst_idx = i2, i1
-
-    return replace_chosen_rejected(sample, best_idx, worst_idx, completions, rewards)
 
 
 def pick_pair_offpolicyKrandom(sample: Dict[str, Any], K) -> Dict[str, Any]:
@@ -185,7 +139,7 @@ def main(config: DictConfig) -> None:
     # Identify dataset splits.
     split_names = [config.dataset_args.train_split.name]
     eval_split_name = config.dataset_args.eval_split.name
-    if eval_split_name not in split_names:
+    if eval_split_name is not None:
         split_names.append(eval_split_name)
 
     new_dataset_dict = {}
@@ -212,36 +166,19 @@ def main(config: DictConfig) -> None:
             processed_split_ds = split_ds.map(
                 process_row_offpolicy2random,
                 batched=False,
-                num_proc=240,
+                num_proc=220,
             )
-        elif config.mode == "offpolicy6random":
-            logger.info(
-                "Using offpolicy6random mode: replicating rows and processing pairs."
-            )
-            # A) Efficiently replicate each row 3 times and add an auxiliary "pair_idx" column.
-            expanded_ds = replicate_3x(split_ds)
-            # B) Process each replicated row to pick the correct pair.
-            processed_split_ds = expanded_ds.map(
-                pick_pair_offpolicy6random,
-                batched=False,
-                num_proc=240,
-            )
-            # Remove the auxiliary "pair_idx" column.
-            processed_split_ds = processed_split_ds.remove_columns("pair_idx")
         elif config.mode == "offpolicy10random":
             logger.info(
                 "Using offpolicy10random mode: replicating rows and processing pairs."
             )
-            # A) Efficiently replicate each row 3 times and add an auxiliary "pair_idx" column.
             expanded_ds = replicate_Kx(split_ds, 10)
-            # B) Process each replicated row to pick the correct pair.
             processed_split_ds = expanded_ds.map(
                 pick_pair_offpolicyKrandom,
                 batched=False,
                 num_proc=8,
                 fn_kwargs={"K": 10},
             )
-            # Remove the auxiliary "pair_idx" column.
             processed_split_ds = processed_split_ds.remove_columns("pair_idx")
 
         else:
