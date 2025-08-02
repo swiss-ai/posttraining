@@ -23,7 +23,7 @@ hyper_params = {
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 1,
         "max_seq_length": 4096,
-        "batch_size": (256, 32),  # bs, num_nodes
+        "batch_size": (512, 64),  # bs, num_nodes
         "learning_rate": 2e-6,
         "num_proc_per_node": num_proc_per_node,
         "proc_train_batch_size": 2,
