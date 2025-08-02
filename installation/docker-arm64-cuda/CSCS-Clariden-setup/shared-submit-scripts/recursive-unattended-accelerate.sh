@@ -102,4 +102,4 @@ if [ $SRUN_EXIT_CODE -eq 0 ]; then
   scancel $job_id
 fi
 
-exit 0
+exit $SRUN_EXIT_CODE
