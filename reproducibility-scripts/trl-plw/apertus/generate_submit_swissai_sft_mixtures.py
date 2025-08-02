@@ -13,7 +13,6 @@ hyper_params = {
         "max_seq_length": 4096,
         "batch_size": (128, 8),  # bs, num_nodes
         "learning_rate": 5e-6,
-        "optim": "adamw_torch",
         "num_proc_per_node": num_proc_per_node,
         "proc_train_batch_size": 2,
         "trainer": ("plw", 0.0),
@@ -27,7 +26,7 @@ hyper_params = {
         "batch_size": (256, 32),  # bs, num_nodes
         "learning_rate": 2e-6,
         "num_proc_per_node": num_proc_per_node,
-        "proc_train_batch_size": 2,
+        "proc_train_batch_size": 1,
         "trainer": ("plw", 0.0),
         "chat_template": "tulu",
     },
