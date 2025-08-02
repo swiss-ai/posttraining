@@ -1,3 +1,6 @@
+# Mix offline and off-policy datasets.
+
+
 from datetime import datetime
 from pathlib import Path
 
@@ -27,14 +30,11 @@ stdout_root = (
 )
 
 datasets = ["olmo2-32b-preference"]
-
 models = ["olmo2-32b-sft"]
 sftids = ["default"]
-
 reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b", "armorm-llama3-8b"]
-
 dataset_num_ref_reward = 10
-modes = ["offpolicy2random"]
+to_mix = {"mix-offline-offpolicy2random": ["offpolicy2random", "offline"]}
 
 num_nodes_per_job = 1
 commands = []
@@ -43,16 +43,18 @@ for dataset in datasets:
     for reward_model in reward_models:
         for model in models:
             for sftid in sftids:
-                for mode in modes:
+                for new_id, modes in to_mix.items():
                     dataset_with_chosen_rewards = f"{dataset}-{reward_model}"
                     dataset_with_chosen_rewards_for_model = (
                         f"{dataset_with_chosen_rewards}-{model}"
                     )
                     model_sftid = f"{model}-{sftid}"
                     dataset_with_ref_completions = f"{dataset_with_chosen_rewards}-{model_sftid}-Nref{dataset_num_ref_reward}"
-                    dataset_with_ref_rewards = f"{dataset_with_ref_completions}-offline"
+                    to_mix_ids = [
+                        f"{dataset_with_ref_completions}-{mode}" for mode in modes
+                    ]
                     new_dataset_with_ref_rewards = (
-                        f"{dataset_with_ref_completions}-{mode}"
+                        f"{dataset_with_ref_completions}-{new_id}"
                     )
                     jobid = new_dataset_with_ref_rewards
                     commands.append(
@@ -63,11 +65,10 @@ for dataset in datasets:
                             f"-o {stdout_root}/out/{jobid}.out "
                             f"-e {stdout_root}/out/{jobid}.err "
                             "./cscs-shared-submit-scripts/unattended.sh "
-                            f"python -m swiss_alignment.data_alignment.prepare_offpolicy_dataset "
+                            f"python -m swiss_alignment.data_alignment.mix_dataset_with_ref_rewards "
                             f"dataset={dataset_with_chosen_rewards_for_model} "
-                            f"dataset_id={dataset_with_ref_rewards} "
+                            f"'to_mix_ids=[{','.join(to_mix_ids)}]' "
                             f"new_dataset_id={new_dataset_with_ref_rewards} "
-                            f"mode={mode}"
                         )
                     )
                     total_nodes_needed += num_nodes_per_job
