@@ -17,35 +17,37 @@ defaults:
 # reward_model_args from the reward model config file
 # dataset args from the dataset config file
 
+wandb:
+  project: swiss-alignment-alignment
+
 dataset_args:
   debug_oom: false # Reorder the dataset with largest batch first to test OOM
   debug_subsample:
     train: 0
     eval: 0
+  shuffle: true
+
 script_args:
-  dataset_name: ${dataset_args.dataset_path}
+  dataset_name: ${dataset_args.dataset_name}
   dataset_train_split: ${dataset_args.train_split.name}
   dataset_test_split: ${dataset_args.eval_split.name}
 training_args:
   bf16: true
-  max_prompt_length: 2048
-  max_completion_length: 2048
-  max_length: 2048
-  learning_rate: 5.0e-7
+  max_prompt_length: 4096
+  max_completion_length: 4096
+  max_length: 4096
+  learning_rate: 2.0e-7
   max_grad_norm: 1e5  # Disable gradient clipping but still log grad norm. (-1 doesn't log).
-  lr_scheduler_type: cosine
+  lr_scheduler_type: linear
   warmup_ratio: 0.1
+  optim: ademamix
+  optim_args: "beta3=0.9999,alpha=8.0" # t_beta3 and t_alpha are automatically calculated in train_sft.py
+  weight_decay: 0.0
   num_train_epochs: 1
+  num_ref_rewards: 10
   loss_type: dpr
-  dpr_transform_type: log
-  dpr_loss_type: mse
-  dpr_sample_selector: both
   beta: 0.003
-  simpo_gamma_beta_ratio: 0.5
   precompute_ref_log_probs: false
-  temperature: ${model_generation_config.temperature}
-  apply_temperature_in_training: false
-  top_p: ${model_generation_config.top_p}
   dataloader_drop_last: true
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 1
@@ -54,17 +56,16 @@ training_args:
     use_reentrant: false # https://pytorch.org/docs/stable/checkpoint.html, https://github.com/huggingface/trl/issues/1348
   logging_first_step: true
   logging_steps: 1
-  eval_strategy: steps
-  eval_steps: 50
-  eval_on_start: true
-  per_device_eval_batch_size: 1
-  generate_during_eval: false
+  per_device_eval_batch_size: 2
+  eval_strategy: no
+  eval_steps: null
+  eval_on_start: false
   save_strategy: steps
-  save_steps: 100
-  save_only_model: true # Not interested in resuming.
-  num_ref_rewards: 6
+  save_steps: 1000
+  save_only_model: false
   report_to: wandb
   seed: ${seed}
+  dataset_num_proc: 32
   dataloader_num_workers: ${training_args.per_device_train_batch_size}
 
 seed: 27
@@ -73,9 +74,11 @@ resuming:
   resume: false
   ignore_keys:
     - run_dir
-    - data_dir
-    - outputs_dir
     - resuming_dir
+    - resuming_hash
+    - artifacts_dir
+    - artifacts_subdir
+    - job_subdir
     - wandb
     - resuming.ignore_keys
     - training_args.logging_dir

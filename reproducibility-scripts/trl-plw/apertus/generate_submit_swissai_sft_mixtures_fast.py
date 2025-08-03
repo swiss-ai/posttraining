@@ -1,7 +1,8 @@
 from datetime import datetime
 
-models = ["apertus-70b"]
-datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
+models = ["apertus-70b", "apertus-8b"]
+# datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
+datasets = ["apertus-sft-mixture-4"]
 
 # Hyperparameters
 num_proc_per_node = 4
@@ -11,8 +12,9 @@ hyper_params = {
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
         "max_seq_length": 4096,
-        "batch_size": (256, 16),  # bs, num_nodes
+        "batch_size": (512, 16),  # bs, num_nodes
         "learning_rate": 5e-6,
+        "max_grad_norm": 0.1,
         "num_proc_per_node": num_proc_per_node,
         "proc_train_batch_size": 2,
         "trainer": ("plw", 0.0),
@@ -25,6 +27,7 @@ hyper_params = {
         "max_seq_length": 4096,
         "batch_size": (512, 64),  # bs, num_nodes
         "learning_rate": 2e-6,
+        "max_grad_norm": 1,
         "num_proc_per_node": num_proc_per_node,
         "proc_train_batch_size": 2,
         "trainer": ("plw", 0.0),
@@ -61,6 +64,7 @@ for model in models:
             f"training_args.gradient_accumulation_steps={accumulation_steps} "
             f"training_args.per_device_train_batch_size={hp['proc_train_batch_size']} "
             f"training_args.learning_rate={hp['learning_rate']} "
+            f"training_args.max_grad_norm={hp['max_grad_norm']} "
             f"tokenizer_args.chat_template_name={hp['chat_template']} "
             "artifacts_subdir=shared "
             f"job_subdir={run_name}/dataset-mixtures-fast/{model_config} "

@@ -11,10 +11,6 @@ import wandb
 from accelerate.logging import get_logger
 from accelerate.state import PartialState
 from datasets import DatasetDict
-from dpr import utils
-from dpr.trainers.dpr import DPRTrainer
-from dpr.trainers.dpr_config import DPRConfig
-from dpr.utils import utils_for_trl
 from omegaconf import DictConfig, OmegaConf
 from transformers import AutoTokenizer
 from trl import (
@@ -25,6 +21,13 @@ from trl import (
     get_quantization_config,
 )
 
+from swiss_alignment import utils
+from swiss_alignment.trainers.preference import (
+    PreferenceTrainer,
+    PreferenceTrainerConfig,
+)
+from swiss_alignment.utils import utils_for_trl
+
 utils.config.register_resolvers()
 acc_state = PartialState(
     **accelerate.InitProcessGroupKwargs(timeout=timedelta(hours=4)).to_kwargs()
@@ -33,7 +36,7 @@ acc_logger = get_logger(__name__)
 hydra_logger = logging.getLogger(__name__)
 
 
-@hydra.main(version_base=None, config_path="configs", config_name="train-dpr")
+@hydra.main(version_base=None, config_path="configs", config_name="train-preference")
 def main(config: DictConfig) -> None:
     ############################ Config Setup ############################
 
@@ -41,7 +44,7 @@ def main(config: DictConfig) -> None:
     # full_config is a merge with the TRL arg dataclasses
     # The args dataclasses are used by the HF classes, and the full_config by the template.
     script_args = ScriptArguments(**OmegaConf.to_container(config.script_args))
-    training_args = DPRConfig(
+    training_args = PreferenceTrainerConfig(
         **OmegaConf.to_container(config.training_args), output_dir=str(Path.cwd())
     )
     model_args = ModelConfig(**OmegaConf.to_container(config.model_args))
@@ -70,19 +73,6 @@ def main(config: DictConfig) -> None:
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.model_name_or_path, trust_remote_code=model_args.trust_remote_code
     )
-
-    # Update special tokens.
-    if getattr(config.tokenizer_args, "pad_token_id") is not None:
-        if config.tokenizer_args.pad_token_id != tokenizer.pad_token_id:
-            acc_logger.info(f"Found tokenizer pad token id: {tokenizer.pad_token_id}")
-            acc_logger.info(
-                f"But config specifies a different pad token id: {config.tokenizer_args.pad_token_id}"
-            )
-            tokenizer.pad_token_id = config.tokenizer_args.pad_token_id
-            acc_logger.info(
-                f"Overriding tokenizer pad token id to {config.tokenizer_args.pad_token_id}"
-            )
-
     # Perform checks
     if tokenizer.pad_token is None:
         raise ValueError("Tokenizer must have a pad token.")
@@ -127,6 +117,8 @@ def main(config: DictConfig) -> None:
         # Shuffle at the end to preserve previous cache across seeds.
         ds = ds.shuffle(seed=config.seed)
 
+        # TODO only do if ref rewards are available.
+
         # Extract ref rewards and drop ref completions and rewards columns
         train_ref_rewards = np.array(ds["train"]["ref_rewards"])[
             :, : training_args.num_ref_rewards
@@ -151,14 +143,6 @@ def main(config: DictConfig) -> None:
 
     # Find the last checkpoint
     resuming_dir = Path.cwd()
-    last_checkpoint_number = max(
-        (
-            int(item.name.split("-")[-1])
-            for item in resuming_dir.iterdir()
-            if item.is_dir() and item.name.startswith("checkpoint-")
-        ),
-        default=0,
-    )
     # Handle resuming
     last_checkpoint_number = 0
     for item in resuming_dir.iterdir():
@@ -178,7 +162,7 @@ def main(config: DictConfig) -> None:
         if eval_file.exists():
             training_args.eval_on_start = False
 
-    trainer = DPRTrainer(
+    trainer = PreferenceTrainer(
         model_args.model_name_or_path,
         ref_model=None,
         args=training_args,

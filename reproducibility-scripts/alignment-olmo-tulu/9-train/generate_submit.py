@@ -85,7 +85,7 @@ for dataset in datasets:
                     )
 
                     sft_model_path = (
-                        f"{model_sftid_path_prefix}/{model_sftid_paths[sftid]}"
+                        f"{model_sftid_path_prefix}/{model_sftid_paths[model_sftid]}"
                     )
                     dataset_with_ref_rewards_path = f"{dataset_with_ref_rewards_path_prefix}/{dataset_with_ref_rewards}"
 
@@ -97,7 +97,6 @@ for dataset in datasets:
                                     commands.append(
                                         (
                                             "sbatch "
-                                            f"-t 3:00:00 "
                                             f"-N {num_nodes_per_job} "
                                             f"-o {stdout_root}/out/{jobid}.out "
                                             f"-e {stdout_root}/out/{jobid}.err "
