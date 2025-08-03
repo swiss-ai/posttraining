@@ -34,14 +34,14 @@ plw_args:
 training_args:
   bf16: true
   max_seq_length: 4096
-  max_grad_norm: 1e6 # Effectively no clipping
+  max_grad_norm: 1
   learning_rate: 5.0e-06
   lr_scheduler_type: linear
   warmup_ratio: 0.03
   optim: ademamix
   optim_args: "beta3=0.9999,alpha=8.0" # t_beta3 and t_alpha are automatically calculated in train_sft.py
   weight_decay: 0.0
-  num_train_epochs: 2
+  num_train_epochs: 1
   packing: false
   dataloader_drop_last: true
   remove_unused_columns: false # required for custom data collator
@@ -61,7 +61,7 @@ training_args:
   save_steps: 1000
   report_to: wandb
   seed: ${seed}
-  dataset_num_proc: 8
+  dataset_num_proc: 32
   dataloader_num_workers: 8
 
 seed: 42
