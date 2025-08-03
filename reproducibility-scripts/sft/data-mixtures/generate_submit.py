@@ -1,8 +1,19 @@
 from datetime import datetime
+from pathlib import Path
+
+stdout_prefix = "run"
+stdout_root = (
+    Path(__file__).parent.resolve().relative_to(Path.cwd())
+    / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
+)
+
+# Will be used in the root of the job_subdir.
+# artifacts/shared/outputs/train_sft/job_name/...
+job_name = "mixture-fast"
 
 models = ["apertus-70b", "apertus-8b"]
 # datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
-datasets = ["apertus-sft-mixture-1"]
+datasets = ["apertus-sft-mixture-4"]
 
 # Hyperparameters
 num_proc_per_node = 4
@@ -16,7 +27,7 @@ hyper_params = {
         "learning_rate": 5e-6,
         "max_grad_norm": 0.1,
         "num_proc_per_node": num_proc_per_node,
-        "proc_train_batch_size": 2,
+        "device_train_batch_size": 2,
         "trainer": ("plw", 0.0),
         "chat_template": "tulu",
     },
@@ -29,52 +40,64 @@ hyper_params = {
         "learning_rate": 2e-6,
         "max_grad_norm": 1,
         "num_proc_per_node": num_proc_per_node,
-        "proc_train_batch_size": 1,
+        "device_train_batch_size": 1,
         "trainer": ("plw", 0.0),
         "chat_template": "tulu",
     },
 }
 
-
-# Generate sbatch
-current_time = datetime.now().strftime("%Y-%m-%d-%H-%M")
-nruns = 0
+commands = []
+total_nodes_needed = 0
 for model in models:
-    run_name = f"{model}-sweep"
     hp = hyper_params[model]
     for dataset in datasets:
-        model_config = f"{hp['checkpoint']}-ademamix-{dataset}"
         batch_size, num_nodes = hp["batch_size"]
-        accumulation_steps = batch_size // (
-            num_nodes * num_proc_per_node * hp["proc_train_batch_size"]
-        )
         trainer, plw = hp["trainer"]
+
+        accumulation_steps = batch_size // (
+            num_nodes * num_proc_per_node * hp["device_train_batch_size"]
+        )
+
+        job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-maxgnorm{hp['learning_rate']}"
+        run_name = f"{job_name}/{job_id}"
         command = (
             f"sbatch "
-            f"--nodes {num_nodes} "
+            f"-N {num_nodes} "
             f"-p large512 "
             f"-t 48:00:00 "
-            f"--output=reproducibility-scripts/trl-plw/out-{current_time}/{model_config}/swissai-tulu-3-sft.out "
-            "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/recursive-unattended-accelerate.sh "
+            f"-o {stdout_root}/out/{run_name}.out "
+            f"-e {stdout_root}/out/{run_name}.err "
+            "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
             f"-m swiss_alignment.train_sft "
             f"dataset={dataset} "
-            f"model={model}.yaml "
+            f"model={model} "
             f"model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{hp['checkpoint']} "
             f"tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{hp['checkpoint']} "
             f"trainer={trainer} "
             f"accelerate_config={hp['accelerate_config']} "
             f"plw_args.prompt_loss_weight={plw} "
             f"training_args.gradient_accumulation_steps={accumulation_steps} "
-            f"training_args.per_device_train_batch_size={hp['proc_train_batch_size']} "
+            f"training_args.per_device_train_batch_size={hp['device_train_batch_size']} "
             f"training_args.learning_rate={hp['learning_rate']} "
             f"training_args.max_grad_norm={hp['max_grad_norm']} "
             f"tokenizer_args.chat_template_name={hp['chat_template']} "
             "artifacts_subdir=shared "
-            f"job_subdir={run_name}/dataset-mixtures-fast/{model_config} "
-            f"wandb.run_name={model_config} "
-            f"wandb.tags=[prod,{trainer}] "
+            f"job_subdir={run_name} "
+            f"wandb.run_name={run_name} "
+            f"wandb.tags=[prod,{trainer},default,{job_name}] "
             "resuming.resume=True "
         )
-        print(command)
-        nruns += 1
-print(nruns)
+        commands.append(command)
+        total_nodes_needed += num_nodes
+
+
+# Write th submit commands to a new directory where this batch of experiments will be managed)
+# Path from the project root
+submit_dir = Path.cwd() / str(stdout_root)
+submit_dir.mkdir(parents=True, exist_ok=True)
+submit_file = submit_dir / "submit.sh"
+print(f"Writing {len(commands)} commands to {submit_file}")
+with open(submit_file, "w") as f:
+    for command in commands:
+        f.write(command + "\n")
+print("Total nodes needed:", total_nodes_needed)

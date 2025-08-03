@@ -406,7 +406,7 @@ def sft_to_chatml_format(
     tokenizer: PreTrainedTokenizer,
 ):
     chat = []
-    if "system_prompt" in row:
+    if "system_prompt" in row and row["system_prompt"] is not None:
         chat.append(
             {
                 MESSAGES_CONTENT: row["system_prompt"]["content"],
