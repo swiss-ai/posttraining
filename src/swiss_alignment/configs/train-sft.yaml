@@ -29,6 +29,7 @@ accelerate_config: "src/swiss_alignment/configs/accelerate/ds-zero1.yaml"
 trainer: plw # can only take values: sft, plw, ln-plw, irl
 plw_args:
   prompt_loss_weight: 0.0
+  sequence_level_loss: false
 
 training_args:
   bf16: true
