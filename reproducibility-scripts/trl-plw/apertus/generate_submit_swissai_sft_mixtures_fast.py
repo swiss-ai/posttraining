@@ -1,8 +1,12 @@
 from datetime import datetime
 
 models = ["apertus-70b", "apertus-8b"]
-# datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
-datasets = ["apertus-sft-mixture-1"]
+datasets = [
+    "apertus-sft-mixture-1",
+    "apertus-sft-mixture-2",
+    "apertus-sft-mixture-3",
+    "apertus-sft-mixture-4",
+]
 
 # Hyperparameters
 num_proc_per_node = 4
@@ -29,7 +33,7 @@ hyper_params = {
         "learning_rate": 2e-6,
         "max_grad_norm": 1,
         "num_proc_per_node": num_proc_per_node,
-        "proc_train_batch_size": 1,
+        "proc_train_batch_size": 2,
         "trainer": ("plw", 0.0),
         "chat_template": "tulu",
     },
