@@ -98,6 +98,7 @@ chmod 600 $HOME/.hf-token
 ## What's next?
 
 Check the sections below:
+- [Converter Megatron checkpoints to HuggingFace](#converter-megatron-checkpoints-to-huggingface): how to convert pretrained Megatron checkpoints to HuggingFace.
 - [Running the typical training experiment](#running-the-typical-training-experiment): how to run a training experiment with the codebase.
 - [Where to change what to do what](#where-to-change-what-to-do-what): how to change the codebase to do different things.
 - [Repository structure](#repository-structure): where to find what in the codebase.
@@ -106,10 +107,12 @@ Check the sections below:
   We however have comprehensive documentation in TODO.
 - [Rebuilding the container image](#rebuilding-the-container-image): how to rebuild the container image if you change the dependencies.
 
+## Converter Megatron checkpoints to HuggingFace
+Please use and follow the steps in [hfconverter](https://github.com/swiss-ai/hfconverter).
+
 ## Running the typical training experiment
-The `reproducibility-scripts` directory includes scripts to generate SLURM jobs for training models like Apertus 8B and 70B.
-Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using [generate_submit_apertus_8b.py](https://github.com/swiss-ai/swiss-alignment/blob/main/reproducibility-scripts/trl-plw/apertus/generate_submit_apertus_8b.py)
-and [generate_submit_apertus_70b.py](https://github.com/swiss-ai/swiss-alignment/blob/refactor-and-guidelienes/reproducibility-scripts/trl-plw/apertus/generate_submit_apertus_70b.py)
+The `reproducibility-scripts` directory includes scripts to generate SLURM jobs for training models like Apertus 8B and 70B ([here](https://github.com/swiss-ai/swiss-alignment/tree/main/reproducibility-scripts/trl-plw/apertus)).
+Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints.
 
 Run these scripts from the dev project root and their outputs will be saved in its
 `reproducibility-scripts/trl-plw/out-test` directory.
