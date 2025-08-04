@@ -37,6 +37,7 @@ training_args:
   learning_rate: 5.0e-06
   lr_scheduler_type: linear
   warmup_ratio: 0.03
+  warmup_steps: 0
   optim: ademamix
   optim_args: "beta3=0.9999,alpha=8.0" # t_beta3 and t_alpha are automatically calculated in train_sft.py
   weight_decay: 0.0
