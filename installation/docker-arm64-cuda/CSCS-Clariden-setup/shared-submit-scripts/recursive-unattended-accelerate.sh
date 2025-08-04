@@ -39,6 +39,7 @@ extract_field() {
 }
 SCRIPT_PATH=$(extract_field "Command")
 OUTPUT_PATH=$(extract_field "StdOut")
+ERROR_PATH=$(extract_field "StdErr")
 WORKDIR=$(extract_field "WorkDir")
 ACCOUNT=$(extract_field "Account")
 PARTITION=$(extract_field "Partition")
@@ -50,6 +51,8 @@ NODES=$(extract_field "NumNodes")
 # Updating OUTPUT_PATH to include retry count
 OUTPUT_PATH=$(echo "$OUTPUT_PATH" | sed 's/\(-retry[0-9]*\)\?\.out$//')
 OUTPUT_PATH="${OUTPUT_PATH}-retry$RETRY_COUNT.out"
+ERROR_PATH=$(echo "$ERROR_PATH" | sed 's/\(-retry[0-9]*\)\?\.err$//')
+ERROR_PATH="${ERROR_PATH}-retry$RETRY_COUNT.err"
 
 job_id=$(sbatch \
     --job-name="$JOB_NAME" \
@@ -59,6 +62,7 @@ job_id=$(sbatch \
     --nodes="$NODES" \
     --chdir="$WORKDIR" \
     --output="$OUTPUT_PATH" \
+    --error="$ERROR_PATH" \
     --dependency=afternotok:"$JOB_ID" \
     "$SCRIPT_PATH" "$@" | awk '{print $4}')
 
