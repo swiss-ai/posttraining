@@ -50,6 +50,7 @@ wandb:
 
 run_dir: ${hydra:run.dir}
 resuming_dir: null
+resuming_hash: null
 
 resuming:
   resume: false
