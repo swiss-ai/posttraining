@@ -119,6 +119,9 @@ def main(config: DictConfig) -> None:
 
         # TODO only do if ref rewards are available.
 
+        # TODO ref rewards should be handled by the trainer.
+        # Here maybe do some reformatting if the there is a problem in the collator.
+
         # Extract ref rewards and drop ref completions and rewards columns
         train_ref_rewards = np.array(ds["train"]["ref_rewards"])[
             :, : training_args.num_ref_rewards

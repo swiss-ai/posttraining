@@ -5,6 +5,7 @@
 #SBATCH -A a-infra01-1
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
+#SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
@@ -13,7 +14,7 @@ unset HF_TOKEN_AT
 
 # Retry mechanism --------------------------
 # Initialize retry counter
-export MAX_RETRIES=${MAX_RETRIES:-3}
+export MAX_RETRIES=${MAX_RETRIES:-10}
 export RETRY_COUNT=${RETRY_COUNT:-0}
 
 # Check retry limit

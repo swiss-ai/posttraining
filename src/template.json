@@ -1,0 +1,57 @@
+{
+  "conversation_id": "unique_identifier",
+  "dataset_source": "source_dataset_name",
+  "original_metadata": {},
+  "system_prompt": {
+    "content": "you are a friendly assistant. Here is a list of tools you have available ... ",
+    "metadata": {}
+  },
+  "initial_prompt": {
+    "role": "user",
+    "content": "hey this my example prompt. Can you tell me the weather?",
+    "metadata": {}
+  },
+  "conversation_branches": [
+    {
+      "messages": [
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "role": "thought",
+              "content": "The user wants to know the weather. I have a tool ... Let me ... ",
+              "metadata": {}
+            },
+            {
+              "role": "tool-call",
+              "content": "[get_weather_data, firstarg, secondarg",
+              "metadata": {}
+            },
+            {
+              "role": "tool-response",
+              "content": "Location: Bern, Temperature: 24C, Weather: sunny",
+              "metadata": {}
+            },
+            {
+              "role": "text",
+              "content": "I can certainly help with that. The weather is sunny.",
+              "metadata": {}
+            },
+            {
+              "role": "verifiable-response",
+              "content": "sunny",
+              "metadata": {}
+            }
+          ],
+          "metadata": {}
+        },
+        {
+          "role": "user",
+          "content": "thanks! Is this warmer than last year? ",
+          "metadata": {}
+        }
+      ]
+    }
+  ],
+  "created_timestamp": "ISO datetime"
+}
