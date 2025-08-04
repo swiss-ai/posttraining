@@ -77,3 +77,7 @@ resuming:
     - wandb
     - resuming.ignore_keys
     - training_args.logging_dir
+    - training_args.dataloader_num_workers
+    - training_args.dataset_num_proc
+    - training_args.save_steps
+    -
