@@ -5,7 +5,7 @@
 #SBATCH -A a-infra01-1
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
-#SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521
+#SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521,nid007352,nid006959
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run

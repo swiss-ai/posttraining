@@ -12,8 +12,8 @@ stdout_root = (
 job_name = "fix-overfit"
 
 models = ["apertus-70b"]
-# datasets = ["apertus-sft-mixture-1"]
-datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-4"]
+datasets = ["apertus-sft-mixture-1"]
+# datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-4"]
 
 # Hyperparameters
 num_proc_per_node = 4
@@ -21,13 +21,14 @@ hyper_params = {
     "apertus-70b": {
         "checkpoint": "Apertus70B-tokens15T-it1155828",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
-        "num_epochs": 1,
+        # "num_epochs": 1,
+        "num_epochs": 2,
         "max_seq_length": 4096,
         "batch_size": (512, 64),  # bs, num_nodes
         # "learning_rate": [1e-6, 4e-6],
         "learning_rate": [2e-6],
-        # "warmup_steps": 0,
-        "warmup_steps": 500,
+        "warmup_steps": 0,
+        # "warmup_steps": 500,
         "max_grad_norm": 1,
         "num_proc_per_node": num_proc_per_node,
         "device_train_batch_size": 1,
@@ -49,7 +50,7 @@ for model in models:
                 num_nodes * num_proc_per_node * hp["device_train_batch_size"]
             )
 
-            job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{learning_rate}-warmupsteps{hp['warmup_steps']}"
+            job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{learning_rate}-warmupsteps{hp['warmup_steps']}-epochs{hp['num_epochs']}"
             run_name = f"{job_name}/{job_id}"
             command = (
                 f"sbatch "
@@ -72,6 +73,7 @@ for model in models:
                 f"training_args.learning_rate={learning_rate} "
                 f"training_args.max_grad_norm={hp['max_grad_norm']} "
                 f"training_args.warmup_steps={hp['warmup_steps']} "
+                f"training_args.num_train_epochs={hp['num_epochs']} "
                 f"tokenizer_args.chat_template_name={hp['chat_template']} "
                 "artifacts_subdir=shared "
                 f"job_subdir={run_name} "

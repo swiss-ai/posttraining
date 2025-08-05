@@ -2,7 +2,7 @@
 
 model_args:
   torch_dtype: bfloat16
-  model_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.2T-it1728000
+  model_name_or_path: /capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus8b-hotfix/Apertus8B-tokens7.2T-it1728000-hotfix
   attn_implementation: flash_attention_2
   trust_remote_code: true
   use_peft: false
