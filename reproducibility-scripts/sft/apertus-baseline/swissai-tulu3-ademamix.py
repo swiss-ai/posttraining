@@ -22,6 +22,8 @@ hyper_params = {
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 2,
         "batch_size": (128, 16),  # bs, num_nodes
+        "optim": "ademamix",
+        "optim_args": "beta3=0.9999,alpha=8.0",  # t_beta3 and t_alpha are automatically calculated in train_sft.py
         "learning_rate": 5e-6,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
@@ -33,6 +35,8 @@ hyper_params = {
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 2,
         "batch_size": (128, 32),  # bs, num_nodes
+        "optim": "ademamix",
+        "optim_args": "beta3=0.9999,alpha=8.0",  # t_beta3 and t_alpha are automatically calculated in train_sft.py
         "learning_rate": 2e-6,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 1,
@@ -52,9 +56,7 @@ for model in models:
         num_nodes * num_device_per_node * hp["device_train_batch_size"]
     )
 
-    job_id = (
-        f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-ademamix"
-    )
+    job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-{hp['optim']}"
     run_name = f"{job_name}/{job_id}"
     command = (
         f"sbatch "
@@ -77,6 +79,8 @@ for model in models:
         f"training_args.learning_rate={hp['learning_rate']} "
         f"tokenizer_args.chat_template_name={hp['chat_template']} "
         f"training_args.num_train_epochs={hp['num_epochs']} "
+        f"training_args.optim={hp['optim']} "
+        f"training_args.optim_args={hp['optim_args']} "
         "artifacts_subdir=shared "
         f"job_subdir={run_name} "
         f"wandb.run_name={run_name} "

@@ -403,8 +403,10 @@ TOKENIZED_SFT_DATASET_KEYS = [
 
 def sft_to_chatml_format(
     row: Dict[str, Any],
-    tokenizer: PreTrainedTokenizer,
 ):
+    if DEFAULT_SFT_MESSAGES_KEY in row:
+        return row
+
     chat = []
     if "system_prompt" in row and row["system_prompt"] is not None:
         chat.append(

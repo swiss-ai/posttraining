@@ -14,7 +14,7 @@ unset HF_TOKEN_AT
 
 # Retry mechanism --------------------------
 # Initialize retry counter
-export MAX_RETRIES=${MAX_RETRIES:-10}
+export MAX_RETRIES=${MAX_RETRIES:-4}
 export RETRY_COUNT=${RETRY_COUNT:-0}
 
 # Check retry limit

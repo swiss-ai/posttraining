@@ -183,16 +183,17 @@ def main(config: DictConfig) -> None:
         )
 
     # Computing the warmup steps for beta3 and alpha in AdEMAMix
-    len_ds = len(ds["train"])
-    total_batch_size = trainer.get_total_train_batch_size(training_args)
-    num_steps_per_epoch = int(
-        len_ds // total_batch_size
-        if training_args.dataloader_drop_last
-        else math.ceil(len_ds / total_batch_size)
-    )
-    total_steps = training_args.num_train_epochs * num_steps_per_epoch
-    training_args.optim_args += f",t_beta3={total_steps},t_alpha={total_steps}"
-    acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
+    if training_args.optim == "ademamix":
+        len_ds = len(ds["train"])
+        total_batch_size = trainer.get_total_train_batch_size(training_args)
+        num_steps_per_epoch = int(
+            len_ds // total_batch_size
+            if training_args.dataloader_drop_last
+            else math.ceil(len_ds / total_batch_size)
+        )
+        total_steps = training_args.num_train_epochs * num_steps_per_epoch
+        training_args.optim_args += f",t_beta3={total_steps},t_alpha={total_steps}"
+        acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")
