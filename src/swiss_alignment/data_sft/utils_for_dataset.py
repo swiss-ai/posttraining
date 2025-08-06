@@ -406,7 +406,7 @@ def sft_to_chatml_format(
     tokenizer: PreTrainedTokenizer,
 ):
     if DEFAULT_SFT_MESSAGES_KEY in row:
-        return row
+        return {DEFAULT_SFT_MESSAGES_KEY: row[DEFAULT_SFT_MESSAGES_KEY]}
 
     chat = []
     if "system_prompt" in row and row["system_prompt"] is not None:
