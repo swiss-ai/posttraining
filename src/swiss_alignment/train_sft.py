@@ -110,6 +110,7 @@ def main(config: DictConfig) -> None:
     )
     if acc_state.is_main_process:
         utils.config.setup_wandb(full_config, acc_logger)
+        utils.config.try_sync_wandb()
     utils.seeding.seed_everything(config)
 
     ############################ Tokenizer Setup ############################
@@ -217,6 +218,9 @@ def main(config: DictConfig) -> None:
         wandb.finish()
     acc_state.wait_for_everyone()
     accelerate.Accelerator().end_training()
+
+    if acc_state.is_main_process:
+        utils.config.try_sync_wandb()
 
 
 if __name__ == "__main__":

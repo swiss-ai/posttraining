@@ -21,8 +21,8 @@ hyper_params = {
     "apertus-70b": {
         "checkpoint": "Apertus70B-tokens15T-it1155828",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
-        # "num_epochs": 1,
-        "num_epochs": 2,
+        "num_epochs": 1,
+        # "num_epochs": 2,
         "max_seq_length": 4096,
         "batch_size": (512, 64),  # bs, num_nodes
         # "learning_rate": [1e-6, 4e-6],

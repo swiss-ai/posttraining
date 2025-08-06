@@ -203,3 +203,26 @@ def setup_wandb(config, logger=_logger):
     logger.info(f"Running with config: \n{OmegaConf.to_yaml(config)}")
     if config.resuming.resume:
         logger.info(f"Resuming from the directory: {Path.cwd()}")
+
+
+def try_sync_wandb():
+    # sync all runs in the wandb directory.
+    wandb_dir = Path(wandb.run.dir).parent.parent
+
+    # Iterate over directories that start with run- and sync them in chronological order.
+    for run_dir in sorted(wandb_dir.glob("run-*")):
+        if not run_dir.is_dir():
+            continue
+        # Sync the run directory.
+        logger = logging.getLogger(__name__)
+        logger.info(f"Syncing wandb run directory: {run_dir}")
+        try:
+            subprocess.run(
+                ["wandb", "sync", str(run_dir)],
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to sync {run_dir}: {e}")
+            continue
+        logger.info(f"Synced wandb run directory: {run_dir}")
