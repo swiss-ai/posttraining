@@ -192,7 +192,9 @@ def main(config: DictConfig) -> None:
             else math.ceil(len_ds / total_batch_size)
         )
         total_steps = training_args.num_train_epochs * num_steps_per_epoch
-        training_args.optim_args += f",t_beta3={total_steps},t_alpha={total_steps}"
+        training_args.optim_args = (
+            f"'beta3=0.9999,alpha=8.0,t_beta3={total_steps},t_alpha={total_steps}"
+        )
         acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)

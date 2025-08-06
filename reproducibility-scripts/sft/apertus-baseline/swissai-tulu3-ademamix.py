@@ -23,7 +23,6 @@ hyper_params = {
         "num_epochs": 2,
         "batch_size": (128, 16),  # bs, num_nodes
         "optim": "ademamix",
-        "optim_args": "beta3=0.9999,alpha=8.0",  # t_beta3 and t_alpha are automatically calculated in train_sft.py
         "learning_rate": 5e-6,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
@@ -36,7 +35,6 @@ hyper_params = {
         "num_epochs": 2,
         "batch_size": (128, 32),  # bs, num_nodes
         "optim": "ademamix",
-        "optim_args": "beta3=0.9999,alpha=8.0",  # t_beta3 and t_alpha are automatically calculated in train_sft.py
         "learning_rate": 2e-6,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 1,
@@ -80,7 +78,6 @@ for model in models:
         f"tokenizer_args.chat_template_name={hp['chat_template']} "
         f"training_args.num_train_epochs={hp['num_epochs']} "
         f"training_args.optim={hp['optim']} "
-        f"training_args.optim_args={hp['optim_args']} "
         "artifacts_subdir=shared "
         f"job_subdir={run_name} "
         f"wandb.run_name={run_name} "
