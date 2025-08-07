@@ -207,22 +207,74 @@ def setup_wandb(config, logger=_logger):
 
 def try_sync_wandb():
     # sync all runs in the wandb directory.
-    wandb_dir = Path(wandb.run.dir).parent.parent
+    run = wandb.run
+    if run is not None:
+        # The easy way.
+        wandb_dir = Path(wandb.run.dir).parent.parent
 
-    # Iterate over directories that start with run- and sync them in chronological order.
-    for run_dir in sorted(wandb_dir.glob("run-*")):
-        if not run_dir.is_dir():
-            continue
-        # Sync the run directory.
-        logger = logging.getLogger(__name__)
-        logger.info(f"Syncing wandb run directory: {run_dir}")
-        try:
-            subprocess.run(
-                ["wandb", "sync", str(run_dir)],
-                check=True,
-                capture_output=True,
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to sync {run_dir}: {e}")
-            continue
-        logger.info(f"Synced wandb run directory: {run_dir}")
+        # Iterate over directories that start with run- and sync them in chronological order.
+        for run_dir in sorted(wandb_dir.glob("run-*")):
+            if not run_dir.is_dir():
+                continue
+            # Sync the run directory.
+            logger = logging.getLogger(__name__)
+            logger.info(f"Syncing wandb run directory: {run_dir}")
+            try:
+                subprocess.run(
+                    ["wandb", "sync", str(run_dir)],
+                    check=True,
+                    capture_output=True,
+                )
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to sync {run_dir}: {e}")
+                continue
+            logger.info(f"Synced wandb run directory: {run_dir}")
+    # else:
+    #     # The SLURM way
+    #     # extract the latest run from the SLURM logs
+    #     """
+    #     JOB_INFO=$(scontrol show job "$SLURM_JOB_ID")
+    #     extract_field() {
+    #       local key="$1"
+    #     echo "$JOB_INFO" | tr ' ' '\n' | grep "^$key=" | cut -d= -f2-
+    #     }
+    #     OUTPUT_PATH=$(extract_field "StdOut")
+    #     ERROR_PATH=$(extract_field "StdErr")
+    #     """
+    #     job_id = os.environ.get("SLURM_JOB_ID")
+    #     if job_id is not None:
+    #         try:
+    #             job_info = subprocess.check_output(
+    #                 ["scontrol", "show", "job", job_id],
+    #                 text=True,
+    #             )
+    #             output_path = utils.slurm.extract_field(job_info, "StdOut")
+    #             error_path = utils.slurm.extract_field(job_info, "StdErr")
+    #
+    #             # Find the wandb directory in the output or error files
+    #             # wandb: Run data is saved locally in /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/outputs/train_sft/fix-overfit/Apertus8B-tokens7.2T-it1728000-hotfix-apertus-sft-mixture-1-bs512-lr5e-06-epochs1-adam/checkpoints/a0db78d43b9ebd41/wandb/run-20250807_002321-a0db78d43b9ebd41
+    #             wandb_dir = None
+    #             for line in (output_path, error_path):
+    #                 if "wandb: Run data is saved locally in" in line:
+    #                     wandb_dir = line.split("wandb: Run data is saved locally in")[-1].strip()
+    #                     break
+    #             if wandb_dir is not None:
+    #                 wandb_dir = Path(wandb_dir)
+    #                 if wandb_dir.exists():
+    #                     # Iterate over directories that start with run- and sync them in chronological order.
+    #                     for run_dir in sorted(wandb_dir.glob("run-*")):
+    #                         if not run_dir.is_dir():
+    #                             continue
+    #                         # Sync the run directory.
+    #                         logger = logging.getLogger(__name__)
+    #                         logger.info(f"Syncing wandb run directory: {run_dir}")
+    #                         try:
+    #                             subprocess.run(
+    #                                 ["wandb", "sync", str(run_dir)],
+    #                                 check=True,
+    #                                 capture_output=True,
+    #                             )
+    #                         except subprocess.CalledProcessError as e:
+    #                             logger.error(f"Failed to sync {run_dir}: {e}")
+    #                             continue
+    #                         logger.info(f"Synced wandb run directory: {run_dir}")
