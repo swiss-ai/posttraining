@@ -101,6 +101,7 @@ chmod 600 $HOME/.hf-token
 ## What's next?
 
 Check the sections below:
+- [Convert Megatron checkpoints to HuggingFace](#convert-megatron-checkpoints-to-huggingface): how to convert pretrained Megatron checkpoints to HuggingFace.
 - [Running the typical training experiment](#running-the-typical-training-experiment): how to run a training experiment with the codebase.
 - [Where to change what to do what](#where-to-change-what-to-do-what): how to change the codebase to do different things.
 - [Repository structure](#repository-structure): where to find what in the codebase.
@@ -109,11 +110,18 @@ Check the sections below:
   We however have comprehensive documentation in TODO.
 - [Rebuilding the container image](#rebuilding-the-container-image): how to rebuild the container image if you change the dependencies.
 
+## Convert Megatron checkpoints to HuggingFace
+Follow the instructions in [hfconverter](https://github.com/swiss-ai/hfconverter). From the hfconverter repository, run:
+```bash
+sbatch convert.sbatch <ckpt-path> <iteration> <output-path>
+```
+Ensure paths are valid and check `progress.txt` to find the correct iteration number.
+
 ## Running the typical training experiment
 
 The `reproducibility-scripts` directory includes scripts to generate SLURM jobs for training models like Apertus 8B and 70B.
 Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using a template in
-[reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/swiss-alignment/blob/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
+[reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/swiss-alignment/tree/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
 
 To create new experiments copy the directory `reproducibility-scripts/sft/0-apertus-template/` and rename `0-apertus-template` to your new experiment.
 Then run the submit script inside to create sub-experiments whose submit script and SLURM logs will be recorded under.
