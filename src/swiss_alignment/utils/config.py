@@ -6,6 +6,7 @@
 # and avoid making them too complicated, the point is not to write code in the config file.
 import logging
 import os
+import re
 import subprocess
 import sys
 from hashlib import blake2b
@@ -32,26 +33,24 @@ def register_resolvers():
         )
 
 
-def save_or_check_config(config: DictConfig, path: str) -> None:
+def save_or_check_config(config: DictConfig, config_to_check_path: str) -> None:
     """
     Save if it doesn't exist; otherwise (in case of resuming) assert that the
     config is the same. If they differ, log the differing key(s).
     """
-    path_obj = Path(path)
-    if not path_obj.exists():
-        OmegaConf.save(config, path_obj)
+    config_to_check_path = Path(config_to_check_path)
+    if not config_to_check_path.exists():
+        OmegaConf.save(config, config_to_check_path)
         return
 
-    # Copy and remove excluded keys (in-place removal) from both new and existing config
     new_config = config.copy()
-    existing_config = OmegaConf.load(path_obj)
+    existing_config = OmegaConf.load(config_to_check_path)
 
-    # Convert both configs to Python dictionaries
     OmegaConf.resolve(new_config)
     OmegaConf.resolve(existing_config)
 
-    remove_excluded_keys(new_config, config.resuming.exclude_keys)
-    remove_excluded_keys(existing_config, config.resuming.exclude_keys)
+    remove_ignored_keys(new_config, config.resuming.ignore_keys)
+    remove_ignored_keys(existing_config, config.resuming.ignore_keys)
 
     new_config_dict = OmegaConf.to_container(new_config, resolve=True)
     existing_config_dict = OmegaConf.to_container(existing_config, resolve=True)
@@ -61,23 +60,25 @@ def save_or_check_config(config: DictConfig, path: str) -> None:
     if differences:
         diff_msg = "\n".join(differences)
         _logger.error(
-            f"Config to resume is different from the one saved in {path}.\n"
+            f"Config to resume is different from the one saved in {config_to_check_path}.\n"
             f"Differences:\n{diff_msg}"
         )
         raise AssertionError(
-            f"Config differs from the existing config at {path}. See logs for details."
+            f"Config differs from the existing config at {config_to_check_path}. See logs for details."
         )
 
-    _logger.info(f"Configs match the one in {path}. Resuming with the same config.")
+    _logger.info(
+        f"Configs match the one in {config_to_check_path}. Resuming with the same config."
+    )
 
 
-def remove_excluded_keys(config: DictConfig, exclude_keys: list[str]) -> None:
+def remove_ignored_keys(config: DictConfig, ignore_keys: list[str]) -> None:
     """
-    Remove keys from the config that are specified in exclude_keys.
+    Remove keys from the config that are specified in ignore_keys.
     Exclude keys can be specified as dot-paths, e.g., "key1.key2.key3".
     """
     with omegaconf.open_dict(config):
-        for key in exclude_keys:
+        for key in ignore_keys:
             try:
                 path_segments = key.split(".")
                 node = config
@@ -119,21 +120,18 @@ def dictionary_diff(d1: dict, d2: dict, path: str = "") -> list[str]:
 
 def setup_resuming_dir(config):
     """Create a unique identifier of the experiment used to specify a resuming/checkpoint directory.
-    The identifier is a hash of the config, excluding keys specified in config.resuming.exclude_keys.
+    The identifier is a hash of the config, excluding keys specified in config.resuming.ignore_keys.
     If config.resuming.use_commit is True, the commit hash is appended to the identifier.
     I.e. the checkpoint directory is defined by: the config - the excluded config keys + the commit hash (if specified)
     """
     if config.resuming_dir is not None:
-        return Path(config.resuming_dir), Path(config.resuming_dir).name
+        return
 
-    resuming_hash = ""
     config_to_hash = config.copy()
-
-    # resolve config
     OmegaConf.resolve(config_to_hash)
-    remove_excluded_keys(config_to_hash, config.resuming.exclude_keys)
+    remove_ignored_keys(config_to_hash, config.resuming.ignore_keys)
     config_hash = blake2b(str(config_to_hash).encode(), digest_size=8).hexdigest()
-    resuming_hash += config_hash
+    resuming_hash = config_hash
     if config.resuming.use_commit:
         commit_hash = (
             subprocess.check_output(["git", "rev-parse", "HEAD"])
@@ -206,3 +204,80 @@ def setup_wandb(config, logger=_logger):
     logger.info(f"Running with config: \n{OmegaConf.to_yaml(config)}")
     if config.resuming.resume:
         logger.info(f"Resuming from the directory: {Path.cwd()}")
+
+
+def try_sync_wandb(logger=_logger):
+    def sync_runs_in_dir(parent_dir: Path):
+        # find all run-* dirs
+        run_dirs = [d for d in parent_dir.glob("run-*") if d.is_dir()]
+        # sort by creation time (oldest first)
+        run_dirs.sort(key=lambda d: d.stat().st_ctime)
+        for run_dir in run_dirs:
+            logger.info(f"Syncing wandb run directory: {run_dir}")
+            try:
+                subprocess.run(
+                    ["wandb", "sync", str(run_dir)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to sync {run_dir}: {e.stderr.strip() or e}")
+            else:
+                logger.info(f"Successfully synced wandb run directory: {run_dir}")
+
+    def extract_slurm_field(job_info: str, key: str) -> str | None:
+        """Parses 'scontrol show job' output for KEY=value and returns the value."""
+        m = re.search(rf"\b{re.escape(key)}=(\S+)", job_info)
+        return m.group(1) if m else None
+
+    # 1) If we're inside a live wandb run, sync all siblings of the current run
+    if wandb.run is not None:
+        logger.info("Detected active wandb run, syncing all sibling runs.")
+        wandb_dir = Path(wandb.run.dir).parents[1]
+        sync_runs_in_dir(wandb_dir)
+        return
+
+    # 2) Otherwise, assume SLURM
+    job_id = os.environ.get("SLURM_JOB_ID")
+    if not job_id:
+        logger.warning("No active wandb run and SLURM_JOB_ID not set.")
+        return
+    logger.info(f"Attempting to sync wandb runs for SLURM job {job_id}")
+
+    try:
+        job_info = subprocess.check_output(
+            ["scontrol", "show", "job", job_id],
+            text=True,
+        )
+    except subprocess.SubprocessError as e:
+        logger.error(f"Could not fetch SLURM info for job {job_id}: {e}")
+        return
+
+    out_path = extract_slurm_field(job_info, "StdOut")
+    err_path = extract_slurm_field(job_info, "StdErr")
+    logger.info(f"SLURM job {job_id} StdOut: {out_path}, StdErr: {err_path}")
+
+    wandb_dir = None
+    for path in (out_path, err_path):
+        if not path or not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r") as f:
+                for line in f:
+                    if "wandb: Run data is saved locally in" in line:
+                        wandb_dir = line.split(
+                            "wandb: Run data is saved locally in", 1
+                        )[1].strip()
+                        break
+        except Exception as e:
+            logger.error(f"Could not read SLURM log {path}: {e}")
+        if wandb_dir:
+            wandb_dir = Path(wandb_dir).parent
+            break
+
+    if wandb_dir:
+        logger.info(f"Found wandb run directory: {wandb_dir}")
+        sync_runs_in_dir(wandb_dir)
+    else:
+        logger.warning("Couldn't locate a wandb run directory in SLURM logs.")

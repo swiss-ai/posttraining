@@ -110,6 +110,7 @@ def main(config: DictConfig) -> None:
     )
     if acc_state.is_main_process:
         utils.config.setup_wandb(full_config, acc_logger)
+        utils.config.try_sync_wandb()
     utils.seeding.seed_everything(config)
 
     ############################ Tokenizer Setup ############################
@@ -158,7 +159,7 @@ def main(config: DictConfig) -> None:
         acc_logger.info(f"Starting plw={config.plw_args.prompt_loss_weight} trainer.")
         trainer = PLWTrainer(
             prompt_loss_weight=config.plw_args.prompt_loss_weight,
-            sequence_level_loss=False,  # TODO: add to the config
+            sequence_level_loss=config.plw_args.sequence_level_loss,
             **trainer_args,
         )
     elif config.trainer == "ln-plw":
@@ -167,7 +168,7 @@ def main(config: DictConfig) -> None:
         )
         trainer = LengthNormalizedPLWTrainer(
             prompt_loss_weight=config.plw_args.prompt_loss_weight,
-            sequence_level_loss=False,
+            sequence_level_loss=config.plw_args.sequence_level_loss,
             **trainer_args,
         )
     else:
@@ -182,16 +183,21 @@ def main(config: DictConfig) -> None:
         )
 
     # Computing the warmup steps for beta3 and alpha in AdEMAMix
-    len_ds = len(ds["train"])
-    total_batch_size = trainer.get_total_train_batch_size(training_args)
-    num_steps_per_epoch = int(
-        len_ds // total_batch_size
-        if training_args.dataloader_drop_last
-        else math.ceil(len_ds / total_batch_size)
-    )
-    total_steps = training_args.num_train_epochs * num_steps_per_epoch
-    training_args.optim_args += f",t_beta3={total_steps},t_alpha={total_steps}"
-    acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
+    if training_args.optim == "ademamix":
+        len_ds = len(ds["train"])
+        total_batch_size = trainer.get_total_train_batch_size(training_args)
+        num_steps_per_epoch = int(
+            len_ds // total_batch_size
+            if training_args.dataloader_drop_last
+            else math.ceil(len_ds / total_batch_size)
+        )
+        total_steps = training_args.num_train_epochs * num_steps_per_epoch
+        # TODO move the beta3 and alpha to the training_args.optim_args command line argument.
+        # This is not trivial for write in a way that is sent in a correct format through all the layers down to hydra.
+        training_args.optim_args = (
+            f"'beta3=0.9999,alpha=8.0,t_beta3={total_steps},t_alpha={total_steps}"
+        )
+        acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
 
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")
@@ -217,6 +223,9 @@ def main(config: DictConfig) -> None:
         wandb.finish()
     acc_state.wait_for_everyone()
     accelerate.Accelerator().end_training()
+
+    if acc_state.is_main_process:
+        utils.config.try_sync_wandb()
 
 
 if __name__ == "__main__":

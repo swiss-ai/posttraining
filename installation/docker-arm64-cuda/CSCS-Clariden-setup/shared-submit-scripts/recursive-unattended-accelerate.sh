@@ -5,6 +5,7 @@
 #SBATCH -A a-infra01-1
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
+#SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521,nid007352,nid006959,nid006944,nid006904,nid006946,nid006966
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
@@ -13,7 +14,7 @@ unset HF_TOKEN_AT
 
 # Retry mechanism --------------------------
 # Initialize retry counter
-export MAX_RETRIES=${MAX_RETRIES:-3}
+export MAX_RETRIES=${MAX_RETRIES:-4}
 export RETRY_COUNT=${RETRY_COUNT:-0}
 
 # Check retry limit
@@ -38,6 +39,7 @@ extract_field() {
 }
 SCRIPT_PATH=$(extract_field "Command")
 OUTPUT_PATH=$(extract_field "StdOut")
+ERROR_PATH=$(extract_field "StdErr")
 WORKDIR=$(extract_field "WorkDir")
 ACCOUNT=$(extract_field "Account")
 PARTITION=$(extract_field "Partition")
@@ -49,6 +51,8 @@ NODES=$(extract_field "NumNodes")
 # Updating OUTPUT_PATH to include retry count
 OUTPUT_PATH=$(echo "$OUTPUT_PATH" | sed 's/\(-retry[0-9]*\)\?\.out$//')
 OUTPUT_PATH="${OUTPUT_PATH}-retry$RETRY_COUNT.out"
+ERROR_PATH=$(echo "$ERROR_PATH" | sed 's/\(-retry[0-9]*\)\?\.err$//')
+ERROR_PATH="${ERROR_PATH}-retry$RETRY_COUNT.err"
 
 job_id=$(sbatch \
     --job-name="$JOB_NAME" \
@@ -58,6 +62,7 @@ job_id=$(sbatch \
     --nodes="$NODES" \
     --chdir="$WORKDIR" \
     --output="$OUTPUT_PATH" \
+    --error="$ERROR_PATH" \
     --dependency=afternotok:"$JOB_ID" \
     "$SCRIPT_PATH" "$@" | awk '{print $4}')
 

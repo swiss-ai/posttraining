@@ -26,6 +26,9 @@ Move valuable permanent assets there, like good final checkpoints, checkpoints t
 
 In `capstor/store`: `/capstor/store/cscs/swissai/infra01/swiss-alignment/artifacts`.
 
+Check `reproducibility-scripts/data-management.sh` for example scripts to move data.
+A todo is to automate this so that it's done at the end of jobs.
+
 #### Storage summary:
 
 These paths are symlinked  under the git root and all you have to remember are the following relative paths from the project root.  
@@ -98,6 +101,7 @@ chmod 600 $HOME/.hf-token
 ## What's next?
 
 Check the sections below:
+- [Convert Megatron checkpoints to HuggingFace](#convert-megatron-checkpoints-to-huggingface): how to convert pretrained Megatron checkpoints to HuggingFace.
 - [Running the typical training experiment](#running-the-typical-training-experiment): how to run a training experiment with the codebase.
 - [Where to change what to do what](#where-to-change-what-to-do-what): how to change the codebase to do different things.
 - [Repository structure](#repository-structure): where to find what in the codebase.
@@ -106,107 +110,67 @@ Check the sections below:
   We however have comprehensive documentation in TODO.
 - [Rebuilding the container image](#rebuilding-the-container-image): how to rebuild the container image if you change the dependencies.
 
-## Running the typical training experiment
-The `reproducibility-scripts` directory includes scripts to generate SLURM jobs for training models like Apertus 8B and 70B.
-Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using [generate_submit_apertus_8b.py](https://github.com/swiss-ai/swiss-alignment/blob/main/reproducibility-scripts/trl-plw/apertus/generate_submit_apertus_8b.py)
-and [generate_submit_apertus_70b.py](https://github.com/swiss-ai/swiss-alignment/blob/refactor-and-guidelienes/reproducibility-scripts/trl-plw/apertus/generate_submit_apertus_70b.py)
+## Convert Megatron checkpoints to HuggingFace
+Follow the instructions in [hfconverter](https://github.com/swiss-ai/hfconverter). From the hfconverter repository, run:
+```bash
+sbatch convert.sbatch <ckpt-path> <iteration> <output-path>
+```
+Ensure paths are valid and check `progress.txt` to find the correct iteration number.
 
-Run these scripts from the dev project root and their outputs will be saved in its
-`reproducibility-scripts/trl-plw/out-test` directory.
+## Running the typical training experiment
+
+The `reproducibility-scripts` directory includes scripts to generate SLURM jobs for training models like Apertus 8B and 70B.
+Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using a template in
+[reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/swiss-alignment/tree/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
+
+To create new experiments copy the directory `reproducibility-scripts/sft/0-apertus-template/` and rename `0-apertus-template` to your new experiment.
+Then run the submit script inside to create sub-experiments whose submit script and SLURM logs will be recorded under.
+
+For example  `reproducibility-scripts/sft/0-apertus-template/generate_submit.py`
+creates `reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025-08-07-17-14/submit.sh`
+
+The commands in a `submit.sh` should be pasted and ran from your dev instance of the repo to have their logs there.
 ```
 cd $HOME/projects/swiss_alignment/dev
 ```
-In both cases the code used to run will be the one in the stable `$HOME/projects/swiss_alignment/run` repo.
-
-These are foolproof examples that use hardcoded checkpoints from `store`, please don't manually edit them to run
-scaled experiments, use the script generators instead.
-
-<details>
-<summary>Apertus 8B sbatch command</summary>
-
-```bash
-sbatch \
-  --nodes 8 \
-  --output=reproducibility-scripts/train-sft/out-test/Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225/plw-0.0-lr-5e-06.out \
-  ./cscs-shared-submit-scripts/unattended-accelerate.sh \
-  -m swiss_alignment.train_sft \
-  dataset=swissai-tulu-3-sft-0225 \
-  model=apertus-8b \
-  model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.04T-it1678000 \
-  tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus8B-tokens7.04T-it1678000 \
-  trainer=plw \
-  accelerate_config=src/swiss_alignment/configs/accelerate/ds-zero1.yaml \
-  plw_args.prompt_loss_weight=0.0 \
-  training_args.max_seq_length=4096 \
-  training_args.num_train_epochs=2 \
-  training_args.gradient_accumulation_steps=4 \
-  training_args.per_device_train_batch_size=1 \
-  training_args.per_device_eval_batch_size=2 \
-  training_args.learning_rate=5e-06 \
-  training_args.lr_scheduler_type=linear \
-  training_args.warmup_ratio=0.03 \
-  training_args.eval_strategy=no \
-  training_args.eval_on_start=false \
-  training_args.save_strategy=steps \
-  training_args.save_steps=1000 \
-  tokenizer_args.chat_template_name=tulu \
-  artifacts_subdir=private \
-  job_subdir=apertus3-8b-sweep/Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225 \
-  wandb.run_name=Apertus8B-tokens7.04T-it1678000-swissai-tulu-3-sft-0225 \
-  wandb.tags=[dev,plw] \
-  resuming.resume=True
-```
-
-</details>
+The code used for the run will be the one in the stable `$HOME/projects/swiss_alignment/run` repo.
 
 <details>
 <summary>Apertus 70B sbatch command</summary>
 
 ```bash
-sbatch \
-  --nodes 32 \
-  --output=reproducibility-scripts/train-sft/out-test/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225/plw-0.0-lr-2e-06.out \
-  ./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/unattended-accelerate.sh \
-   -m swiss_alignment.train_sft \
-   dataset=swissai-tulu-3-sft-0225 \
-   model=apertus-70b \
-   model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens8T-it739000 \
-   tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens8T-it739000 \
-   trainer=plw \
-   accelerate_config=src/swiss_alignment/configs/accelerate/ds-zero3.yaml \
-   plw_args.prompt_loss_weight=0.0 \
-   training_args.max_seq_length=4096 \
-   training_args.num_train_epochs=2 \
-   training_args.gradient_accumulation_steps=1 \
-   training_args.per_device_train_batch_size=1 \
-   training_args.per_device_eval_batch_size=2 \
-   training_args.learning_rate=2e-06 \
-   training_args.lr_scheduler_type=linear \
-   training_args.warmup_ratio=0.03 \
-   training_args.eval_strategy=no \
-   training_args.eval_on_start=false \
-   training_args.save_strategy=steps \
-   training_args.save_steps=1000 \
-   tokenizer_args.chat_template_name=tulu \
-   artifacts_subdir=private \
-   job_subdir=apertus3-70b-sweep/Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225 \
-   wandb.run_name=Apertus70B-tokens8T-it739000-swissai-tulu-3-sft-0225 \
-   wandb.tags=[dev,plw] \
-   resuming.resume=True
+sbatch -N 64 -p large512 -t 48:00:00 \
+ -o reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025-08-07-17-14/out/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-epochs1-adamw_torch.out \
+ -e reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025-08-07-17-14/out/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-epochs1-adamw_torch.err \
+ ./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh -m swiss_alignment.train_sft \
+ dataset=apertus-sft-mixture-1 \
+ model=apertus-70b \
+ model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens15T-it1155828 \
+ tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens15T-it1155828 \
+ trainer=plw \
+ accelerate_config=src/swiss_alignment/configs/accelerate/ds-zero3.yaml \
+ plw_args.prompt_loss_weight=0.0 \
+ training_args.gradient_accumulation_steps=1 \
+ training_args.per_device_train_batch_size=2 \
+ training_args.optim=adamw_torch \
+ training_args.learning_rate=2e-06
+ tokenizer_args.chat_template_name=tulu \
+ training_args.num_train_epochs=1 \
+ artifacts_subdir=private \
+ job_subdir=0-apertus-template/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-epochs1-adamw_torch \
+ wandb.run_name=0-apertus-template/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-epochs1-adamw_torch \
+ wandb.tags=[prod,plw,default,0-apertus-template] \
+ resuming.resume=True
 ```
 
-</details>
-
-These scripts configure the model, dataset, and override training parameters from `src/swiss-alignment/configs/trl-plw.yaml`.
+These scripts configure the model, dataset, and override training parameters from `src/swiss-alignment/configs/trl-sft.yaml`.
 Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`.
 
 > [!NOTE]
-> **Artifact directories**:
-> Artifact directories for input and outputs need to be specified in the config file:
+> **Artifact subdirectory**:
+> Artifact subdirectory for outputs need to be specified in the config file:
 > ```bash
 > artifacts_subdir: private  # Can be private/shared/store
-> input_artifacts_subdir: ${artifacts_subdir}
-> output_artifacts_subdir: ${artifacts_subdir}
 > ```
 
 > [!NOTE]
@@ -229,14 +193,14 @@ Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`
 To add a new dataset, create a YAML file in `src/swiss-alignment/configs/dataset` and update the `dataset` field in `src/swiss-alignment/configs/trl-plw.yaml` to reference the new file.
 We also recommend caching datasets to `artifacts/{artifacts_subdir}/datasets` instead of loading from HF directly.
 
-**Example: `swissai-tulu-3-sft-0225.yaml`**
+**Example: `apertus-sft-mixture-1.yaml`**
 ```yaml
 # @package _global_
-dataset_name: allenai/tulu-3-sft-olmo-2-mixture-0225
+dataset_name: apertus-sft-mixture-1
 dataset_args:
-  dataset_name: ${artifacts_dir}/shared/datasets/swissai/tulu-3-sft-mixture-0225-swissai-hardcoded-15x-no-openai
-  train_split:
-    name: train
+  dataset_name: /capstor/store/cscs/swissai/infra01/posttrain_data/06_sft_mixtures/apartus-sft-mixture-1
+  train_split: # Only required for DatasetDict objects
+    name: null
   eval_split:
     name: null
 training_args:
@@ -245,9 +209,9 @@ training_args:
 ```
 
 #### Configuring Loss Functions
-The PLW trainer supports four modes: SFT, PLW, LN-PLW, and IRL. Set the desired mode in `src/swiss-alignment/configs/trl-plw.yaml`:
-- **SFT**: Trains on full sequence (prompt + completion).
-- **PLW/LN-PLW**: Applies `prompt_loss_weight` to the prompt token loss.
+The SFT trainer supports: PLW, LN-PLW, and IRL. Set the desired mode in `src/swiss-alignment/configs/trl-sft.yaml`:
+- **PLW/LN-PLW**: Applies `prompt_loss_weight` to the prompt token loss and can normalize everything together or separate the
+normalization for prompt and completion (LN).
 
 <details>
 <summary>Definitions</summary>
@@ -269,53 +233,11 @@ plw_args:
 
 To add new trainers, update `src/swiss-alignment/trl/trainers.py` following the project standard.
 
-
-
 ## Where to change what to do what:
-#### Creating an eval split
-The `swiss_alignment.trl.dataset_split` module facilitates subsampling a training dataset from a single
-source (either a HF dataset or a local path) defined in `config/dataset_split.yaml` into distinct training and evaluation sets.
-For instance, the following command was used to subsample the [allenai/tulu-3-sft-mixture](https://huggingface.co/datasets/allenai/tulu-3-sft-mixture)
-dataset, generating a split version saved as `tulu-3-sft-mixture-split`.
-```bash
-exec python -m swiss_alignment.trl.dataset_split
-  dataset_args.dataset_name=${artifacts_dir}/shared/datasets/swissai/tulu-3-sft-mixture-0225-swissai-harcoded-15x-no-openai
-  dataset_args.output_path=${artifacts_dir}/shared/datasets/swissai/tulu-3-sft-mixture-0225-swissai-harcoded-15x-no-openai-split
-  dataset_args.train_split.name=train
-  dataset_args.eval_split.name=validation
-  dataset_args.eval_split.ratio=0.01
-  dataset_args.stratify_by_column=source
-```
 
-#### Data Mixtures
-A dataset mixture is a tailored combination of datasets, configured in the `config/dataset_mixture.yaml` file.
-The `dataset_mixer` attribute is defined as a list of objects, each specifying details for a dataset to include
-in the mixture. These objects contain the following fields:
-- **`dataset_name`**: The name of the dataset (e.g., `allenai/tulu-3-sft-mixture-split`), not correctly used.
-- **`dataset_path`**: The path to the dataset, which can point to a HF db or a local directory (e.g., `${artifacts_dir}/shared/datasets/tulu-3-sft-mixture-plw`).
-- **`train_splits`**: A list of split names to include in the training set (e.g., `[train]`).
-- **`eval_splits`**: A list of split names to include in the evaluation set (e.g., `[validation]`).
-- **`subsample_factor`**: (Optional) Controls the amount of datapoints to save. This can be either a fraction of the dataset (e.g., `0.1` for 10%) or an exact number of samples (e.g., `1_000`). Defaults to the full dataset.
-- **`duplication_factor`**: (Optional) Duplicates the dataset x number of times. Defaults to 1.
+#### Creating a new data mix.
 
-```bash
-exec python -m swiss_alignment.trl.dataset_mixture
-```
-
-> [!NOTE]
-> Note: This script can also generate the Swiss AI hardcoded prompts dataset. It reads a JSON file containing the prompts and creates a dataset object.
-> ```bash
-> dataset_mixer:
->   - dataset_name: swissai/hardcoded-prompts
->     dataset_path: ${artifacts_dir}/shared/datasets/swissai/swissai_hardcoded_prompts.jsonl
->     train_splits: [train]
->     eval_splits: []
->     duplication_factor: 10
-> columns_to_keep: [messages]
-> need_columns: null
-> keep_ids: true
-> shuffle: false
-> save_data_dir: ${artifacts_dir}/shared/datasets/swissai/swissai-harcoded-prompts-10x
+https://github.com/swiss-ai/post-training-scripts
 
 
 #### Model Merging
@@ -353,7 +275,6 @@ The `src/swiss_alignment/trl/model_merging/model_merging.py` file initializes th
         ├── utils/                            # Infra utility functions.  
         └── train_sft.py                  # SFT training entrypoint
 ```
-
 
 
 ## Contributing

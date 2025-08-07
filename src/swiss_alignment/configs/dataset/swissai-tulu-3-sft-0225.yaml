@@ -2,7 +2,7 @@
 
 # https://huggingface.co/datasets/allenai/tulu-3-sft-olmo-2-mixture-0225
 dataset_args:
-  dataset_name: ${artifacts_dir}/shared/datasets/swissai/tulu-3-sft-mixture-0225-swissai-harcoded-15x-no-openai
+  dataset_name: /capstor/store/cscs/swissai/infra01/swiss-alignment/artifacts/datasets/swissai/tulu-3-sft-mixture-0225-swissai-harcoded-15x-no-openai
   train_split:
     name: train
   eval_split:
