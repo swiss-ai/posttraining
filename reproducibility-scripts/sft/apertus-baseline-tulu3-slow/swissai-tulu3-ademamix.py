@@ -23,6 +23,9 @@ hyper_params = {
         "num_epochs": 2,
         "batch_size": (128, 16),  # bs, num_nodes
         "optim": "ademamix",
+        # TODO ademamix optim args are hardcoded in train_sft.py for now as
+        # This is not trivial for write in a way that is sent in a correct format through all the layers down to hydra.
+        # "optim_args": "beta3=0.9999,alpha=8.0"
         "learning_rate": 5e-6,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
@@ -35,6 +38,9 @@ hyper_params = {
         "num_epochs": 2,
         "batch_size": (128, 32),  # bs, num_nodes
         "optim": "ademamix",
+        # TODO ademamix optim args are hardcoded in train_sft.py for now as
+        # This is not trivial for write in a way that is sent in a correct format through all the layers down to hydra.
+        # "optim_args": "beta3=0.9999,alpha=8.0"
         "learning_rate": 2e-6,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 1,

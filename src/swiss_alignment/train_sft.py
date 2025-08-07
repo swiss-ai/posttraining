@@ -192,6 +192,8 @@ def main(config: DictConfig) -> None:
             else math.ceil(len_ds / total_batch_size)
         )
         total_steps = training_args.num_train_epochs * num_steps_per_epoch
+        # TODO move the beta3 and alpha to the training_args.optim_args command line argument.
+        # This is not trivial for write in a way that is sent in a correct format through all the layers down to hydra.
         training_args.optim_args = (
             f"'beta3=0.9999,alpha=8.0,t_beta3={total_steps},t_alpha={total_steps}"
         )

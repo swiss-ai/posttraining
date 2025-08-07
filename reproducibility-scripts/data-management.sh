@@ -1,8 +1,10 @@
+# To back up data to capstor from time to time.
+# Ideally should be automated to be performed at the end of each training run.
+
 ### Delete cache
 
 # This should be done in  artifacts/shared/train_dpr from time to time.
 find . -mindepth 1 -maxdepth 1 -type d | parallel -j32 'find {} -type f -name "cache-*" -print0' |   parallel -0 -j32 'rm -v {}'
-
 
 ### Refreshing/touching files
 
