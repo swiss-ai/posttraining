@@ -138,37 +138,48 @@ CHAT_TEMPLATES = {
         "{% if loop.last and add_generation_prompt %}{{ '<|assistant|>' }}{% endif %}"
         "{% endfor %}"
     ),
-    # '<user>What is 2 + 2?<assistant>The result is 4</s>'
+    # '[INST]What is 2 + 2?[/INST]The result is 4</s>'
+    "apertus_chatml_special_tokens": (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'user' %}"
+        "{{ '[INST]' + message['content'] }}"
+        "{% elif message['role'] == 'assistant' %}"
+        "{{ '[/INST]' + message['content'] + eos_token }}"
+        "{% endif %}"
+        "{% if loop.last and add_generation_prompt %}{{ '' }}{% endif %}"
+        "{% endfor %}"
+    ),
+    # '[INST]What is 2 + 2?[/INST][RESPONSE]The result is 4[/RESPONSE]</s>'
+    "apertus_mistral_no_special_tokens": (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'user' %}"
+        "{{ '[INST]' + message['content'] + '[/INST]' }}"
+        "{% elif message['role'] == 'assistant' %}"
+        "{{ '[/RESPONSE]' + message['content'] + '[/RESPONSE]' + eos_token }}"
+        "{% endif %}"
+        "{% if loop.last and add_generation_prompt %}{{ '[RESPONSE]' }}{% endif %}"
+        "{% endfor %}"
+    ),
+    # '[INST]What is 2 + 2?[/INST]<SPECIAL_61>The result is 4<SPECIAL_62></s>'
+    "apertus_mistral_special_tokens": (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'user' %}"
+        "{{ '[INST]' + message['content'] + '[/INST]' }}"
+        "{% elif message['role'] == 'assistant' %}"
+        "{{ '<SPECIAL_61>' + message['content'] + '<SPECIAL_62>' + eos_token }}"
+        "{% endif %}"
+        "{% if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>' }}{% endif %}"
+        "{% endfor %}"
+    ),
+    # '<user>What is 2 + 2?</user><assistant>The result is 4</assistant></s>'
     "apertus_xml_no_special_tokens": (
         "{% for message in messages %}"
         "{% if message['role'] == 'user' %}"
         "{{ '<user>' + message['content'] + '</user>' }}"
         "{% elif message['role'] == 'assistant' %}"
-        "{{ message['content'] + eos_token }}"
+        "{{ '<assistant>' + message['content'] + '</assistant>' + eos_token }}"
         "{% endif %}"
-        "{% if loop.last and add_generation_prompt %}{{ '' }}{% endif %}"
-        "{% endfor %}"
-    ),
-    # '[USER]What is 2 + 2?[/USER]The result is 4</s>'
-    "apertus_mistral_no_special_tokens": (
-        "{% for message in messages %}"
-        "{% if message['role'] == 'user' %}"
-        "{{ '[USER]' + message['content'] + '[/USER]' }}"
-        "{% elif message['role'] == 'assistant' %}"
-        "{{ message['content'] + eos_token }}"
-        "{% endif %}"
-        "{% if loop.last and add_generation_prompt %}{{ '' }}{% endif %}"
-        "{% endfor %}"
-    ),
-    # '[INST]What is 2 + 2?[/INST]The result is 4</s>'
-    "apertus_special_tokens": (
-        "{% for message in messages %}"
-        "{% if message['role'] == 'user' %}"
-        "{{ '[INST]' + message['content'] + '[/INST]' }}"
-        "{% elif message['role'] == 'assistant' %}"
-        "{{ message['content'] + eos_token }}"
-        "{% endif %}"
-        "{% if loop.last and add_generation_prompt %}{{ '' }}{% endif %}"
+        "{% if loop.last and add_generation_prompt %}{{ '<assistant>' }}{% endif %}"
         "{% endfor %}"
     ),
 }
