@@ -34,7 +34,10 @@ models = ["olmo2-32b-sft"]
 sftids = ["default"]
 reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b", "armorm-llama3-8b"]
 dataset_num_ref_reward = 10
-to_mix = {"mix-offline-offpolicy2random": ["offpolicy2random", "offline"]}
+to_mix = {
+    "mix-offline-offpolicy2random": ["offpolicy2random", "offline"],
+    "mix-offline-offpolicy2best": ["offpolicy2best", "offline"],
+}
 
 num_nodes_per_job = 1
 commands = []

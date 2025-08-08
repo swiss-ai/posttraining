@@ -22,6 +22,7 @@ from trl import (
 )
 
 from swiss_alignment import utils
+from swiss_alignment.data_sft.utils_for_dataset import load_dataset_flexible
 from swiss_alignment.trainers.preference import (
     PreferenceTrainer,
     PreferenceTrainerConfig,
@@ -60,12 +61,14 @@ def main(config: DictConfig) -> None:
         quantization_config=quantization_config,
     )
     training_args.model_init_kwargs = model_kwargs
+    peft_config = get_peft_config(model_args)
 
     full_config = utils_for_trl.merge_and_save_config(
         config, script_args, training_args, model_args, acc_state
     )
     if acc_state.is_main_process:
         utils.config.setup_wandb(full_config, acc_logger)
+        utils.config.try_sync_wandb()
     utils.seeding.seed_everything(config)
 
     ############################ Tokenizer Setup ############################
@@ -84,6 +87,26 @@ def main(config: DictConfig) -> None:
     ############################ Dataset Setup ############################
 
     with acc_state.main_process_first():
+        ds = load_dataset_flexible(dc.dataset_name)
+
+        if isinstance(ds, DatasetDict):
+            ds = DatasetDict(
+                {
+                    "train": ds[config.script_args.dataset_train_split],
+                    **(
+                        {"eval": ds[config.script_args.dataset_test_split]}
+                        if ds[config.script_args.dataset_test_split] is not None
+                        else {}
+                    ),
+                }
+            )
+        elif isinstance(ds, datasets.Dataset):
+            # Convert Dataset to DatasetDict with train split
+            ds = DatasetDict(
+                {
+                    "train": ds,
+                }
+            )
         ds = datasets.load_from_disk(script_args.dataset_name)
         ds = DatasetDict(
             {
@@ -117,30 +140,19 @@ def main(config: DictConfig) -> None:
         # Shuffle at the end to preserve previous cache across seeds.
         ds = ds.shuffle(seed=config.seed)
 
-        # TODO only do if ref rewards are available.
-
-        # TODO ref rewards should be handled by the trainer.
-        # Here maybe do some reformatting if the there is a problem in the collator.
-
-        # Extract ref rewards and drop ref completions and rewards columns
-        train_ref_rewards = np.array(ds["train"]["ref_rewards"])[
-            :, : training_args.num_ref_rewards
-        ]
-        eval_ref_rewards = np.array(ds["eval"]["ref_rewards"])[
-            :, : training_args.num_ref_rewards
-        ]
-        ds["train"] = ds["train"].remove_columns(["ref_rewards", "ref_completions"])
-        ds["eval"] = ds["eval"].remove_columns(["ref_rewards", "ref_completions"])
-
-        # put truncated ref_rewards back to the datasets
-        mean_std_ref_rewards = train_ref_rewards.std(axis=1, ddof=1).mean(0)
-
-        ds["train"] = ds["train"].add_column(
-            name="ref_rewards", column=train_ref_rewards.tolist()
-        )
-        ds["eval"] = ds["eval"].add_column(
-            name="ref_rewards", column=eval_ref_rewards.tolist()
-        )
+        for split_name, split in ds.items():
+            if "ref_rewards" in split.column_names:
+                # Extract ref rewards and drop ref completions and rewards columns
+                ref_rewards = np.array(split["ref_rewards"])[
+                    :, : training_args.num_ref_rewards
+                ]
+                ds[split_name] = split.remove_columns(
+                    ["ref_rewards", "ref_completions"]
+                )
+                # put truncated ref_rewards back to the datasets
+                ds[split_name] = split.add_column(
+                    name="ref_rewards", column=ref_rewards.tolist()
+                )
 
     ############################ Trainer Setup ############################
 
@@ -172,8 +184,7 @@ def main(config: DictConfig) -> None:
         train_dataset=ds["train"],
         eval_dataset=ds["eval"] if training_args.eval_strategy != "no" else None,
         processing_class=tokenizer,
-        peft_config=get_peft_config(model_args),
-        mean_std_ref_rewards=mean_std_ref_rewards,
+        peft_config=peft_config,
     )
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")
@@ -194,7 +205,7 @@ def main(config: DictConfig) -> None:
     acc_logger.info("Training completed. Checkpoints saved.")
     if acc_state.is_main_process:
         wandb.finish()
-
+        utils.config.try_sync_wandb()
     acc_state.wait_for_everyone()
     accelerate.Accelerator().end_training()
 

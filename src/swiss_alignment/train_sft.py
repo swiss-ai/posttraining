@@ -20,7 +20,7 @@ from trl import (
 
 from swiss_alignment import utils
 from swiss_alignment.data_sft.tokenization import TokenizerConfig, get_tokenizer
-from swiss_alignment.data_sft.utils_for_dataset import DatasetConfig, get_dataset
+from swiss_alignment.data_sft.utils_for_dataset import DatasetConfig, get_dataset_sft
 from swiss_alignment.trainers.sft import (
     CustomSFTTrainer,
     LengthNormalizedPLWTrainer,
@@ -117,7 +117,7 @@ def main(config: DictConfig) -> None:
     tokenizer = get_tokenizer(tokenizer_args)
 
     ############################ Dataset Setup ############################
-    ds = get_dataset(dataset_config, tokenizer, acc_state)
+    ds = get_dataset_sft(dataset_config, tokenizer, acc_state)
 
     ############################ Trainer Setup ############################
     # Find the last checkpoint
@@ -207,6 +207,7 @@ def main(config: DictConfig) -> None:
         if last_eval_file.exists():
             acc_logger.info("Last evaluation already performed.")
         else:
+            torch.cuda.empty_cache()
             acc_logger.info("Performing final evaluation.")
             metrics = trainer.evaluate()
             trainer.log_metrics("eval", metrics)
@@ -221,11 +222,9 @@ def main(config: DictConfig) -> None:
     acc_logger.info("Training completed. Checkpoints saved.")
     if acc_state.is_main_process:
         wandb.finish()
+        utils.config.try_sync_wandb()
     acc_state.wait_for_everyone()
     accelerate.Accelerator().end_training()
-
-    if acc_state.is_main_process:
-        utils.config.try_sync_wandb()
 
 
 if __name__ == "__main__":

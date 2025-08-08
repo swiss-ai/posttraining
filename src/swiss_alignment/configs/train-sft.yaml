@@ -46,8 +46,8 @@ training_args:
   packing: false
   dataloader_drop_last: true
   remove_unused_columns: false # required for custom data collator
-  per_device_train_batch_size: 2 # note, this is set up for 4 GPUs
-  gradient_accumulation_steps: 4 # effective batch size 128 with 4 nodes
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 1
   gradient_checkpointing: true
   gradient_checkpointing_kwargs:
     use_reentrant: false # https://pytorch.org/docs/stable/checkpoint.html, https://github.com/huggingface/trl/issues/1348

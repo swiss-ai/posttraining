@@ -1220,43 +1220,43 @@ class PreferenceTrainer(Trainer):
         if self.aux_loss_enabled:
             losses = losses + self.aux_loss_coef * model_output["aux_loss"]
 
-        prefix = "eval_" if train_eval == "eval" else ""
+        prefix = "eval/" if train_eval == "eval" else ""
 
         metrics[
-            f"{prefix}dpo_rewards/chosen"
+            f"{prefix}dpo-rewards/chosen"
         ] = g_chosen_rewards_prediction.mean().item()
         metrics[
-            f"{prefix}dpo_rewards/rejected"
+            f"{prefix}dpo-rewards/rejected"
         ] = g_rejected_rewards_prediction.mean().item()
-        metrics[f"{prefix}dpo_rewards/margins"] = (
+        metrics[f"{prefix}dpo-rewards/margins"] = (
             (g_chosen_rewards_prediction - g_rejected_rewards_prediction).mean().item()
         )
-        metrics[f"{prefix}dpo_rewards/accuracies"] = (
+        metrics[f"{prefix}dpo-rewards/accuracies"] = (
             g_rewards_prediction_accuracies.float().mean().item()
         )
 
-        metrics[f"{prefix}no_beta_dpo_rewards/chosen"] = (
-            metrics[f"{prefix}dpo_rewards/chosen"] / self.beta
+        metrics[f"{prefix}no-beta-dpo-rewards/chosen"] = (
+            metrics[f"{prefix}dpo-rewards/chosen"] / self.beta
         )
-        metrics[f"{prefix}no_beta_dpo_rewards/rejected"] = (
-            metrics[f"{prefix}dpo_rewards/rejected"] / self.beta
+        metrics[f"{prefix}no-beta-dpo-rewards/rejected"] = (
+            metrics[f"{prefix}dpo-rewards/rejected"] / self.beta
         )
-        metrics[f"{prefix}no_beta_dpo_rewards/margins"] = (
-            metrics[f"{prefix}dpo_rewards/margins"] / self.beta
+        metrics[f"{prefix}no-beta-dpo-rewards/margins"] = (
+            metrics[f"{prefix}dpo-rewards/margins"] / self.beta
         )
 
         metrics[
-            f"{prefix}sign_dpo_rewards/chosen"
+            f"{prefix}sign-dpo-rewards/chosen"
         ] = g_sign_chosen_dpo_rewards.mean().item()
         metrics[
-            f"{prefix}sign_dpo_rewards/rejected"
+            f"{prefix}sign-dpo-rewards/rejected"
         ] = g_sign_rejected_dpo_rewards.mean().item()
-        metrics[f"{prefix}sign_dpo_rewards/margins"] = (
+        metrics[f"{prefix}sign-dpo-rewards/margins"] = (
             ((g_sign_chosen_dpo_rewards - g_sign_rejected_dpo_rewards) / 2)
             .mean()
             .item()
         )
-        metrics[f"{prefix}sign_dpo_rewards/sign_of_margins"] = (
+        metrics[f"{prefix}sign-dpo-rewards/sign-of-margins"] = (
             torch.sign(g_chosen_rewards_prediction - g_rejected_rewards_prediction)
             .mean()
             .item()
@@ -1265,8 +1265,8 @@ class PreferenceTrainer(Trainer):
         metrics[f"{prefix}logps/chosen"] = g_chosen_logps.mean().item()
         metrics[f"{prefix}logps/rejected"] = g_rejected_logps.mean().item()
 
-        metrics[f"{prefix}mean_logits/chosen"] = g_mean_chosen_logits.mean().item()
-        metrics[f"{prefix}mean_logits/rejected"] = g_mean_rejected_logits.mean().item()
+        metrics[f"{prefix}mean-logits/chosen"] = g_mean_chosen_logits.mean().item()
+        metrics[f"{prefix}mean-logits/rejected"] = g_mean_rejected_logits.mean().item()
 
         if self.loss_type == "qrpo":
             metrics[f"{prefix}rewards/chosen"] = g_chosen_rewards.mean().item()
@@ -1275,49 +1275,49 @@ class PreferenceTrainer(Trainer):
                 (g_chosen_rewards - g_rejected_rewards).mean().item()
             )
             metrics[
-                f"{prefix}quantile_rewards/chosen"
+                f"{prefix}quantile-rewards/chosen"
             ] = g_quantile_rewards_chosen.mean().item()
             metrics[
-                f"{prefix}quantile_rewards/rejected"
+                f"{prefix}quantile-rewards/rejected"
             ] = g_quantile_rewards_rejected.mean().item()
-            metrics[f"{prefix}quantile_rewards/margins"] = (
+            metrics[f"{prefix}quantile-rewards/margins"] = (
                 (g_quantile_rewards_chosen - g_quantile_rewards_rejected).mean().item()
             )
-            metrics[f"{prefix}quantile_rewards/sign_of_margins"] = (
-                (g_quantile_rewards_chosen > g_quantile_rewards_rejected)
+            metrics[f"{prefix}quantile-rewards/sign-of-margins"] = (
+                torch.sign(g_quantile_rewards_chosen - g_quantile_rewards_rejected)
                 .float()
                 .mean()
                 .item()
             )
-            metrics[f"{prefix}quantile_rewards/logZ"] = g_log_Z.mean().item()
-            metrics[f"{prefix}quantile_rewards/beta_logZ"] = (
-                self.beta * metrics[f"{prefix}quantile_rewards/logZ"]
+            metrics[f"{prefix}quantile-rewards/logZ"] = g_log_Z.mean().item()
+            metrics[f"{prefix}quantile-rewards/beta-logZ"] = (
+                self.beta * metrics[f"{prefix}quantile-rewards/logZ"]
             )
-
-            # Modified reward - beta * log Z (compare to beta * logratio)
-            metrics[f"{prefix}calibrated_targets/chosen"] = (
-                (g_calibrated_targets_chosen).mean().item()
-            )
-            metrics[f"{prefix}calibrated_targets/rejected"] = (
-                (g_calibrated_targets_rejected).mean().item()
-            )
-            metrics[f"{prefix}calibrated_targets/margins"] = metrics[
-                f"{prefix}quantile_reward/margins"
-            ]
-            # Modified reward margins conditioned on the accuracy.
+            # quantile reward margins conditioned on the accuracy.
             # I.e. mean margin when logratio chosen > logratio rejected and margin in the other case
             metrics[
-                f"{prefix}calibrated_targets/margin_when_chosen_predicted_better"
-            ] = (g_quantile_rewards_chosen - g_quantile_rewards_rejected)[
+                f"{prefix}quantile-rewards/sign-of-margin-when-chosen-predicted-better"
+            ] = torch.sign(g_quantile_rewards_chosen - g_quantile_rewards_rejected)[
                 g_rewards_prediction_accuracies
             ].mean()
             metrics[
-                f"{prefix}calibrated_targets/margin_when_rejected_predicted_better"
-            ] = (g_quantile_rewards_chosen - g_quantile_rewards_rejected)[
+                f"{prefix}quantile-rewards/sign-of-margin-when-rejected-predicted-better"
+            ] = torch.sign(g_quantile_rewards_chosen - g_quantile_rewards_rejected)[
                 ~g_rewards_prediction_accuracies
             ].mean()
 
-            metrics[f"{prefix}calibrated_targets/accuracy_chosen"] = (
+            # quantile reward - beta * log Z (compare to beta * logratio)
+            metrics[f"{prefix}calibrated-targets/chosen"] = (
+                (g_calibrated_targets_chosen).mean().item()
+            )
+            metrics[f"{prefix}calibrated-targets/rejected"] = (
+                (g_calibrated_targets_rejected).mean().item()
+            )
+            metrics[f"{prefix}calibrated-targets/margins"] = metrics[
+                f"{prefix}quantile-reward/margins"
+            ]
+
+            metrics[f"{prefix}calibrated-targets/accuracy-chosen"] = (
                 (
                     torch.sign(g_calibrated_targets_chosen)
                     * torch.sign(g_chosen_rewards_prediction)
@@ -1326,7 +1326,7 @@ class PreferenceTrainer(Trainer):
                 .mean()
                 .item()
             )
-            metrics[f"{prefix}calibrated_targets/accuracy_rejected"] = (
+            metrics[f"{prefix}calibrated-targets/accuracy-rejected"] = (
                 (
                     torch.sign(g_calibrated_targets_rejected)
                     * torch.sign(g_rejected_rewards_prediction)
@@ -1337,40 +1337,24 @@ class PreferenceTrainer(Trainer):
             )
 
             # calibrated_targets / beta - log Z  (compare to logratio)
-            metrics[f"{prefix}no_beta_calibrated_targets/chosen"] = (
-                metrics[f"{prefix}calibrated_targets/chosen"] / self.beta
+            metrics[f"{prefix}no-beta-calibrated-targets/chosen"] = (
+                metrics[f"{prefix}calibrated-targets/chosen"] / self.beta
             )
-            metrics[f"{prefix}no_beta_calibrated_targets/rejected"] = (
-                metrics[f"{prefix}calibrated_targets/rejected"] / self.beta
+            metrics[f"{prefix}no-beta-calibrated-targets/rejected"] = (
+                metrics[f"{prefix}calibrated-targets/rejected"] / self.beta
             )
-            metrics[f"{prefix}no_beta_calibrated_targets/margins"] = (
-                metrics[f"{prefix}calibrated_targets/margins"] / self.beta
+            metrics[f"{prefix}no-beta-calibrated-targets/margins"] = (
+                metrics[f"{prefix}calibrated-targets/margins"] / self.beta
             )
-            metrics[
-                f"{prefix}no_beta_calibrated_targets/margin_when_chosen_predicted_better"
-            ] = (
-                metrics[
-                    f"{prefix}calibrated_targets/margin_when_chosen_predicted_better"
-                ]
-                / self.beta
-            )
-            metrics[
-                f"{prefix}no_beta_calibrated_targets/margin_when_rejected_predicted_better"
-            ] = (
-                metrics[
-                    f"{prefix}calibrated_targets/margin_when_rejected_predicted_better"
-                ]
-                / self.beta
-            )
-            metrics[f"{prefix}no_beta_calibrated_targets/accuracy_chosen"] = metrics[
-                f"{prefix}calibrated_targets/accuracy_chosen"
+            metrics[f"{prefix}no-beta-calibrated-targets/accuracy-chosen"] = metrics[
+                f"{prefix}calibrated-targets/accuracy-chosen"
             ]
-            metrics[f"{prefix}no_beta_calibrated_targets/accuracy_rejected"] = metrics[
-                f"{prefix}calibrated_targets/accuracy_rejected"
+            metrics[f"{prefix}no-beta-calibrated-targets/accuracy-rejected"] = metrics[
+                f"{prefix}calibrated-targets/accuracy-rejected"
             ]
 
         if self.aux_loss_enabled:
-            metrics[f"{prefix}aux_loss"] = (
+            metrics[f"{prefix}aux-loss"] = (
                 self.accelerator.gather_for_metrics(model_output["aux_loss"].detach())
                 .mean()
                 .item()
@@ -1430,7 +1414,7 @@ class PreferenceTrainer(Trainer):
             (ref_rewards <= rejected_rewards.unsqueeze(dim=-1)).float().mean(dim=1)
         )
 
-        extra_logs["quantile_rewards/chosen"] = chosen_quantile_rewards
+        extra_logs[("quantile_" "rewards/chosen")] = chosen_quantile_rewards
         extra_logs["quantile_rewards/rejected"] = rejected_quantile_rewards
 
         beta = self.beta * torch.ones_like(chosen_quantile_rewards)
@@ -1497,10 +1481,14 @@ class PreferenceTrainer(Trainer):
         logits = logratios - ref_logratios
 
         losses = -F.logsigmoid(self.beta * logits)
-        chosen_rewards = self.beta * (chosen_logps - ref_chosen_logps).detach()
-        rejected_rewards = self.beta * (rejected_logps - ref_rejected_logps).detach()
+        chosen_rewards_prediction = (
+            self.beta * (chosen_logps - ref_chosen_logps).detach()
+        )
+        rejected_rewards_prediction = (
+            self.beta * (rejected_logps - ref_rejected_logps).detach()
+        )
 
-        return losses, chosen_rewards, rejected_rewards
+        return losses, chosen_rewards_prediction, rejected_rewards_prediction
 
     def prediction_step(
         self,
