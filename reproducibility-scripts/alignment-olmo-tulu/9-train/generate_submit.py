@@ -21,7 +21,7 @@ dataset_with_ref_rewards = f"{dataset_with_ref_completions}-(offline|offpolicy|m
                          = f"{dataset}-{reward_model}-{model}-(sftid)-Nref{NRefDataset}-(offline|offpolicy|mix)"
 """
 
-stdout_prefix = "run"
+stdout_prefix = "initial"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -56,7 +56,7 @@ betas = {
     "qrpo": [1e-3, 1e-2, 1e-1],
     # "dpo": [1e-2, 3e-2, 1e-1],
 }
-learning_rates = [1e-8, 1e-7, 1e-6]
+learning_rates = [1e-7, 1e-6]
 max_grad_norm = 1e8  # Disable but still log.
 
 batch_size = 128
@@ -105,10 +105,10 @@ for dataset in datasets:
                                             f"-o {stdout_root}/out/{jobid}.out "
                                             f"-e {stdout_root}/out/{jobid}.err "
                                             "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
-                                            f"-m swiss_alignment.train_alignment "
+                                            f"-m swiss_alignment.train_preference "
                                             f"accelerate_config=src/swiss_alignment/configs/accelerate/ds-zero3.yaml "
                                             f"dataset={dataset_with_chosen_rewards} "
-                                            f"dataset_args.dataset_path='{dataset_with_ref_rewards_path}' "
+                                            f"dataset_args.dataset_name='{dataset_with_ref_rewards_path}' "
                                             f"model={model} "
                                             f"model_args.model_name_or_path='{sft_model_path}' "
                                             f"training_args.max_grad_norm={max_grad_norm} "

@@ -61,6 +61,8 @@ def main(config: DictConfig) -> None:
         quantization_config=quantization_config,
     )
     training_args.model_init_kwargs = model_kwargs
+    if training_args.load_ref_model:
+        training_args.ref_model_init_kwargs = model_kwargs
     peft_config = get_peft_config(model_args)
 
     full_config = utils_for_trl.merge_and_save_config(
@@ -78,7 +80,10 @@ def main(config: DictConfig) -> None:
     )
     # Perform checks
     if tokenizer.pad_token is None:
-        raise ValueError("Tokenizer must have a pad token.")
+        acc_logger.warning(
+            f"Tokenizer does not have a pad token. Setting it to config.tokenizer_args.pad_token_id = {config.tokenizer_args.pad_token_id}"
+        )
+        tokenizer.pad_token_id = config.tokenizer_args.pad_token_id
     if tokenizer.pad_token == tokenizer.eos_token:
         raise ValueError(
             "Tokenizer pad token is the same as the eos token. The eos will be masked as if it was a pad."
@@ -87,7 +92,7 @@ def main(config: DictConfig) -> None:
     ############################ Dataset Setup ############################
 
     with acc_state.main_process_first():
-        ds = load_dataset_flexible(dc.dataset_name)
+        ds = load_dataset_flexible(config.script_args.dataset_name)
 
         if isinstance(ds, DatasetDict):
             ds = DatasetDict(
@@ -95,7 +100,7 @@ def main(config: DictConfig) -> None:
                     "train": ds[config.script_args.dataset_train_split],
                     **(
                         {"eval": ds[config.script_args.dataset_test_split]}
-                        if ds[config.script_args.dataset_test_split] is not None
+                        if config.script_args.dataset_test_split is not None
                         else {}
                     ),
                 }
@@ -107,52 +112,46 @@ def main(config: DictConfig) -> None:
                     "train": ds,
                 }
             )
-        ds = datasets.load_from_disk(script_args.dataset_name)
-        ds = DatasetDict(
-            {
-                "train": ds[config.script_args.dataset_train_split],
-                "eval": ds[config.script_args.dataset_test_split],
-            }
-        )
-        # We only support the "preference with implicit prompt" format
-        # with "chosen" and "rejected" columns including both chat and ref completions
-        # https://huggingface.co/docs/trl/main/en/dataset_formats#preference
-        # Drop the extra preference columns
-        for extra_key in ["prompt", "completion", "messages", "label"]:
-            if extra_key in ds["train"].column_names:
-                ds["train"] = ds["train"].remove_columns([extra_key])
-            if extra_key in ds["eval"].column_names:
-                ds["eval"] = ds["eval"].remove_columns([extra_key])
-
         if config.dataset_args.debug_oom:
             with acc_state.main_process_first():
                 ds = ds.sort("max_chosen_rejected_reward_tokens_len", reverse=True)
 
-        if config.dataset_args.debug_subsample.train > 0:
-            ds["train"] = ds["train"].select(
-                range(min(len(ds["train"]), config.dataset_args.debug_subsample.train))
-            )
-        if config.dataset_args.debug_subsample.eval > 0:
-            ds["eval"] = ds["eval"].select(
-                range(min(len(ds["eval"]), config.dataset_args.debug_subsample.eval))
-            )
-
         # Shuffle at the end to preserve previous cache across seeds.
         ds = ds.shuffle(seed=config.seed)
 
-        for split_name, split in ds.items():
-            if "ref_rewards" in split.column_names:
+        for split_name in ds.keys():
+            if config.dataset_args.debug_subsample[split_name] > 0:
+                ds[split_name] = ds[split_name].select(
+                    range(
+                        min(
+                            len(ds[split_name]),
+                            config.dataset_args.debug_subsample[split_name],
+                        )
+                    )
+                )
+            # We only support the "preference with implicit prompt" format
+            # with "chosen" and "rejected" columns including both chat and ref completions
+            # https://huggingface.co/docs/trl/main/en/dataset_formats#preference
+            # Drop the extra preference columns
+            for extra_key in ["prompt", "completion", "messages", "label"]:
+                if extra_key in ds[split_name].column_names:
+                    ds[split_name] = ds[split_name].remove_columns([extra_key])
+
+            if "ref_rewards" in ds[split_name].column_names:
                 # Extract ref rewards and drop ref completions and rewards columns
-                ref_rewards = np.array(split["ref_rewards"])[
-                    :, : training_args.num_ref_rewards
-                ]
-                ds[split_name] = split.remove_columns(
-                    ["ref_rewards", "ref_completions"]
-                )
-                # put truncated ref_rewards back to the datasets
-                ds[split_name] = split.add_column(
-                    name="ref_rewards", column=ref_rewards.tolist()
-                )
+                # ref_rewards = np.array(ds[split_name]["ref_rewards"])[
+                #     :, : training_args.num_ref_rewards
+                # ]
+                # ds[split_name] = ds[split_name].remove_columns(
+                #     ["ref_rewards", "ref_completions"]
+                # )
+
+                ds[split_name] = ds[split_name].remove_columns(["ref_completions"])
+
+                # # put truncated ref_rewards back to the datasets
+                # ds[split_name] = ds[split_name].add_column(
+                #     name="ref_rewards", column=ref_rewards.tolist()
+                # )
 
     ############################ Trainer Setup ############################
 
@@ -179,7 +178,9 @@ def main(config: DictConfig) -> None:
 
     trainer = PreferenceTrainer(
         model_args.model_name_or_path,
-        ref_model=None,
+        ref_model=model_args.model_name_or_path
+        if training_args.load_ref_model
+        else None,
         args=training_args,
         train_dataset=ds["train"],
         eval_dataset=ds["eval"] if training_args.eval_strategy != "no" else None,

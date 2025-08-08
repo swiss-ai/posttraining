@@ -85,6 +85,7 @@ class PreferenceTrainerConfig(TrainingArguments):
     disable_dropout: bool = True
     dataset_num_proc: Optional[int] = None
     model_init_kwargs: Optional[dict[str, Any]] = None
+    load_ref_model: Optional[bool] = True
     ref_model_init_kwargs: Optional[dict[str, Any]] = None
     model_adapter_name: Optional[str] = None
     ref_adapter_name: Optional[str] = None
@@ -115,6 +116,7 @@ class PreferenceTrainerCollator(DataCollatorMixin):
     """
 
     pad_token_id: int
+    num_ref_rewards: int = 1
     return_tensors: str = "pt"
 
     def torch_call(
@@ -196,7 +198,9 @@ class PreferenceTrainerCollator(DataCollatorMixin):
 
         # Extract ref_rewards
         if "ref_rewards" in examples[0]:
-            ref_rewards = torch.tensor([example["ref_rewards"] for example in examples])
+            ref_rewards = torch.tensor(
+                [example["ref_rewards"][: self.num_ref_rewards] for example in examples]
+            )
             chosen_rewards = torch.tensor(
                 [example["chosen_rewards"] for example in examples]
             )
@@ -408,12 +412,6 @@ class PreferenceTrainer(Trainer):
                     make_inputs_require_grad
                 )
 
-        if args.generate_during_eval and not is_wandb_available():
-            raise ValueError(
-                "`generate_during_eval=True` requires Weights and Biases to be installed."
-                " Please install `wandb` to resolve."
-            )
-
         self.is_encoder_decoder = model.config.is_encoder_decoder
         self.is_vision_model = (
             model.config.model_type in MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES.keys()
@@ -454,7 +452,9 @@ class PreferenceTrainer(Trainer):
             )
 
         if data_collator is None:
-            data_collator = PreferenceTrainerCollator(pad_token_id=self.pad_token_id)
+            data_collator = PreferenceTrainerCollator(
+                pad_token_id=self.pad_token_id, num_ref_rewards=args.num_ref_rewards
+            )
 
         if args.disable_dropout:
             disable_dropout_in_model(model)
@@ -470,6 +470,7 @@ class PreferenceTrainer(Trainer):
 
         self.beta = args.beta
         self.loss_type = args.loss_type
+        self.num_ref_rewards = args.num_ref_rewards
 
         self.aux_loss_enabled = getattr(model.config, "output_router_logits", False)
         self.aux_loss_coef = getattr(model.config, "router_aux_loss_coef", 0.0)
@@ -1231,7 +1232,7 @@ class PreferenceTrainer(Trainer):
         metrics[f"{prefix}dpo-rewards/margins"] = (
             (g_chosen_rewards_prediction - g_rejected_rewards_prediction).mean().item()
         )
-        metrics[f"{prefix}dpo-rewards/accuracies"] = (
+        metrics[f"{prefix}dpo-rewards/accuracy-chosen-rejected"] = (
             g_rewards_prediction_accuracies.float().mean().item()
         )
 
@@ -1244,7 +1245,6 @@ class PreferenceTrainer(Trainer):
         metrics[f"{prefix}no-beta-dpo-rewards/margins"] = (
             metrics[f"{prefix}dpo-rewards/margins"] / self.beta
         )
-
         metrics[
             f"{prefix}sign-dpo-rewards/chosen"
         ] = g_sign_chosen_dpo_rewards.mean().item()
@@ -1256,12 +1256,6 @@ class PreferenceTrainer(Trainer):
             .mean()
             .item()
         )
-        metrics[f"{prefix}sign-dpo-rewards/sign-of-margins"] = (
-            torch.sign(g_chosen_rewards_prediction - g_rejected_rewards_prediction)
-            .mean()
-            .item()
-        )
-
         metrics[f"{prefix}logps/chosen"] = g_chosen_logps.mean().item()
         metrics[f"{prefix}logps/rejected"] = g_rejected_logps.mean().item()
 
@@ -1314,9 +1308,8 @@ class PreferenceTrainer(Trainer):
                 (g_calibrated_targets_rejected).mean().item()
             )
             metrics[f"{prefix}calibrated-targets/margins"] = metrics[
-                f"{prefix}quantile-reward/margins"
+                f"{prefix}quantile-rewards/margins"
             ]
-
             metrics[f"{prefix}calibrated-targets/accuracy-chosen"] = (
                 (
                     torch.sign(g_calibrated_targets_chosen)
@@ -1335,7 +1328,6 @@ class PreferenceTrainer(Trainer):
                 .mean()
                 .item()
             )
-
             # calibrated_targets / beta - log Z  (compare to logratio)
             metrics[f"{prefix}no-beta-calibrated-targets/chosen"] = (
                 metrics[f"{prefix}calibrated-targets/chosen"] / self.beta

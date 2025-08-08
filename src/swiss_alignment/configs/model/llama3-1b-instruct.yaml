@@ -4,7 +4,7 @@
 
 model_args:
   torch_dtype: bfloat16
-  model_name_or_path: ${artifacts_dir}/shared/models/llama3-8b-sft
+  model_name_or_path: ${artifacts_dir}/shared/models/llama-3-1b-instruct
   attn_implementation: flash_attention_2
   trust_remote_code: true
   use_peft: false

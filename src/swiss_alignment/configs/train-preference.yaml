@@ -32,6 +32,8 @@ script_args:
   dataset_train_split: ${dataset_args.train_split.name}
   dataset_test_split: ${dataset_args.eval_split.name}
 
+accelerate_config: "src/swiss_alignment/configs/accelerate/ds-zero1.yaml"
+
 training_args:
   bf16: true
   max_prompt_length: 4096
@@ -45,6 +47,7 @@ training_args:
   optim_args: null
   weight_decay: 0.0
   num_train_epochs: 1
+  load_ref_model: true
   num_ref_rewards: 10
   loss_type: qrpo
   beta: 0.003
