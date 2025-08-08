@@ -1198,6 +1198,12 @@ class PreferenceTrainer(Trainer):
             g_rejected_rewards = self.accelerator.gather_for_metrics(
                 rejected_rewards.detach()
             )
+            g_loss_chosen = self.accelerator.gather_for_metrics(
+                extra_logs["loss_chosen"]
+            )
+            g_loss_rejected = self.accelerator.gather_for_metrics(
+                extra_logs["loss_rejected"]
+            )
             g_quantile_rewards_chosen = self.accelerator.gather_for_metrics(
                 extra_logs["quantile_rewards/chosen"]
             )
@@ -1263,6 +1269,8 @@ class PreferenceTrainer(Trainer):
         metrics[f"{prefix}mean-logits/rejected"] = g_mean_rejected_logits.mean().item()
 
         if self.loss_type == "qrpo":
+            metrics[f"{prefix}loss-chosen"] = g_loss_chosen.mean().item()
+            metrics[f"{prefix}loss-rejected"] = g_loss_rejected.mean().item()
             metrics[f"{prefix}rewards/chosen"] = g_chosen_rewards.mean().item()
             metrics[f"{prefix}rewards/rejected"] = g_rejected_rewards.mean().item()
             metrics[f"{prefix}rewards/margins"] = (
@@ -1406,7 +1414,7 @@ class PreferenceTrainer(Trainer):
             (ref_rewards <= rejected_rewards.unsqueeze(dim=-1)).float().mean(dim=1)
         )
 
-        extra_logs[("quantile_" "rewards/chosen")] = chosen_quantile_rewards
+        extra_logs["quantile_rewards/chosen"] = chosen_quantile_rewards
         extra_logs["quantile_rewards/rejected"] = rejected_quantile_rewards
 
         beta = self.beta * torch.ones_like(chosen_quantile_rewards)
@@ -1417,13 +1425,15 @@ class PreferenceTrainer(Trainer):
         calibrated_targets_chosen = chosen_quantile_rewards - self.beta * log_Z
         calibrated_targets_rejected = rejected_quantile_rewards - self.beta * log_Z
 
-        extra_logs["calibrated_targets/chosen"] = calibrated_targets_chosen
-        extra_logs["calibrated_targets/rejected"] = calibrated_targets_rejected
+        extra_logs["calibrated_targets/chosen"] = calibrated_targets_chosen.detach()
+        extra_logs["calibrated_targets/rejected"] = calibrated_targets_rejected.detach()
 
         loss_chosen = (calibrated_targets_chosen - self.beta * logratio_chosen) ** 2
         loss_rejected = (
             calibrated_targets_rejected - self.beta * logratio_rejected
         ) ** 2
+        extra_logs["loss_chosen"] = loss_chosen.detach()
+        extra_logs["loss_rejected"] = loss_rejected.detach()
 
         losses = (loss_chosen + loss_rejected) / 2
 
