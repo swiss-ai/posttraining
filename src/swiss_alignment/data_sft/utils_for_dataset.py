@@ -425,12 +425,12 @@ def sft_to_chatml_format(
         for message in branch["messages"]:
             role = message["role"]
 
-            if "content" not in message:
+            if "content" in message:
                 chat.append({
                     MESSAGES_CONTENT: message["content"],
                     MESSAGES_ROLE_KEY: role
                 })
-            elif "parts" not in message:
+            elif "parts" in message:
                 if role == "user":
                     # Here we assume that the user message has only one part
                     chat.append({
