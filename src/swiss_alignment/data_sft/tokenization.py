@@ -127,6 +127,50 @@ CHAT_TEMPLATES = {
         "{%- endif %} "
         "{%- endfor %}"
     ),
+    # '<|user|>What is 2 + 2?<|assistant|>The result is 4</s>'
+    "apertus_chatml_no_special_tokens": (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'user' %}"
+        "{{ '<|user|>' + message['content'] }}"
+        "{% elif message['role'] == 'assistant' %}"
+        "{{ '<|assistant|>' + message['content'] + eos_token }}"
+        "{% endif %}"
+        "{% if loop.last and add_generation_prompt %}{{ '<|assistant|>' }}{% endif %}"
+        "{% endfor %}"
+    ),
+    # '<user>What is 2 + 2?<assistant>The result is 4</s>'
+    "apertus_xml_no_special_tokens": (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'user' %}"
+        "{{ '<user>' + message['content'] + '</user>' }}"
+        "{% elif message['role'] == 'assistant' %}"
+        "{{ message['content'] + eos_token }}"
+        "{% endif %}"
+        "{% if loop.last and add_generation_prompt %}{{ '' }}{% endif %}"
+        "{% endfor %}"
+    ),
+    # '[USER]What is 2 + 2?[/USER]The result is 4</s>'
+    "apertus_mistral_no_special_tokens": (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'user' %}"
+        "{{ '[USER]' + message['content'] + '[/USER]' }}"
+        "{% elif message['role'] == 'assistant' %}"
+        "{{ message['content'] + eos_token }}"
+        "{% endif %}"
+        "{% if loop.last and add_generation_prompt %}{{ '' }}{% endif %}"
+        "{% endfor %}"
+    ),
+    # '[INST]What is 2 + 2?[/INST]The result is 4</s>'
+    "apertus_special_tokens": (
+        "{% for message in messages %}"
+        "{% if message['role'] == 'user' %}"
+        "{{ '[INST]' + message['content'] + '[/INST]' }}"
+        "{% elif message['role'] == 'assistant' %}"
+        "{{ message['content'] + eos_token }}"
+        "{% endif %}"
+        "{% if loop.last and add_generation_prompt %}{{ '' }}{% endif %}"
+        "{% endfor %}"
+    ),
 }
 
 
