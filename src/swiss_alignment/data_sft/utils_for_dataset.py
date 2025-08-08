@@ -423,12 +423,16 @@ def sft_to_chatml_format(
     # Add the conversational messages
     for branch in row["conversation_branches"]:
         for message in branch["messages"]:
-            chat.append(
-                {
-                    MESSAGES_CONTENT: message["content"],
-                    MESSAGES_ROLE_KEY: message["role"],
-                }
-            )
+            role = message["role"]
+
+            if role == "user":
+                # Here we assume that the user message has only one part
+                chat.append({MESSAGES_CONTENT: message["parts"][0]["content"], MESSAGES_ROLE_KEY: "user"})
+            elif role == "assistant":
+                for part in message["parts"]:
+                    if part["type"] == "response":
+                        chat.append({MESSAGES_CONTENT: part["content"], MESSAGES_ROLE_KEY: "assistant"})
+
     return {DEFAULT_SFT_MESSAGES_KEY: chat}
 
 
