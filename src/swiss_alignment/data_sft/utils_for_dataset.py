@@ -425,13 +425,27 @@ def sft_to_chatml_format(
         for message in branch["messages"]:
             role = message["role"]
 
-            if role == "user":
-                # Here we assume that the user message has only one part
-                chat.append({MESSAGES_CONTENT: message["parts"][0]["content"], MESSAGES_ROLE_KEY: "user"})
-            elif role == "assistant":
-                for part in message["parts"]:
-                    if part["type"] == "response":
-                        chat.append({MESSAGES_CONTENT: part["content"], MESSAGES_ROLE_KEY: "assistant"})
+            if "content" not in message:
+                chat.append({
+                    MESSAGES_CONTENT: message["content"],
+                    MESSAGES_ROLE_KEY: role
+                })
+            elif "parts" not in message:
+                if role == "user":
+                    # Here we assume that the user message has only one part
+                    chat.append({
+                        MESSAGES_CONTENT: message["parts"][0]["content"],
+                        MESSAGES_ROLE_KEY: "user"
+                    })
+                elif role == "assistant":
+                    for part in message["parts"]:
+                        if part["type"] == "response":
+                            chat.append({
+                                MESSAGES_CONTENT: part["content"],
+                                MESSAGES_ROLE_KEY: "assistant"
+                            })
+            else:
+                raise ValueError(f"Unknown message format: {message}")
 
     return {DEFAULT_SFT_MESSAGES_KEY: chat}
 
