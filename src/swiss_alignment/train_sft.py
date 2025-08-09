@@ -195,7 +195,7 @@ def main(config: DictConfig) -> None:
         # TODO move the beta3 and alpha to the training_args.optim_args command line argument.
         # This is not trivial for write in a way that is sent in a correct format through all the layers down to hydra.
         training_args.optim_args = (
-            f"'beta3=0.999,alpha=8.0,t_beta3={total_steps},t_alpha={total_steps}"
+            f"beta3=0.999,alpha=8.0,t_beta3={total_steps},t_alpha={total_steps}"
         )
         acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
 
