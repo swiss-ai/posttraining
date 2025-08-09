@@ -15,15 +15,24 @@ def flatten_ref_rewards(sample):
     For each row, among the first 6 completions, pick the best (max reward)
     as 'chosen' and the worst (min reward) as 'rejected'.
     """
-    completions = json.loads(sample["ref_completions"][1]["content"])
     rewards = sample["ref_rewards"]
-
     # TODO: remove path. Fix it in compute ref rewards.
     if hasattr(rewards[0], "__len__"):
         # flatten the rewards if they are lists.
         rewards = [r[0] for r in rewards]
     sample["ref_rewards"] = rewards
+    return sample
 
+
+def flatten_rewards(sample):
+    """
+    For each row, among the first 6 completions, pick the best (max reward)
+    as 'chosen' and the worst (min reward) as 'rejected'.
+    """
+    for key in ["chosen_rewards", "rejected_rewards"]:
+        if hasattr(sample[key], "__len__"):
+            # flatten the rewards if they are lists.
+            sample[key] = sample[key][0]
     return sample
 
 
@@ -54,6 +63,14 @@ def main(config: DictConfig) -> None:
                 num_proc=220,
             )
             for split_d in split_ds
+        ]
+        processed_split_ds = [
+            split_d.map(
+                flatten_rewards,
+                batched=False,
+                num_proc=220,
+            )
+            for split_d in processed_split_ds
         ]
 
         processed_split_ds = concatenate_datasets(processed_split_ds)

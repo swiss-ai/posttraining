@@ -702,7 +702,7 @@ def get_num_proc(
     return min(num_required_cpus, num_available_cpus)
 
 
-def get_dataset(
+def get_dataset_sft(
     dc: DatasetConfig, tokenizer: PreTrainedTokenizer, acc_state: PartialState
 ):
     if len(dc.transform_fn) != len(dc.transform_fn_args):
@@ -733,11 +733,7 @@ def get_dataset(
             )
 
         # beaker specific logic; we may get assigned 15.5 CPU, so we convert it to float then int
-        num_proc = int(
-            float(
-                os.environ.get("BEAKER_ASSIGNED_CPU_COUNT", multiprocessing.cpu_count())
-            )
-        )
+        num_proc = int(multiprocessing.cpu_count())
         for split in ds.keys():
             if dc.debug_oom:
 

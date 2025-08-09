@@ -52,6 +52,12 @@ def process_row_offpolicy2best(
     completions = json.loads(sample["ref_completions"][1]["content"])
     rewards = sample["ref_rewards"]
 
+    # TODO: remove path. Fix it in compute ref rewards.
+    if hasattr(rewards[0], "__len__"):
+        # flatten the rewards if they are lists.
+        rewards = [r[0] for r in rewards]
+    sample["ref_rewards"] = rewards
+
     # Consider only the first 6 completions/rewards.
     rewards_first_6 = rewards[:6]
     best_idx = max(range(6), key=lambda i: rewards_first_6[i])
