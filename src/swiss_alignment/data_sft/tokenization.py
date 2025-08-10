@@ -193,6 +193,61 @@ CHAT_TEMPLATES = {
         "{%- if loop.last and add_generation_prompt %}{{ '<assistant>' }}{% endif %}"
         "{%- endfor %}"
     ),
+    # '<s>[INST]What is 2 + 2?[/INST]\n<SPECIAL_61>The result is 4</s>\n'
+    "apertus_mistral_only_between_roles": (
+        "{%- for message in messages %}"
+        "{%- if message['role'] == 'user' %}"
+        "{{ '[INST]' + message['content'] + '[/INST]\n' }}"
+        "{%- elif message['role'] == 'assistant' %}"
+        "{{ '<SPECIAL_61>' + message['content'] + eos_token + '\n' }}"
+        "{%- endif %}"
+        "{%- if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>' }}{% endif %}"
+        "{%- endfor %}"
+    ),
+    # '<s>[INST]\nWhat is 2 + 2?\n[/INST]\n<SPECIAL_61>\nThe result is 4\n</s>\n'
+    "apertus_mistral_everywhere": (
+        "{%- for message in messages %}"
+        "{%- if message['role'] == 'user' %}"
+        "{{ '[INST]\n' + message['content'] + '\n[/INST]\n' }}"
+        "{%- elif message['role'] == 'assistant' %}"
+        "{{ '<SPECIAL_61>\n' + message['content'] + '\n' + eos_token + '\n' }}"
+        "{%- endif %}"
+        "{%- if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>\n' }}{% endif %}"
+        "{%- endfor %}"
+    ),
+    # '<s>[INST]\nWhat is 2 + 2?\n[/INST]\n<SPECIAL_61>\nThe result is 4</s>\n'
+    "apertus_mistral_everywhere_except_eos": (
+        "{%- for message in messages %}"
+        "{%- if message['role'] == 'user' %}"
+        "{{ '[INST]\n' + message['content'] + '\n[/INST]\n' }}"
+        "{%- elif message['role'] == 'assistant' %}"
+        "{{ '<SPECIAL_61>\n' + message['content'] + eos_token + '\n' }}"
+        "{%- endif %}"
+        "{%- if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>\n' }}{% endif %}"
+        "{%- endfor %}"
+    ),
+    # '<s>[INST]\nWhat is 2 + 2?[/INST]\n<SPECIAL_61>\nThe result is 4</s>\n'
+    "apertus_mistral_beginning_of_message": (
+        "{%- for message in messages %}"
+        "{%- if message['role'] == 'user' %}"
+        "{{ '[INST]\n' + message['content'] + '[/INST]\n' }}"
+        "{%- elif message['role'] == 'assistant' %}"
+        "{{ '<SPECIAL_61>\n' + message['content'] + eos_token + '\n' }}"
+        "{%- endif %}"
+        "{%- if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>\n' }}{% endif %}"
+        "{%- endfor %}"
+    ),
+    # '<s>[INST]What is 2 + 2?[/INST]\n<SPECIAL_61>\nThe result is 4\n</s>\n'
+    "apertus_mistral_asymmetric_assitant": (
+        "{%- for message in messages %}"
+        "{%- if message['role'] == 'user' %}"
+        "{{ '[INST]' + message['content'] + '[/INST]\n' }}"
+        "{%- elif message['role'] == 'assistant' %}"
+        "{{ '<SPECIAL_61>\n' + message['content'] + '\n' + eos_token + '\n' }}"
+        "{%- endif %}"
+        "{%- if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>\n' }}{% endif %}"
+        "{%- endfor %}"
+    ),
 }
 
 
