@@ -9,7 +9,7 @@ stdout_root = (
 
 # Will be used in the root of the job_subdir.
 # artifacts/shared/outputs/train_sft/job_name/...
-job_name = "tweak-ademamix-mixture-fast"
+job_name = "fix-ademamix-fast-noquote"
 
 # models = ["apertus-70b", "apertus-8b"]
 models = ["apertus-70b"]
@@ -89,6 +89,7 @@ for model in models:
             f"wandb.run_name={run_name} "
             f"wandb.tags=[prod,{trainer},default,{job_name}] "
             "resuming.resume=True "
+            "+foo=1 "
         )
         commands.append(command)
         total_nodes_needed += num_nodes
