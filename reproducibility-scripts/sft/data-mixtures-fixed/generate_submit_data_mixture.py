@@ -12,7 +12,7 @@ stdout_root = (
 job_name = "mixture-fast"
 
 # models = ["apertus-70b", "apertus-8b"]
-models = ["apertus-70b"]
+models = ["apertus-8b"]
 # datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
 datasets = ["apertus-sft-mixture-4"]
 
@@ -20,13 +20,13 @@ datasets = ["apertus-sft-mixture-4"]
 num_device_per_node = 4
 hyper_params = {
     "apertus-8b": {
-        "checkpoint": "Apertus8B-tokens7.2T-it1728000-hotfix",
+        "checkpoint": "Apertus8B-tokens10.2T-it2059810-newcooldown",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
         "batch_size": (512, 64),  # bs, num_nodes
         "optimizer": "adamw_torch",
         "learning_rate": 5e-6,
-        "max_grad_norm": 0.1,
+        "max_grad_norm": 1.0,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
         "trainer": ("plw", 0.0),
