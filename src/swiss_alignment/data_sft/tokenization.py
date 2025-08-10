@@ -248,6 +248,17 @@ CHAT_TEMPLATES = {
         "{%- if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>\n' }}{% endif %}"
         "{%- endfor %}"
     ),
+    # '[INST]What is 2 + 2?[/INST]<SPECIAL_61>The result is 4<SPECIAL_62>'
+    "apertus_mistral_special_tokens_s62_only": (
+        "{%- for message in messages %}"
+        "{%- if message['role'] == 'user' %}"
+        "{{ '[INST]' + message['content'] + '[/INST]' }}"
+        "{%- elif message['role'] == 'assistant' %}"
+        "{{ '<SPECIAL_61>' + message['content'] + '<SPECIAL_62>' }}"
+        "{%- endif %}"
+        "{%- if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>' }}{% endif %}"
+        "{%- endfor %}"
+    ),
 }
 
 
