@@ -21,17 +21,23 @@ hyper_params = {
         "checkpoint": "Apertus8B-tokens7.2T-it1728000-hotfix",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
-        "batch_size": (128, 16),  # bs, num_nodes
+        "batch_size": (512, 64),  # bs, num_nodes
         "learning_rate": 1e-5,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
         "trainer": ("plw", 0.0),
         "chat_templates": [
-            "apertus_chatml_no_special_tokens",
-            "apertus_chatml_special_tokens",
-            "apertus_mistral_no_special_tokens",
-            "apertus_mistral_special_tokens",
-            "apertus_xml_no_special_tokens"
+            # "apertus_chatml_no_special_tokens",
+            # "apertus_chatml_special_tokens",
+            # "apertus_mistral_no_special_tokens",
+            # "apertus_mistral_special_tokens",
+            # "apertus_xml_no_special_tokens",
+            # "apertus_mistral_special_tokens_eos",
+            "apertus_mistral_only_between_roles",
+            "apertus_mistral_everywhere",
+            "apertus_mistral_everywhere_except_eos",
+            "apertus_mistral_beginning_of_message",
+            "apertus_mistral_asymmetric_assitant"
         ],
     }
 }
@@ -54,7 +60,7 @@ for model in models:
             f"sbatch "
             f"-N {num_nodes} "
             f"-p large512 "
-            f"-t 24:00:00 "
+            f"-t 12:00:00 "
             f"-o {stdout_root}/out/{job_id}.out "
             f"-e {stdout_root}/out/{job_id}.err "
             "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "

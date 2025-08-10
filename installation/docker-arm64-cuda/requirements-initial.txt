@@ -9,7 +9,7 @@ black
 # Alignment
 accelerate==1.6.0
 deepspeed==0.16.9
-datasets==4.0.0
+datasets==3.5.0
 peft==0.15.1
 bitsandbytes==0.46.1
 trl==0.16.0
