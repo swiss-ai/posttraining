@@ -14,7 +14,8 @@ job_name = "mixture-fast"
 # models = ["apertus-70b", "apertus-8b"]
 models = ["apertus-8b"]
 # datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
-datasets = ["apertus-sft-mixture-4"]
+# datasets = ["apertus-sft-mixture-4"]
+datasets = ["tulu3-sft-mixture-original"]
 
 # Hyperparameters
 num_device_per_node = 4
