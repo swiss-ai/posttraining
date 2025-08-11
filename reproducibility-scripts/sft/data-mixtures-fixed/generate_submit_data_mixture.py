@@ -9,7 +9,7 @@ stdout_root = (
 
 # Will be used in the root of the job_subdir.
 # artifacts/shared/outputs/train_sft/job_name/...
-job_name = "mixture-fast"
+job_name = "tulu3-sft-mixture-original-fast"
 
 # models = ["apertus-70b", "apertus-8b"]
 models = ["apertus-8b"]
