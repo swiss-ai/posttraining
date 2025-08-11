@@ -76,7 +76,7 @@ def main(config: DictConfig) -> None:
             "sft_filter_has_assistant_tokens",
         ],
         transform_fn_args=[
-            {},
+            # {},
             # {},
             {"max_seq_length": training_args.max_seq_length},
             {},
