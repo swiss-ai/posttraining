@@ -31,8 +31,9 @@ hyper_params = {
         "chat_template": "apertus",
         "datasets": [
             # "tulu3-sft-olmo-2-mixture-0225-ln",
-            "apertus-sft-mixture-5-ln",
-            "apertus-sft-mixture-6-ln"
+            # "apertus-sft-mixture-5-ln",
+            # "apertus-sft-mixture-6-ln",
+            "olmo2-with-tools-ln"
         ]
     }
 }
