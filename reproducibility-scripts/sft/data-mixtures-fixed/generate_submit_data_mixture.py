@@ -9,13 +9,13 @@ stdout_root = (
 
 # Will be used in the root of the job_subdir.
 # artifacts/shared/outputs/train_sft/job_name/...
-job_name = "tulu3-sft-mixture-original-fast"
+job_name = "apertus-sft-mixture-1-fast-adam"
 
 # models = ["apertus-70b", "apertus-8b"]
 models = ["apertus-8b"]
 # datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
 # datasets = ["apertus-sft-mixture-4"]
-datasets = ["tulu3-sft-mixture-original"]
+datasets = ["apertus-sft-mixture-1"]
 
 # Hyperparameters
 num_device_per_node = 4
