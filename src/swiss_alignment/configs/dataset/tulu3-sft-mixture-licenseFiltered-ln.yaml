@@ -1,0 +1,14 @@
+# @package _global_
+
+dataset_name: tulu3-sft-mixture-licenseFiltered-ln
+
+dataset_args:
+  dataset_name: /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_linearised/tulu-3-sft-mixture-licenseFiltered
+  train_split: # Only required for DatasetDict objects
+    name: null
+  eval_split:
+    name: null
+
+training_args:
+  eval_strategy: "no"
+  eval_steps: null

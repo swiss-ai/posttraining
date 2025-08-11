@@ -9,36 +9,28 @@ stdout_root = (
 
 # Will be used in the root of the job_subdir.
 # artifacts/shared/outputs/train_sft/job_name/...
-job_name = "sp-token-ablation"
+job_name = "final-run"
 
 models = ["apertus-8b"]
-dataset = "tulu3-sft-mixture-original-subset20"
 
 # Hyperparameters
 num_device_per_node = 4
 hyper_params = {
     "apertus-8b": {
-        "checkpoint": "Apertus8B-tokens7.2T-it1728000-hotfix",
+        "checkpoint": "Apertus8B-tokens10.2T-it2059810-newcooldown",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
         "batch_size": (512, 64),  # bs, num_nodes
-        "learning_rate": 1e-5,
+        "learning_rate": 5e-6,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
         "trainer": ("plw", 0.0),
-        "chat_templates": [
-            # "apertus_chatml_no_special_tokens",
-            # "apertus_chatml_special_tokens",
-            # "apertus_mistral_no_special_tokens",
-            # "apertus_mistral_special_tokens",
-            # "apertus_xml_no_special_tokens",
-            # "apertus_mistral_special_tokens_eos",
-            # "apertus_mistral_only_between_roles",
-            # "apertus_mistral_everywhere",
-            # "apertus_mistral_everywhere_except_eos",
-            # "apertus_mistral_beginning_of_message",
-            # "apertus_mistral_asymmetric_assitant",
-            "apertus_mistral_special_tokens_s62_only"
+        "chat_template": "apertus",
+        "datasets": [
+            "tulu3-sft-mixture-original-ln",
+            "tulu3-sft-mixture-ln",
+            "tulu3-sft-mixture-licenseFiltered-ln",
+            "tulu3-sft-olmo-2-mixture-0225-ln"
         ],
     }
 }
@@ -47,7 +39,7 @@ commands = []
 total_nodes_needed = 0
 for model in models:
     hp = hyper_params[model]
-    for chat_template in hp["chat_templates"]:
+    for dataset in hp["datasets"]:
         batch_size, num_nodes = hp["batch_size"]
         trainer, plw = hp["trainer"]
 
@@ -55,13 +47,13 @@ for model in models:
             num_nodes * num_device_per_node * hp["device_train_batch_size"]
         )
 
-        job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-epochs{hp['num_epochs']}-adam-{chat_template}"
+        job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-epochs{hp['num_epochs']}-adam-{hp['chat_template']}"
         run_name = f"{job_name}/{job_id}"
         command = (
             f"sbatch "
             f"-N {num_nodes} "
             f"-p large512 "
-            f"-t 12:00:00 "
+            f"-t 24:00:00 "
             f"-o {stdout_root}/out/{job_id}.out "
             f"-e {stdout_root}/out/{job_id}.err "
             "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
@@ -76,7 +68,7 @@ for model in models:
             f"training_args.gradient_accumulation_steps={accumulation_steps} "
             f"training_args.per_device_train_batch_size={hp['device_train_batch_size']} "
             f"training_args.learning_rate={hp['learning_rate']} "
-            f"tokenizer_args.chat_template_name={chat_template} "
+            f"tokenizer_args.chat_template_name={hp['chat_template']} "
             f"training_args.num_train_epochs={hp['num_epochs']} "
             "artifacts_subdir=shared "
             f"job_subdir={run_name} "
