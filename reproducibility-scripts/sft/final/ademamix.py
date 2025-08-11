@@ -13,9 +13,6 @@ job_name = "final-run"
 
 # models = ["apertus-70b", "apertus-8b"]
 models = ["apertus-8b"]
-# datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
-# datasets = ["apertus-sft-mixture-4"]
-dataset = "tulu3-sft-olmo-2-mixture-0225-ln"
 
 # Hyperparameters
 num_device_per_node = 4
@@ -32,6 +29,11 @@ hyper_params = {
         "device_train_batch_size": 2,
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
+        "datasets": [
+            # "tulu3-sft-olmo-2-mixture-0225-ln",
+            "apertus-sft-mixture-5-ln",
+            "apertus-sft-mixture-6-ln"
+        ]
     }
 }
 
@@ -39,46 +41,47 @@ commands = []
 total_nodes_needed = 0
 for model in models:
     hp = hyper_params[model]
-    batch_size, num_nodes = hp["batch_size"]
-    trainer, plw = hp["trainer"]
+    for dataset in hp["datasets"]:
+        batch_size, num_nodes = hp["batch_size"]
+        trainer, plw = hp["trainer"]
 
-    accumulation_steps = batch_size // (
-        num_nodes * num_device_per_node * hp["device_train_batch_size"]
-    )
+        accumulation_steps = batch_size // (
+            num_nodes * num_device_per_node * hp["device_train_batch_size"]
+        )
 
-    job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-maxgnorm{hp['max_grad_norm']}-epochs{hp['num_epochs']}-{hp['optimizer']}"
-    run_name = f"{job_name}/{job_id}"
-    command = (
-        f"sbatch "
-        f"-N {num_nodes} "
-        f"-p large512 "
-        f"-t 24:00:00 "
-        f"-o {stdout_root}/out/{run_name}.out "
-        f"-e {stdout_root}/out/{run_name}.err "
-        "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
-        f"-m swiss_alignment.train_sft "
-        f"dataset={dataset} "
-        f"model={model} "
-        f"model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{hp['checkpoint']} "
-        f"tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{hp['checkpoint']} "
-        f"trainer={trainer} "
-        f"accelerate_config={hp['accelerate_config']} "
-        f"plw_args.prompt_loss_weight={plw} "
-        f"training_args.gradient_accumulation_steps={accumulation_steps} "
-        f"training_args.per_device_train_batch_size={hp['device_train_batch_size']} "
-        f"training_args.optim={hp['optimizer']} "
-        f"training_args.learning_rate={hp['learning_rate']} "
-        f"training_args.max_grad_norm={hp['max_grad_norm']} "
-        f"tokenizer_args.chat_template_name={hp['chat_template']} "
-        f"training_args.num_train_epochs={hp['num_epochs']} "
-        "artifacts_subdir=shared "
-        f"job_subdir={run_name} "
-        f"wandb.run_name={run_name} "
-        f"wandb.tags=[prod,{trainer},default,{job_name}] "
-        "resuming.resume=True "
-    )
-    commands.append(command)
-    total_nodes_needed += num_nodes
+        job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-maxgnorm{hp['max_grad_norm']}-epochs{hp['num_epochs']}-{hp['optimizer']}"
+        run_name = f"{job_name}/{job_id}"
+        command = (
+            f"sbatch "
+            f"-N {num_nodes} "
+            f"-p large512 "
+            f"-t 24:00:00 "
+            f"-o {stdout_root}/out/{run_name}.out "
+            f"-e {stdout_root}/out/{run_name}.err "
+            "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
+            f"-m swiss_alignment.train_sft "
+            f"dataset={dataset} "
+            f"model={model} "
+            f"model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{hp['checkpoint']} "
+            f"tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{hp['checkpoint']} "
+            f"trainer={trainer} "
+            f"accelerate_config={hp['accelerate_config']} "
+            f"plw_args.prompt_loss_weight={plw} "
+            f"training_args.gradient_accumulation_steps={accumulation_steps} "
+            f"training_args.per_device_train_batch_size={hp['device_train_batch_size']} "
+            f"training_args.optim={hp['optimizer']} "
+            f"training_args.learning_rate={hp['learning_rate']} "
+            f"training_args.max_grad_norm={hp['max_grad_norm']} "
+            f"tokenizer_args.chat_template_name={hp['chat_template']} "
+            f"training_args.num_train_epochs={hp['num_epochs']} "
+            "artifacts_subdir=shared "
+            f"job_subdir={run_name} "
+            f"wandb.run_name={run_name} "
+            f"wandb.tags=[prod,{trainer},default,{job_name}] "
+            "resuming.resume=True "
+        )
+        commands.append(command)
+        total_nodes_needed += num_nodes
 
 
 # Write th submit commands to a new directory where this batch of experiments will be managed)
