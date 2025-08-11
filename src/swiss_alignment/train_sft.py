@@ -70,7 +70,7 @@ def main(config: DictConfig) -> None:
             "eval": config.dataset_args.debug_subsample.eval,
         },
         transform_fn=[
-            "sft_to_chatml_format",
+            # "sft_to_chatml_format",
             # "sft_filter_non_alternating_roles",
             "sft_tulu_tokenize_and_truncate",
             "sft_filter_has_assistant_tokens",
