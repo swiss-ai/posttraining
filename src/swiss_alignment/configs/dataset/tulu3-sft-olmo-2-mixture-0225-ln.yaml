@@ -5,7 +5,7 @@ dataset_name: tulu3-sft-olmo-2-mixture-0225-ln
 dataset_args:
   dataset_name: /capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat_linearised/tulu-3-sft-olmo-2-mixture-0225
   train_split: # Only required for DatasetDict objects
-    name: null
+    name: train
   eval_split:
     name: null
 
