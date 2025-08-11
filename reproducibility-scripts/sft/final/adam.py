@@ -27,10 +27,12 @@ hyper_params = {
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            "tulu3-sft-mixture-original-ln",
-            "tulu3-sft-mixture-ln",
-            "tulu3-sft-mixture-licenseFiltered-ln",
-            "tulu3-sft-olmo-2-mixture-0225-ln"
+            # "tulu3-sft-mixture-original-ln",
+            # "tulu3-sft-mixture-ln",
+            # "tulu3-sft-mixture-licenseFiltered-ln",
+            # "tulu3-sft-olmo-2-mixture-0225-ln",
+            "apertus-sft-mixture-5-ln",
+            "apertus-sft-mixture-6-ln"
         ],
     }
 }
