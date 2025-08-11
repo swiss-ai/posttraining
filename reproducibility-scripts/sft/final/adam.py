@@ -31,8 +31,9 @@ hyper_params = {
             # "tulu3-sft-mixture-ln",
             # "tulu3-sft-mixture-licenseFiltered-ln",
             # "tulu3-sft-olmo-2-mixture-0225-ln",
-            "apertus-sft-mixture-5-ln",
-            "apertus-sft-mixture-6-ln"
+            # "apertus-sft-mixture-5-ln",
+            # "apertus-sft-mixture-6-ln",
+            "olmo2-with-tools-ln"
         ],
     }
 }
