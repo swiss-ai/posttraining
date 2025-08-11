@@ -9,13 +9,13 @@ stdout_root = (
 
 # Will be used in the root of the job_subdir.
 # artifacts/shared/outputs/train_sft/job_name/...
-job_name = "apertus-sft-mixture-3-fast-adam"
+job_name = "apertus-sft-mixture-4-fast-ademamix"
 
 # models = ["apertus-70b", "apertus-8b"]
 models = ["apertus-8b"]
 # datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
 # datasets = ["apertus-sft-mixture-4"]
-datasets = ["apertus-sft-mixture-3"]
+datasets = ["apertus-sft-mixture-4"]
 
 # Hyperparameters
 num_device_per_node = 4
@@ -25,7 +25,7 @@ hyper_params = {
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
         "batch_size": (512, 64),  # bs, num_nodes
-        "optimizer": "adamw_torch",
+        "optimizer": "ademamix",
         "learning_rate": 5e-6,
         "max_grad_norm": 1.0,
         "num_device_per_node": num_device_per_node,
