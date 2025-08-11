@@ -7,6 +7,7 @@ python -c "import datasets; datasets.load_dataset('allenai/olmo-2-0325-32b-prefe
 huggingface-cli download meta-llama/Llama-3.2-1B --local-dir artifacts/shared/models/llama3-1b
 huggingface-cli download meta-llama/Llama-3.2-1B-Instruct --local-dir artifacts/shared/models/llama3-1b-instruct
 huggingface-cli download allenai/OLMo-2-0325-32B-SFT --local-dir artifacts/shared/models/olmo2-32b-sft
+huggingface-cli download allenai/OLMo-2-0325-32B-DPO --local-dir artifacts/shared/models/olmo2-32b-dpo
 huggingface-cli download allenai/OLMo-2-1124-7B-SFT --local-dir artifacts/shared/models/olmo2-7b-sft
 huggingface-cli download allenai/Llama-3.1-Tulu-3-8B-SFT --local-dir data/shared/models/llama3-8b-sft
 

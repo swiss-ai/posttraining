@@ -20,7 +20,7 @@ dataset_with_ref_rewards = f"{dataset_with_ref_completions}-(offline|offpolicy|m
                          = f"{dataset}-{reward_model}-{model}-(sftid)-Nref{NRefDataset}-(offline|offpolicy|mix)"
 """
 
-stdout_prefix = "run"
+stdout_prefix = "offlinepatch"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -34,7 +34,7 @@ sftids = ["default"]
 reward_models = ["skywork-llama3-8b", "skywork-qwen3-8b", "armorm-llama3-8b"]
 
 dataset_num_ref_reward = 10
-modes = ["offpolicy2random", "offpolicy2best"]
+modes = ["offlinepatch"]
 
 num_nodes_per_job = 1
 commands = []

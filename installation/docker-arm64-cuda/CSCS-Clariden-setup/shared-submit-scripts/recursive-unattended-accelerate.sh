@@ -94,6 +94,7 @@ srun \
   --environment=$CONTAINER_ENV_FILE \
   --container-mounts=\
 $PROJECT_ROOT_AT,\
+$HOME/projects/swiss-alignment/dev,\
 $SCRATCH,\
 $SHARED_SCRATCH,\
 $STORE,\

@@ -27,11 +27,9 @@ find  /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/ 
 # Parallel rsync
 
 # For example from
-cd /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/outputs/train_sft && \
+cd /iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/outputs/train_preference/olmo2-qrpo && \
 find . -mindepth 1 -maxdepth 1 -type d -print0   | \
   parallel --line-buffer -0 -j10 \
   rsync -av --info=progress2 {} \
   --exclude='**/cache-*' \
-  --exclude='**/check-hotfix/*' \
-  --exclude='**/fix-overfit/*' \
-  /capstor/store/cscs/swissai/infra01/swiss-alignment/artifacts/outputs/train_sft
+  /capstor/store/cscs/swissai/infra01/swiss-alignment/artifacts/outputs/train_preference/olmo2-qrpo/

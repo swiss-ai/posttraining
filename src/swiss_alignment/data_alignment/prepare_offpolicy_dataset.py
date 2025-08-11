@@ -66,6 +66,30 @@ def process_row_offpolicy2best(
     return replace_chosen_rejected(sample, best_idx, worst_idx, completions, rewards)
 
 
+def process_offlinepatch(
+    sample: Dict[str, Any],
+) -> Dict[str, Any]:
+    completions = json.loads(sample["ref_completions"][1]["content"])
+    rewards = sample["ref_rewards"]
+    chosen_reward = sample["chosen_rewards"]
+    rejected_reward = sample["rejected_rewards"]
+
+    # TODO: remove path. Fix it in compute ref rewards.
+    if hasattr(rewards[0], "__len__"):
+        # flatten the rewards if they are lists.
+        rewards = [r[0] for r in rewards]
+    if hasattr(chosen_reward, "__len__"):
+        chosen_reward = chosen_reward[0]
+    if hasattr(rejected_reward, "__len__"):
+        rejected_reward = rejected_reward[0]
+
+    sample["ref_rewards"] = rewards
+    sample["chosen_rewards"] = chosen_reward
+    sample["rejected_rewards"] = rejected_reward
+
+    return sample
+
+
 """
 1. offpolicy2random logic
 """
@@ -186,7 +210,15 @@ def main(config: DictConfig) -> None:
                 fn_kwargs={"K": 10},
             )
             processed_split_ds = processed_split_ds.remove_columns("pair_idx")
-
+        elif config.mode == "offlinepatch":
+            logger.info(
+                "Using offlinepatch mode: processing each row without replication."
+            )
+            processed_split_ds = split_ds.map(
+                process_offlinepatch,
+                batched=False,
+                num_proc=240,
+            )
         else:
             raise ValueError(f"Unknown mode: {config.mode}")
 
