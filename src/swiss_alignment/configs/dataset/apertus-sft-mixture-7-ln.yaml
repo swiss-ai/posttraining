@@ -1,0 +1,14 @@
+# @package _global_
+
+dataset_name: apertus-sft-mixture-7-ln
+
+dataset_args:
+  dataset_name: /capstor/store/cscs/swissai/infra01/posttrain_data/06_sft_mixtures_newformat_linearised/apertus-sft-mixture-7
+  train_split: # Only required for DatasetDict objects
+    name: train
+  eval_split:
+    name: null
+
+training_args:
+  eval_strategy: "no"
+  eval_steps: null
