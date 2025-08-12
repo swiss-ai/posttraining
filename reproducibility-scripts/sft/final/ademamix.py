@@ -12,7 +12,7 @@ stdout_root = (
 job_name = "final-run"
 
 # models = ["apertus-70b", "apertus-8b"]
-models = ["apertus-8b"]
+models = ["apertus-70b"]
 
 # Hyperparameters
 num_device_per_node = 4
@@ -33,9 +33,27 @@ hyper_params = {
             # "tulu3-sft-olmo-2-mixture-0225-ln",
             # "apertus-sft-mixture-5-ln",
             # "apertus-sft-mixture-6-ln",
-            "olmo2-with-tools-ln"
+            # "olmo2-with-tools-ln"
         ]
-    }
+    },
+    "apertus-70b": {
+        "checkpoint": "Apertus70B-tokens15T-longcontext64k",
+        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
+        "num_epochs": 1,
+        "batch_size": (512, 64),  # bs, num_nodes
+        "optimizer": "ademamix",
+        "learning_rate": 2e-6,
+        "max_grad_norm": 1,
+        "num_device_per_node": num_device_per_node,
+        "device_train_batch_size": 2,
+        "trainer": ("plw", 0.0),
+        "chat_template": "apertus",
+        "datasets": [
+            # "apertus-sft-mixture-5-ln",
+            # "apertus-sft-mixture-6-ln",
+            "apertus-sft-mixture-7-ln",
+        ]
+    },
 }
 
 commands = []
@@ -56,7 +74,7 @@ for model in models:
             f"sbatch "
             f"-N {num_nodes} "
             f"-p large512 "
-            f"-t 24:00:00 "
+            f"-t 48:00:00 "
             f"-o {stdout_root}/out/{run_name}.out "
             f"-e {stdout_root}/out/{run_name}.err "
             "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
