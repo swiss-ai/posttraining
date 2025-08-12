@@ -9,13 +9,13 @@ stdout_root = (
 
 # Will be used in the root of the job_subdir.
 # artifacts/shared/outputs/train_sft/job_name/...
-job_name = "apertus-sft-mixture-1-fast-ademamix"
+job_name = "apertus-longcontext-sft-mixture-4-fast-ademamix"
 
 # models = ["apertus-70b", "apertus-8b"]
 models = ["apertus-70b"]
 # datasets = ["apertus-sft-mixture-1", "apertus-sft-mixture-2", "apertus-sft-mixture-3"]
 # datasets = ["apertus-sft-mixture-4"]
-datasets = ["apertus-sft-mixture-1"]
+datasets = ["apertus-sft-mixture-4"]
 
 # Hyperparameters
 num_device_per_node = 4
@@ -34,7 +34,7 @@ hyper_params = {
         "chat_template": "tulu",
     },
     "apertus-70b": {
-        "checkpoint": "Apertus70B-tokens15T-it1155828",
+        "checkpoint": "Apertus70B-tokens15T-longcontext64k",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 1,
         "batch_size": (512, 64),  # bs, num_nodes
