@@ -50,7 +50,9 @@ training_args:
   load_ref_model: true
   num_ref_rewards: 10
   loss_type: qrpo
-  beta: 0.003
+  beta: 0.1
+  normalize_beta_by_length: false
+  normalize_loss_by_length: false
   precompute_ref_log_probs: false
   dataloader_drop_last: true
   per_device_train_batch_size: 1

@@ -75,8 +75,10 @@ if is_deepspeed_available():
 class PreferenceTrainerConfig(TrainingArguments):
     learning_rate: float = 1e-6
     beta: float = 0.1
+    normalize_beta_by_length: bool = False
     num_ref_rewards: Optional[int] = None
     loss_type: Literal["qrpo", "dpo"] = "qrpo"
+    normalize_loss_by_length: bool = False
     label_pad_token_id: int = -100
     max_length: Optional[int] = None
     max_prompt_length: Optional[int] = None
@@ -469,7 +471,9 @@ class PreferenceTrainer(Trainer):
         self.use_num_logits_to_keep = args.use_num_logits_to_keep
 
         self.beta = args.beta
+        self.normalize_beta_by_length = args.normalize_beta_by_length
         self.loss_type = args.loss_type
+        self.normalize_loss_by_length = args.normalize_loss_by_length
         self.num_ref_rewards = args.num_ref_rewards
 
         self.aux_loss_enabled = getattr(model.config, "output_router_logits", False)
@@ -1070,7 +1074,7 @@ class PreferenceTrainer(Trainer):
         per_token_logps[~loss_mask] = 0
 
         all_logps = per_token_logps.sum(-1)
-        all_lens = loss_mask.sum(-1)
+        all_lens = loss_mask.sum(-1).float()
 
         output = {}
         assert "chosen_input_ids" in batch and "rejected_input_ids" in batch
@@ -1184,6 +1188,18 @@ class PreferenceTrainer(Trainer):
         g_rejected_logps = self.accelerator.gather_for_metrics(
             model_output["rejected_logps"].detach()
         )
+        g_chosen_lens = self.accelerator.gather_for_metrics(
+            model_output["chosen_lens"].detach()
+        )
+        g_rejected_lens = self.accelerator.gather_for_metrics(
+            model_output["rejected_lens"].detach()
+        )
+        g_beta_chosen = self.accelerator.gather_for_metrics(
+            extra_logs["beta_chosen"].detach()
+        )
+        g_beta_rejected = self.accelerator.gather_for_metrics(
+            extra_logs["beta_rejected"].detach()
+        )
         g_mean_chosen_logits = self.accelerator.gather_for_metrics(
             model_output["mean_chosen_logits"].detach()
         )
@@ -1205,17 +1221,22 @@ class PreferenceTrainer(Trainer):
                 extra_logs["loss_rejected"]
             )
             g_quantile_rewards_chosen = self.accelerator.gather_for_metrics(
-                extra_logs["quantile_rewards/chosen"]
+                extra_logs["quantile_rewards_chosen"]
             )
             g_quantile_rewards_rejected = self.accelerator.gather_for_metrics(
-                extra_logs["quantile_rewards/rejected"]
+                extra_logs["quantile_rewards_rejected"]
             )
-            g_log_Z = self.accelerator.gather_for_metrics(extra_logs["log_Z"])
+            g_beta_logZ_chosen = self.accelerator.gather_for_metrics(
+                extra_logs["beta_logZ_chosen"]
+            )
+            g_beta_logZ_rejected = self.accelerator.gather_for_metrics(
+                extra_logs["beta_logZ_rejected"]
+            )
             g_calibrated_targets_chosen = (
-                g_quantile_rewards_chosen - self.beta * g_log_Z
+                g_quantile_rewards_rejected - g_beta_logZ_chosen
             )
             g_calibrated_targets_rejected = (
-                g_quantile_rewards_rejected - self.beta * g_log_Z
+                g_quantile_rewards_rejected - g_beta_logZ_rejected
             )
 
         g_rewards_prediction_accuracies = (
@@ -1229,6 +1250,18 @@ class PreferenceTrainer(Trainer):
 
         prefix = "eval/" if train_eval == "eval" else ""
 
+        metrics[f"{prefix}loss/beta-chosen"] = g_beta_chosen.mean().item()
+        metrics[f"{prefix}loss/beta-rejected"] = g_beta_rejected.mean().item()
+        metrics[f"{prefix}loss/beta"] = (
+            metrics[f"{prefix}loss/beta-chosen"]
+            + metrics[f"{prefix}loss/beta-rejected"]
+        ) / 2.0
+        metrics[f"{prefix}loss/lens-chosen"] = g_chosen_lens.mean().item()
+        metrics[f"{prefix}loss/lens-rejected"] = g_rejected_lens.mean().item()
+        metrics[f"{prefix}loss/lens"] = (
+            metrics[f"{prefix}loss/lens-chosen"]
+            + metrics[f"{prefix}loss/lens-rejected"]
+        ) / 2.0
         metrics[
             f"{prefix}dpo-rewards/chosen"
         ] = g_chosen_rewards_prediction.mean().item()
@@ -1291,10 +1324,16 @@ class PreferenceTrainer(Trainer):
                 .mean()
                 .item()
             )
-            metrics[f"{prefix}quantile-rewards/logZ"] = g_log_Z.mean().item()
+            metrics[
+                f"{prefix}quantile-rewards/beta-logZ-chosen"
+            ] = g_beta_logZ_chosen.mean().item()
+            metrics[
+                f"{prefix}quantile-rewards/beta-logZ-rejected"
+            ] = g_beta_logZ_rejected.mean().item()
             metrics[f"{prefix}quantile-rewards/beta-logZ"] = (
-                self.beta * metrics[f"{prefix}quantile-rewards/logZ"]
-            )
+                metrics[f"{prefix}quantile-rewards/beta-logZ-chosen"]
+                + metrics[f"{prefix}quantile-rewards/beta-logZ-rejected"]
+            ) / 2.0
             # quantile reward margins conditioned on the accuracy.
             # I.e. mean margin when logratio chosen > logratio rejected and margin in the other case
             metrics[
@@ -1399,6 +1438,8 @@ class PreferenceTrainer(Trainer):
         device = self.accelerator.device
         chosen_logps = model_outputs["chosen_logps"].to(device)
         rejected_logps = model_outputs["rejected_logps"].to(device)
+        chosen_lens = model_outputs["chosen_lens"].to(device)
+        rejected_lens = model_outputs["rejected_lens"].to(device)
         ref_chosen_logps = ref_chosen_logps.to(device)
         ref_rejected_logps = ref_rejected_logps.to(device)
         ref_rewards = ref_rewards.to(device)
@@ -1414,31 +1455,67 @@ class PreferenceTrainer(Trainer):
             (ref_rewards <= rejected_rewards.unsqueeze(dim=-1)).float().mean(dim=1)
         )
 
-        extra_logs["quantile_rewards/chosen"] = chosen_quantile_rewards
-        extra_logs["quantile_rewards/rejected"] = rejected_quantile_rewards
+        extra_logs["quantile_rewards_chosen"] = chosen_quantile_rewards
+        extra_logs["quantile_rewards_rejected"] = rejected_quantile_rewards
 
-        beta = self.beta * torch.ones_like(chosen_quantile_rewards)
-        # Z = beta * (torch.exp(1 / beta) - 1) -> simplified to beta * torch.exp(1 / beta) -> use log directly
-        log_Z = torch.log(beta) + 1 / beta
-        extra_logs["log_Z"] = log_Z
+        _beta = torch.ones(chosen_logps.shape, device=device) * self.beta
+        if self.normalize_beta_by_length:
+            beta_chosen = _beta / chosen_lens
+            beta_rejected = _beta / rejected_lens
+        else:
+            beta_chosen = _beta
+            beta_rejected = _beta
 
-        calibrated_targets_chosen = chosen_quantile_rewards - self.beta * log_Z
-        calibrated_targets_rejected = rejected_quantile_rewards - self.beta * log_Z
+        # clamp to 0.1
+        beta_chosen = beta_chosen.clamp(max=0.1)
+        beta_rejected = beta_rejected.clamp(max=0.1)
 
-        extra_logs["calibrated_targets/chosen"] = calibrated_targets_chosen.detach()
-        extra_logs["calibrated_targets/rejected"] = calibrated_targets_rejected.detach()
+        extra_logs["beta_chosen"] = beta_chosen
+        extra_logs["beta_rejected"] = beta_rejected
 
-        loss_chosen = (calibrated_targets_chosen - self.beta * logratio_chosen) ** 2
+        def compute_beta_logZ(beta: torch.Tensor) -> torch.Tensor:
+            """
+            Apply approximation depending on beta logZ (when beta <= 0.2) for numerical stability.
+                      beta * logZ = beta * log(beta * (exp(1 / beta) - 1))
+                                  = beta * log(beta) + beta * log(exp(1 / beta) - 1)
+              (when beta <= 0.2) ~= beta * log(beta) + 1
+            """
+            use_approx = (beta <= 0.2).float()
+            beta_logZ = beta * torch.log(beta)
+            beta = beta.clamp(
+                min=0.2
+            )  # doesn't have any effect apart from numerically avoiding the inf in the exp.
+            beta_logZ += beta * torch.log(torch.exp(1 / beta) - 1) * (1 - use_approx)
+            beta_logZ += 1 * use_approx
+            return beta_logZ
+
+        beta_logZ_chosen = compute_beta_logZ(beta_chosen)
+        beta_logZ_rejected = compute_beta_logZ(beta_rejected)
+        extra_logs["beta_logZ_chosen"] = beta_logZ_chosen
+        extra_logs["beta_logZ_rejected"] = beta_logZ_rejected
+
+        calibrated_targets_chosen = chosen_quantile_rewards - beta_logZ_chosen
+        calibrated_targets_rejected = rejected_quantile_rewards - beta_logZ_rejected
+
+        extra_logs["calibrated_targets_chosen"] = calibrated_targets_chosen.detach()
+        extra_logs["calibrated_targets_rejected"] = calibrated_targets_rejected.detach()
+
+        loss_chosen = (calibrated_targets_chosen - beta_chosen * logratio_chosen) ** 2
         loss_rejected = (
-            calibrated_targets_rejected - self.beta * logratio_rejected
+            calibrated_targets_rejected - beta_rejected * logratio_rejected
         ) ** 2
+
+        if self.normalize_loss_by_length:
+            loss_chosen = loss_chosen / chosen_lens
+            loss_rejected = loss_rejected / rejected_lens
+
         extra_logs["loss_chosen"] = loss_chosen.detach()
         extra_logs["loss_rejected"] = loss_rejected.detach()
 
         losses = (loss_chosen + loss_rejected) / 2
 
-        chosen_rewards_prediction = self.beta * logratio_chosen.detach()
-        rejected_rewards_prediction = self.beta * logratio_rejected.detach()
+        chosen_rewards_prediction = beta_chosen * logratio_chosen.detach()
+        rejected_rewards_prediction = beta_rejected * logratio_rejected.detach()
 
         return losses, chosen_rewards_prediction, rejected_rewards_prediction
 
@@ -1447,7 +1524,10 @@ class PreferenceTrainer(Trainer):
         model_outputs: dict[str, torch.Tensor],
         ref_chosen_logps: torch.Tensor,
         ref_rejected_logps: torch.Tensor,
-        *args: Any,
+        chosen_rewards: torch.Tensor,
+        rejected_rewards: torch.Tensor,
+        ref_rewards: torch.Tensor,
+        extra_logs: dict[str, torch.Tensor],
     ) -> tuple[torch.Tensor, float | Any, float | Any]:
         """
         Compute the DPO loss for a batch of policy and reference model log probabilities.
@@ -1474,21 +1554,32 @@ class PreferenceTrainer(Trainer):
         # using notation similar to DPOTrainer
         chosen_logps = model_outputs["chosen_logps"].to(device)
         rejected_logps = model_outputs["rejected_logps"].to(device)
+        chosen_lens = model_outputs["chosen_lens"].to(device)
+        rejected_lens = model_outputs["rejected_lens"].to(device)
         ref_chosen_logps = ref_chosen_logps.to(device)
         ref_rejected_logps = ref_rejected_logps.to(device)
 
-        logratios = chosen_logps - rejected_logps
-        ref_logratios = ref_chosen_logps - ref_rejected_logps
+        logratio_chosen = chosen_logps - ref_chosen_logps
+        logratio_rejected = rejected_logps - ref_rejected_logps
 
-        logits = logratios - ref_logratios
+        _beta = torch.ones(chosen_logps.shape, device=device) * self.beta
+        if self.normalize_beta_by_length:
+            beta_chosen = _beta / chosen_lens
+            beta_rejected = _beta / rejected_lens
+        else:
+            beta_chosen = _beta
+            beta_rejected = _beta
 
-        losses = -F.logsigmoid(self.beta * logits)
-        chosen_rewards_prediction = (
-            self.beta * (chosen_logps - ref_chosen_logps).detach()
+        extra_logs["beta_chosen"] = beta_chosen
+        extra_logs["beta_rejected"] = beta_rejected
+
+        losses = -F.logsigmoid(
+            beta_chosen * logratio_chosen - beta_rejected * logratio_rejected
         )
-        rejected_rewards_prediction = (
-            self.beta * (rejected_logps - ref_rejected_logps).detach()
-        )
+        if self.normalize_loss_by_length:
+            losses = losses / (chosen_lens / 2.0 + rejected_lens / 2.0)
+        chosen_rewards_prediction = beta_chosen * logratio_chosen.detach()
+        rejected_rewards_prediction = beta_rejected * logratio_rejected.detach()
 
         return losses, chosen_rewards_prediction, rejected_rewards_prediction
 
