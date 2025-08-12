@@ -333,7 +333,7 @@ CHAT_TEMPLATES = {
         "                    {%- endif -%}"
         "                    {{ block.text }}"
         "                {%- elif block.type == 'tool_calls' -%}"
-        "                    {%- if not loop.first and block.calls|length > 0 and block.calls[0].name == 'display_answers' -%}"
+        "                    {%- if ns.in_inner and not loop.first and block.calls|length == 1 and block.calls[0].name == 'display_answers' -%}"
         "                        {%- set ns.in_inner = false -%}"
         "                        {{ outer_token }}"
         "                    {%- endif -%}"
