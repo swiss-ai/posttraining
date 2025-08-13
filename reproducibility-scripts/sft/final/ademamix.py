@@ -40,7 +40,7 @@ hyper_params = {
         "checkpoint": "Apertus70B-tokens15T-longcontext64k",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 1,
-        "batch_size": (512, 64),  # bs, num_nodes
+        "batch_size": (1024, 128),  # bs, num_nodes
         "optimizer": "ademamix",
         "learning_rate": 2e-6,
         "max_grad_norm": 1,
