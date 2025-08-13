@@ -401,6 +401,20 @@ TOKENIZED_SFT_DATASET_KEYS = [
 ]
 
 
+SYSTEM_TOKEN = 61
+END_SYSTEM_TOKEN = 62
+DEVELOPER_TOKEN = 63
+END_DEVELOPER_TOKEN = 64
+USER_TOKEN = 65
+END_USER_TOKEN = 66
+ASSISTANT_TOKEN = 67
+END_ASSISTANT_TOKEN = 2
+INNER_TOKEN = 68
+OUTER_TOKEN = 69
+TOOL_CALLS_TOKEN = 70
+END_TOOL_CALLS_TOKEN = 71
+
+
 def sft_to_chatml_format(
     row: Dict[str, Any],
     tokenizer: PreTrainedTokenizer,
@@ -455,29 +469,39 @@ def sft_tokenize(
     tokenizer: PreTrainedTokenizer,
     sft_messages_key: str = DEFAULT_SFT_MESSAGES_KEY,
 ):
-    if len(row[sft_messages_key]) == 1:
-        prompt = row[sft_messages_key]
-    else:
-        prompt = row[sft_messages_key][:-1]
+    """Tokenize the messages and create the masks to distinguish the generated tokens from the others"""
+    sft_messages = row[sft_messages_key]
 
-    # Input ids
-    row[INPUT_IDS_PROMPT_KEY] = tokenizer.apply_chat_template(
-        prompt,
-        add_generation_prompt=True,
-    )
-    row[INPUT_IDS_KEY] = tokenizer.apply_chat_template(row[sft_messages_key])
-    row[ATTENTION_MASK_KEY] = [1] * len(row[INPUT_IDS_KEY])
+    # We first get through the messages to get the lengths of the tool outputs
+    tool_outputs_lengths = []
+    for message in sft_messages:
+        if message["role"] == "assistant":
+            for block in message["content"]["blocks"]:
+                if block["type"] == "tool_outputs":
+                    tool_outputs = block["outputs"]
 
-    # Prompt/Completion masks
-    completion_lenth = len(row[INPUT_IDS_KEY]) - len(row[INPUT_IDS_PROMPT_KEY])
-    row[PROMPT_MASK_KEY] = [1] * len(row[INPUT_IDS_PROMPT_KEY]) + [0] * completion_lenth
-    row[COMPLETION_MASK_KEY] = [0] * len(row[INPUT_IDS_PROMPT_KEY]) + [
-        1
-    ] * completion_lenth
+                    # We format the tool outputs as it is formatted in the chat template
+                    tool_outputs_str = f"[{', '.join([tool_output["output"] for tool_output in tool_outputs])}]"
+                    tool_outputs_lengths.append(len(tokenizer.encode(tool_outputs_str, add_special_tokens=False)))
 
-    # Labels
-    labels = copy.deepcopy(row[INPUT_IDS_KEY])
-    row[LABELS_KEY] = labels
+    input_ids = np.reshape(tokenizer.apply_chat_template(row[sft_messages_key], return_tensors="np"), -1)
+
+    start_assistant = np.cumsum(input_ids == ASSISTANT_TOKEN, axis=0) - (input_ids == ASSISTANT_TOKEN).astype(np.int32)
+    end_assistant = np.cumsum(input_ids == END_ASSISTANT_TOKEN, axis=0) - (input_ids == END_ASSISTANT_TOKEN).astype(np.int32)
+    end_tool_calls = (start_assistant != end_assistant) & (input_ids == END_TOOL_CALLS_TOKEN)
+
+    mask = (start_assistant == end_assistant)
+
+    start_tool_output_indices = np.arange(stop=input_ids.shape[0])[end_tool_calls] + 1
+    for i, tol in zip(start_tool_output_indices, tool_outputs_lengths):
+        mask[i:i+tol] = 1
+
+    row[INPUT_IDS_KEY] = input_ids.tolist()
+    row[LABELS_KEY] = input_ids.copy().tolist()
+    row[ATTENTION_MASK_KEY] = np.ones_like(input_ids).tolist()
+    row[PROMPT_MASK_KEY] = mask.astype(np.int32).tolist()
+    row[COMPLETION_MASK_KEY] = np.logical_not(mask).astype(np.int32).tolist()
+    
     return row
 
 
