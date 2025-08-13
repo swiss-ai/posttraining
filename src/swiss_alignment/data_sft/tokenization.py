@@ -259,7 +259,7 @@ CHAT_TEMPLATES = {
         "{%- if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>' }}{% endif %}"
         "{%- endfor %}"
     ),
-    # '<s><SPECIAL_61><SPECIAL_62><SPECIAL_63>Thinking: disabled\nTools: disabled<SPECIAL_64><SPECIAL_65>What is 2 + 2?<SPECIAL_66><SPECIAL_67>The result is 4</s>'
+    # '<s><SPECIAL_61><SPECIAL_62><SPECIAL_63>Deliberation: disabled\nTool Capabilities: disabled<SPECIAL_64><SPECIAL_65>What is 2 + 2?<SPECIAL_66><SPECIAL_67>The result is 4</s>'
     "apertus": (
         "{%- set system_token = '<SPECIAL_61>' -%}"
         "{%- set end_system_token = '<SPECIAL_62>' -%}"
@@ -354,6 +354,9 @@ CHAT_TEMPLATES = {
         "                        {%- endif -%}"
         "                    {%- endfor -%}"
         "                    {{- ']' }}"
+        "                    {%- if not loop.last -%}"
+        "                        {{- ' ' }}"
+        "                    {%- endif -%}"
         "                {%- elif block.type == 'response' -%}"
         "                    {%- if not loop.first and ns.in_inner -%}"
         "                        {%- set ns.in_inner = false -%}"
