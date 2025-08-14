@@ -51,7 +51,8 @@ hyper_params = {
         "datasets": [
             # "apertus-sft-mixture-5-ln",
             # "apertus-sft-mixture-6-ln",
-            "apertus-sft-mixture-7-ln",
+            # "apertus-sft-mixture-7-ln",
+            "apertus-sft-mixture-7-ln-v2"
         ]
     },
 }
@@ -98,6 +99,8 @@ for model in models:
             f"wandb.run_name={run_name} "
             f"wandb.tags=[prod,{trainer},default,{job_name}] "
             "resuming.resume=True "
+            f"global_batch_size={batch_size} "
+            f"num_nodes={num_nodes} "
         )
         commands.append(command)
         total_nodes_needed += num_nodes

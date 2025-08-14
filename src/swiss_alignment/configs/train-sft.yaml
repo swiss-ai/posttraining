@@ -31,6 +31,11 @@ plw_args:
   prompt_loss_weight: 0.0
   sequence_level_loss: false
 
+# These arguments are only specified to make sure the config hash is different when these values change.
+# They are not used in the training script.
+global_batch_size: 32
+num_nodes: 1
+
 training_args:
   bf16: true
   max_seq_length: 4096
