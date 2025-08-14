@@ -259,7 +259,7 @@ CHAT_TEMPLATES = {
         "{%- if loop.last and add_generation_prompt %}{{ '<SPECIAL_61>' }}{% endif %}"
         "{%- endfor %}"
     ),
-    # '<s><SPECIAL_61><SPECIAL_62><SPECIAL_63>Deliberation: disabled\nTool Capabilities: disabled<SPECIAL_64><SPECIAL_65>What is 2 + 2?<SPECIAL_66><SPECIAL_67>The result is 4</s>'
+    # '<s><SPECIAL_61><SPECIAL_62><SPECIAL_63>Deliberation: disabled\nTool Capabilities: disabled<SPECIAL_64><SPECIAL_65>What is 2 + 2?<SPECIAL_66><SPECIAL_67>The result is 4<SPECIAL_68>'
     "apertus": (
         "{%- set system_token = '<SPECIAL_61>' -%}"
         "{%- set end_system_token = '<SPECIAL_62>' -%}"
@@ -268,11 +268,11 @@ CHAT_TEMPLATES = {
         "{%- set user_token = '<SPECIAL_65>' -%}"
         "{%- set end_user_token = '<SPECIAL_66>' -%}"
         "{%- set assistant_token = '<SPECIAL_67>' -%}"
-        "{%- set end_assistant_token = eos_token -%}"
-        "{%- set inner_token = '<SPECIAL_68>' -%}"
-        "{%- set outer_token = '<SPECIAL_69>' -%}"
-        "{%- set tool_calls_token = '<SPECIAL_70>' -%}"
-        "{%- set end_tool_calls_token = '<SPECIAL_71>' -%}"
+        "{%- set end_assistant_token = '<SPECIAL_68>' -%}"
+        "{%- set inner_token = '<SPECIAL_69>' -%}"
+        "{%- set outer_token = '<SPECIAL_70>' -%}"
+        "{%- set tool_calls_token = '<SPECIAL_71>' -%}"
+        "{%- set end_tool_calls_token = '<SPECIAL_72>' -%}"
         "{%- if messages and messages[0].role == 'system' -%}"
         "    {{ system_token + messages[0].content.text + end_system_token }}"
         "    {%- set messages_without_system = messages[1:] -%}"
@@ -291,6 +291,8 @@ CHAT_TEMPLATES = {
         "            {{ 'disabled' }}"
         "        {%- endif -%}"
         "        {{ '\n' }}"
+        "    {%- else -%}"
+        "        {{ 'Deliberation: disabled\n' }}"
         "    {%- endif -%}"
         "    {%- if \"formatted_tools\" in developer_content and developer_content.formatted_tools -%}"
         "        {{ 'Tool Capabilities:\n' + developer_content.formatted_tools }}"
