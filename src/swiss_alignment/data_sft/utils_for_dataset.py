@@ -415,55 +415,6 @@ TOOL_CALLS_TOKEN = 71
 END_TOOL_CALLS_TOKEN = 72
 
 
-def sft_to_chatml_format(
-    row: Dict[str, Any],
-    tokenizer: PreTrainedTokenizer,
-):
-    if DEFAULT_SFT_MESSAGES_KEY in row:
-        return {DEFAULT_SFT_MESSAGES_KEY: row[DEFAULT_SFT_MESSAGES_KEY]}
-
-    chat = []
-    if "system_prompt" in row and row["system_prompt"] is not None:
-        chat.append(
-            {
-                MESSAGES_CONTENT: row["system_prompt"]["content"],
-                MESSAGES_ROLE_KEY: "system",
-            }
-        )
-    chat.append(
-        {MESSAGES_CONTENT: row["initial_prompt"]["content"], MESSAGES_ROLE_KEY: "user"}
-    )
-
-    # Add the conversational messages
-    for branch in row["conversation_branches"]:
-        for message in branch["messages"]:
-            role = message["role"]
-
-            if "content" in message:
-                chat.append({
-                    MESSAGES_CONTENT: message["content"],
-                    MESSAGES_ROLE_KEY: role
-                })
-            elif "parts" in message:
-                if role == "user":
-                    # Here we assume that the user message has only one part
-                    chat.append({
-                        MESSAGES_CONTENT: message["parts"][0]["content"],
-                        MESSAGES_ROLE_KEY: "user"
-                    })
-                elif role == "assistant":
-                    for part in message["parts"]:
-                        if part["type"] == "response":
-                            chat.append({
-                                MESSAGES_CONTENT: part["content"],
-                                MESSAGES_ROLE_KEY: "assistant"
-                            })
-            else:
-                raise ValueError(f"Unknown message format: {message}")
-
-    return {DEFAULT_SFT_MESSAGES_KEY: chat}
-
-
 def sft_tokenize(
     row: Dict[str, Any],
     tokenizer: PreTrainedTokenizer,
@@ -662,7 +613,6 @@ def sft_filter_non_alternating_roles(
 
 
 TRANSFORM_FNS = {
-    "sft_to_chatml_format": (sft_to_chatml_format, "map"),
     "sft_tokenize": (sft_tokenize, "map"),
     "sft_tokenize_mask_out_prompt": (sft_tokenize_mask_out_prompt, "map"),
     "sft_tulu_tokenize_and_truncate": (sft_tulu_tokenize_and_truncate, "map"),
