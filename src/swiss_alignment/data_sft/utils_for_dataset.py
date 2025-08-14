@@ -408,11 +408,11 @@ END_DEVELOPER_TOKEN = 64
 USER_TOKEN = 65
 END_USER_TOKEN = 66
 ASSISTANT_TOKEN = 67
-END_ASSISTANT_TOKEN = 2
-INNER_TOKEN = 68
-OUTER_TOKEN = 69
-TOOL_CALLS_TOKEN = 70
-END_TOOL_CALLS_TOKEN = 71
+END_ASSISTANT_TOKEN = 68
+INNER_TOKEN = 69
+OUTER_TOKEN = 70
+TOOL_CALLS_TOKEN = 71
+END_TOOL_CALLS_TOKEN = 72
 
 
 def sft_to_chatml_format(
@@ -486,11 +486,16 @@ def sft_tokenize(
 
     input_ids = np.reshape(tokenizer.apply_chat_template(row[sft_messages_key], return_tensors="np"), -1)
 
+    # We use cumsum to get the different turns
+    # Then we subtract to remove the first token of each turn because we don't want to train on it
     start_assistant = np.cumsum(input_ids == ASSISTANT_TOKEN, axis=0) - (input_ids == ASSISTANT_TOKEN).astype(np.int32)
     end_assistant = np.cumsum(input_ids == END_ASSISTANT_TOKEN, axis=0) - (input_ids == END_ASSISTANT_TOKEN).astype(np.int32)
-    end_tool_calls = (start_assistant != end_assistant) & (input_ids == END_TOOL_CALLS_TOKEN)
 
+    # The mask is 1 if the token is not an assistant token and 0 otherwise
     mask = (start_assistant == end_assistant)
+
+    # We are searching the end of the tool calls (or the start of tool outputs) in the assistant tokens
+    end_tool_calls = (start_assistant != end_assistant) & (input_ids == END_TOOL_CALLS_TOKEN)
 
     start_tool_output_indices = np.arange(stop=input_ids.shape[0])[end_tool_calls] + 1
     for i, tol in zip(start_tool_output_indices, tool_outputs_lengths):
