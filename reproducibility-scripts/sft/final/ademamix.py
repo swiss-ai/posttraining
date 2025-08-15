@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-stdout_prefix = "ademamix"
+stdout_prefix = "ademamix-wo-new-eos"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -12,7 +12,7 @@ stdout_root = (
 job_name = "final-run"
 
 # models = ["apertus-70b", "apertus-8b"]
-models = ["apertus-70b"]
+models = ["apertus-8b"]
 
 # Hyperparameters
 num_device_per_node = 4
@@ -30,6 +30,7 @@ hyper_params = {
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
+            "apertus-sft-mixture-4-ln"
             # "tulu3-sft-olmo-2-mixture-0225-ln",
             # "apertus-sft-mixture-5-ln",
             # "apertus-sft-mixture-6-ln",
@@ -69,7 +70,7 @@ for model in models:
             num_nodes * num_device_per_node * hp["device_train_batch_size"]
         )
 
-        job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-maxgnorm{hp['max_grad_norm']}-epochs{hp['num_epochs']}-{hp['optimizer']}"
+        job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-maxgnorm{hp['max_grad_norm']}-epochs{hp['num_epochs']}-ademamix-{hp['chat_template']}"
         run_name = f"{job_name}/{job_id}"
         command = (
             f"sbatch "
