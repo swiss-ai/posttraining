@@ -1,15 +1,15 @@
-podman build --tag vllm:v0.9.0.1-apertus-vllm --file Dockerfile-apertus-vllm .
-podman build --tag vllm:v0.9.0.1-base-vllm --file Dockerfile-base-vllm .
+podman build --tag vllm:v0.9.0.1-apertus-vllm-v2 --file Dockerfile-apertus-vllm .
+podman build --tag vllm:v0.9.0.1-base-vllm-v2 --file Dockerfile-base-vllm .
 
 # To save for loading
-podman save -o $SCRATCH/apertus-vllm.tar localhost/vllm:v0.9.0.1-apertus-vllm
-podman save -o $SCRATCH/base-vllm.tar localhost/vllm:v0.9.0.1-base-vllm
+podman save -o $SCRATCH/apertus-vllm-v2.tar localhost/vllm:v0.9.0.1-apertus-vllm-v2
+podman save -o $SCRATCH/base-vllm0-v2.tar localhost/vllm:v0.9.0.1-base-vllm-v2
 
 # To save for enroot
-enroot import -x mount podman://localhost/vllm:v0.9.0.1-apertus-vllm
-enroot import -x mount podman://localhost/vllm:v0.9.0.1-base-vllm
+enroot import -x mount podman://localhost/vllm:v0.9.0.1-apertus-vllm-v2
+enroot import -x mount podman://localhost/vllm:v0.9.0.1-base-vllm-v2
 
 
 # to load
-podman load -i $SCRATCH/apertus-vllm.tar
-podman load -i $SCRATCH/base-vllm.tar
+podman load -i $SCRATCH/apertus-vllm-v2.tar
+podman load -i $SCRATCH/base-vllm-v2.tar

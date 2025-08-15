@@ -1,0 +1,21 @@
+# @package _global_
+
+# https://huggingface.co/allenai/OLMo-2-0325-32B-SFT
+
+model_args:
+  torch_dtype: bfloat16
+  model_name_or_path: "${artifacts_dir}/shared/outputs/train_sft/final-run/Apertus70B-tokens15T-longcontext64k-apertus-sft-mixture-7-ln-v2-bs1024-lr2e-06-maxgnorm1-epochs1-ademamix/checkpoints/d0012600a8854237/checkpoint-3000"
+  attn_implementation: flash_attention_2
+  trust_remote_code: true
+  use_peft: false
+
+tokenizer_args:
+  pad_token_id: 10  # <pad>
+
+model_vllm_config:
+  tensor_parallel_size: 4
+  model_impl: vllm
+
+model_generation_config:
+  temperature: 1.0
+  top_p: 1.0

@@ -9,7 +9,8 @@
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/dev
-source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh
+export ENABLE_RETRY=0
+source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/setup.sh
 export HF_TOKEN_AT=$HOME/.hf-token
 export SLURM_ONE_REMOTE_DEV=1
 export PRE_COMMIT_HOME=$SCRATCH/pre-commit

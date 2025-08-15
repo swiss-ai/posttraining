@@ -1232,9 +1232,7 @@ class PreferenceTrainer(Trainer):
             g_beta_logZ_rejected = self.accelerator.gather_for_metrics(
                 extra_logs["beta_logZ_rejected"]
             )
-            g_calibrated_targets_chosen = (
-                g_quantile_rewards_rejected - g_beta_logZ_chosen
-            )
+            g_calibrated_targets_chosen = g_quantile_rewards_chosen - g_beta_logZ_chosen
             g_calibrated_targets_rejected = (
                 g_quantile_rewards_rejected - g_beta_logZ_rejected
             )
@@ -1376,6 +1374,7 @@ class PreferenceTrainer(Trainer):
                 .item()
             )
             # calibrated_targets / beta - log Z  (compare to logratio)
+            # TODO: wrong for length normalized beta.
             metrics[f"{prefix}no-beta-calibrated-targets/chosen"] = (
                 metrics[f"{prefix}calibrated-targets/chosen"] / self.beta
             )

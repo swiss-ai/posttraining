@@ -10,16 +10,12 @@ model_args:
   use_peft: false
 
 tokenizer_args:
-  pad_token_id: 100277  #  # <|pad|>
+  pad_token_id: 100277  # <|pad|>
 
 model_vllm_config:
+  tensor_parallel_size: 1
   model_impl: transformers
 
 model_generation_config:
   temperature: 1.0
   top_p: 1.0
-
-model_eval_generation_config:
-  # TODO. Not clear what are the best params for olmo.
-  temperature: 0.6
-  top_p: 0.9
