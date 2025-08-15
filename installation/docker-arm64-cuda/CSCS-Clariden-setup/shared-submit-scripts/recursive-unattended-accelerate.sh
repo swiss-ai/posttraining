@@ -8,7 +8,7 @@
 #SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521,nid007352,nid006959,nid006944,nid006904,nid006946,nid006966,nid007017
 
 # Variables used by the entrypoint script
-export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
+export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run2
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh
 unset HF_TOKEN_AT
 
