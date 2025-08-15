@@ -1,7 +1,8 @@
 #!/bin/bash
 
 #SBATCH -J swiss-alignment-dev
-#SBATCH -t 12:00:00
+#SBATCH -t 1:30:00
+#SBATCH -p debug
 #SBATCH -A a-infra01-1
 #SBATCH --output=sremote-development.out
 #SBATCH --nodes 1
