@@ -23,7 +23,7 @@ partition_end_idx: 0
 subpartition_number: 0 # (gpu level) subsection in the partition to process
 n_completions: 10 # Number of completions to generate for each prompt.
 max_new_tokens: 4096 # Maximum number of tokens to generate for each completion.
-max_prompt_length: 4096 # Maximum length of the (input prompt + generation prompt + 1). Prompts longer than this will be filtered out.
+max_seq_len : 4096 # Sequences will be filtered to this length.
 save_interval: 256 # Saving every save_interval prompt (should be multiple of batch_size)
 num_gpus_per_node: 4
 

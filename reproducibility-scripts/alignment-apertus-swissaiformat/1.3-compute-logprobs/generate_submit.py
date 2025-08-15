@@ -12,7 +12,6 @@ model_sftid = f"{model}-(sftid)"
 reward_model = f"{reward_model}"
 
 dataset_for_model = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}"
-# dataset_for_model depends on the SFTid through the tokenizer and chat template to filter by max_seq_len
 
 dataset_with_ref_completions = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}"
 
@@ -30,30 +29,17 @@ stdout_root = (
 job_name = "datasets-with-ref-completions-swissaiformat"
 
 datasets = ["swissai-olmo2-32b-preference"]
-splits = ["train_split"]
+splits = ["train_split", "eval_split"]
+models = ["llama3-1b-instruct"]
+# models = ["olmo2-32b-sft"]
 
-max_seq_len = 4096
 
-models = ["apertus-70b-sft"]
-sftids = {
-    "apertus-70b-sft": [
-        (
-            "mixture-7-d0012600a8854237",
-            "\${artifacts_dir}/shared/outputs/train_sft/final-run/Apertus70B-tokens15T-longcontext64k-apertus-sft-mixture-7-ln-v2-bs1024-lr2e-06-maxgnorm1-epochs1-ademamix/checkpoints/d0012600a8854237/checkpoint-4462",
-        )
-    ],
-    "apertus-8b-sft": [
-        (
-            "default",
-            "\${artifacts_dir}/shared/models/apertus-8b-sft",
-        )
-    ],
+model_sftid_paths = {
+    "olmo2-32b-sft-default": "\${artifacts_dir}/shared/models/olmo2-32b-sft",
+    "llama3-1b-instruct-default": "\${artifacts_dir}/shared/models/llama3-1b-instruct",
 }
 
-dataset_num_ref_reward = 20
-dataset_with_for_model_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models/"
-dataset_with_for_model_path_prefix_local = "artifacts/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models/"
-
+dataset_num_ref_reward = 10
 
 # Reference numbers for 10 reference completions per prompt:
 
@@ -86,11 +72,10 @@ total_nodes_needed = 0
 for dataset in datasets:
     for split in splits:
         for model in models:
-            for sftid, sftid_path in sftids[model]:
+            for sftid in sftids:
                 model_sftid = f"{model}-{sftid}"
-                dataset_for_model = f"{dataset}-{model_sftid}-maxlen{max_seq_len}"
                 dataset_with_ref_completions = (
-                    f"{dataset_for_model}-Nref{dataset_num_ref_reward}"
+                    f"{dataset}-{model_sftid}-Nref{dataset_num_ref_reward}"
                 )
 
                 with open(
@@ -105,16 +90,10 @@ for dataset in datasets:
                     f"src/swiss_alignment/configs/dataset/{dataset}.yaml", "r"
                 ) as file:
                     dataset_config = yaml.safe_load(file)
-
-                dataset_for_model_path = (
-                    f"{dataset_with_for_model_path_prefix}/{dataset_for_model}"
-                )
-                dataset_for_model_path_local = (
-                    f"{dataset_with_for_model_path_prefix_local}/{dataset_for_model}"
-                )
-                d = load_from_disk(dataset_for_model_path_local)
+                d = load_from_disk(dataset_config["dataset_args"]["dataset_name"])
                 split_name = dataset_config["dataset_args"][split]["name"]
-
+                if split_name is None:
+                    continue
                 d_split = d[split_name]
                 split_size = len(d_split)
 
@@ -123,6 +102,7 @@ for dataset in datasets:
                         partition_start_idx + partition_size, split_size
                     )
                     jobid = f"{dataset_with_ref_completions}/{split}/{partition_start_idx}-{partition_end_idx}"
+                    model_path = model_sftid_paths[model_sftid]
 
                     commands.append(
                         (
@@ -133,13 +113,11 @@ for dataset in datasets:
                             f"-e {stdout_root}/out/{jobid}.err "
                             "./cscs-shared-submit-scripts/unattended-generate-ref-completions-with-vllm-v2.sh "
                             f"model={model} "
-                            f"model_args.model_name_or_path='{sftid_path}' "
+                            f"model_args.model_name_or_path='{model_path}' "
                             f"dataset={dataset} "
-                            f"dataset_args.dataset_name='{dataset_for_model_path}' "
                             f"split={split_name} "
                             f"num_gpus_per_node={num_gpus_per_node} "
                             f"n_completions={dataset_num_ref_reward} "
-                            f"max_seq_len={max_seq_len} "
                             f"partition_start_idx={partition_start_idx} "
                             f"partition_end_idx={partition_end_idx} "
                             f"save_interval={save_interval} "

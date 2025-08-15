@@ -24,17 +24,21 @@ stdout_root = (
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 )
 
-datasets = ["swissai-olmo2-32b-preference.yaml"]
+datasets = ["swissai-olmo2-32b-preference"]
 
 max_seq_len = 4096
 
 models = ["apertus-70b-sft"]
 sftids = {
     "apertus-70b-sft": [
+        # (
+        #     "mixture-7-checkpoint-3000-d0012600a8854237",
+        #     "\${artifacts_dir}/shared/models/apertus-70b-sft-dev-smoalla/checkpoint-3000",
+        # ),
         (
             "mixture-7-d0012600a8854237",
-            "\${artifacts_dir}/shared/models/apertus-70b-sft-dev-smoalla/checkpoint-3000",
-        ),
+            "\${artifacts_dir}/shared/outputs/train_sft/final-run/Apertus70B-tokens15T-longcontext64k-apertus-sft-mixture-7-ln-v2-bs1024-lr2e-06-maxgnorm1-epochs1-ademamix/checkpoints/d0012600a8854237/checkpoint-4462",
+        )
     ],
     "apertus-8b-sft": [
         (

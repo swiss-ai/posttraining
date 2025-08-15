@@ -68,7 +68,7 @@ def main(config: DictConfig) -> None:
     )
     # Filter out the rows which have no completions left.
     data = data.filter(
-        lambda conv_branch: len(conv_branch) > 0,
+        lambda conv_branch: len(conv_branch) >= 2,
         input_columns=["conversation_branches"],
         num_proc=256,
     )
