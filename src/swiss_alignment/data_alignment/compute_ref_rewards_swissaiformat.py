@@ -56,7 +56,7 @@ def compute_rewards_for_row(model, row, tokenizer, config):
     new_row = copy.deepcopy(row)
 
     for i, conv_branch in enumerate(row["conversation_branches"]):
-        new_row["conversation_branches"][i]["rewards"] = rewards[i]
+        new_row["conversation_branches"][i]["rewards"] = all_rewards[i]
 
     return new_row
 

@@ -59,15 +59,13 @@ dataset_num_ref_reward = 30
 # ~10000 tokens per second per GPU.
 # 4096 prompts with 30 completions each take 30 min on 1 GPU
 
-
-# 70B is  5x slower and needs one node with Tensor Parallelism.
+# 70B is  4x slower and needs one node with Tensor Parallelism.
 # ~2000 tokens per second per node.
 # 4096 prompts with 30 completions each take 1h on 1 node.
 
 # We need N nodes (with 4 GPUs per node) for X prompts in H hours where:
-# 8B:  N = X / (16,384 · H)
-# 32B: N = X / (4,096 · H)
-# 70B: N = X / (1,024 · H)
+# 8B:  N = X / (32,768 · H)
+# 70B: N = X / (4,096 · H)
 
 is_partitioned = True
 partition_size = 4096  # N prompts per node

@@ -133,7 +133,7 @@ for dataset in datasets:
                                 "sbatch "
                                 f"-N {num_nodes_per_job} "
                                 f"-p large512 "
-                                f"-t 48:00:00 "
+                                f"-t 24:00:00 "
                                 f"--ntasks-per-node {num_subpartitions} "
                                 f"-o {stdout_root}/out/{jobid}.out "
                                 f"-e {stdout_root}/out/{jobid}.err "
@@ -163,6 +163,7 @@ for dataset in datasets:
                     (
                         "sbatch "
                         f"-N {num_nodes_per_job} "
+                        f"-p large512 "
                         f"-o {stdout_root}/out/{jobid}.out "
                         f"-e {stdout_root}/out/{jobid}.err "
                         "./cscs-shared-submit-scripts/unattended.sh "
