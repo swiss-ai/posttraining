@@ -56,13 +56,13 @@ dataset_num_ref_reward = 30
 # Reference numbers for 10 reference completions per prompt:
 
 # 8B
-# ~6000 tokens per second per GPU.
-# 4096 prompts with 10 completions each take 1h on 1 GPU
+# ~10000 tokens per second per GPU.
+# 4096 prompts with 30 completions each take 30 min on 1 GPU
 
 
-# 70B is 12x slower:  3x slower and it needs one node with Tensor Parallelism.
+# 70B is  5x slower and needs one node with Tensor Parallelism.
 # ~2000 tokens per second per node.
-# 4096 prompts with 10 completions each take 1h on 1 node.
+# 4096 prompts with 30 completions each take 1h on 1 node.
 
 # We need N nodes (with 4 GPUs per node) for X prompts in H hours where:
 # 8B:  N = X / (16,384 · H)
@@ -130,7 +130,7 @@ for dataset in datasets:
                             "sbatch "
                             f"-N {num_nodes_per_job} "
                             f"-p large512 "
-                            f"-t 48:00:00 "
+                            f"-t 24:00:00 "
                             f"--ntasks-per-node {num_subpartitions} "
                             f"-o {stdout_root}/out/{jobid}.out "
                             f"-e {stdout_root}/out/{jobid}.err "
@@ -159,6 +159,7 @@ for dataset in datasets:
             commands.append(
                 (
                     "sbatch "
+                    f"-p large512 "
                     f"-N {num_nodes_per_job} "
                     f"-o {stdout_root}/out/{jobid}.out "
                     f"-e {stdout_root}/out/{jobid}.err "

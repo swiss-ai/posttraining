@@ -10,6 +10,8 @@ defaults:
   - model: mistral
   # Dataset (from the configs/dataset/ directory).
   - dataset: magpieair-armorm
+  # Reward model (from the configs/reward_model/ directory).
+  - reward_model: skywork-llama3-8b
 
 
 ######################################################################
@@ -18,7 +20,7 @@ split: train # train or eval
 partition_start_idx: 0 # (node level) The start index of the partition to generate completions for.
 partition_end_idx: 0
 subpartition_number: 0 # (gpu level) subsection in the partition to process
-batch_size: 10
+batch_size: 16
 max_seq_len : 4096
 save_interval: 256 # Saving every save_interval prompt (should be multiple of batch_size)
 num_gpus_per_node: 4

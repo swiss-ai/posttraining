@@ -5,6 +5,7 @@
 #SBATCH -A a-infra01-1
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
+#SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521,nid007352,nid006959,nid006944,nid006904,nid006946,nid006966,nid007017,nid006968
 
 # Variables used by the entrypoint script
 # Change this to the path of your project (can be the /dev or /run copy)

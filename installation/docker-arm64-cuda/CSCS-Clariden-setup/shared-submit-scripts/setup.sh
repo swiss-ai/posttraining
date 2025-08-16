@@ -51,6 +51,11 @@ if [ "$ENABLE_RETRY" -eq 1 ]; then
   JOB_ID=$(extract_field "JobId")
   JOB_NAME=$(extract_field "JobName")
   NODES=$(extract_field "NumNodes")
+  TASKS_PER_NODE=$(extract_field "NumTasks")
+  # If TASKS_PER_NODE is empty, set it to 1
+  if [ -z "$TASKS_PER_NODE" ]; then
+    TASKS_PER_NODE=1
+  fi
 
   # Updating OUTPUT_PATH to include retry count
   OUTPUT_PATH=$(echo "$OUTPUT_PATH" | sed 's/\(-retry[0-9]*\)\?\.out$//')
@@ -64,6 +69,7 @@ if [ "$ENABLE_RETRY" -eq 1 ]; then
       --account="$ACCOUNT" \
       --partition="$PARTITION" \
       --nodes="$NODES" \
+      --tasks-per-node="$TASKS_PER_NODE" \
       --chdir="$WORKDIR" \
       --output="$OUTPUT_PATH" \
       --error="$ERROR_PATH" \
@@ -76,6 +82,7 @@ if [ "$ENABLE_RETRY" -eq 1 ]; then
       --account="$ACCOUNT" \
       --partition="$PARTITION" \
       --nodes="$NODES" \
+      --tasks-per-node="$TASKS_PER_NODE" \
       --chdir="$WORKDIR" \
       --output="$OUTPUT_PATH" \
       --error="$ERROR_PATH" \
