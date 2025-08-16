@@ -9,7 +9,7 @@ Make these symlinks
 cd artifacts/shared/datasets/alignment-pipeline-swissaiformat
 ln -s ../../outputs/generate_ref_completions_vllm_swissaiformat/datasets-with-ref-completions datasets-with-ref-completions
 ln -s ../../outputs/compute_ref_logprobs_swissaiformat/datasets-with-ref-logprobs datasets-with-ref-logprobs
-ln -s ../../outputs/compute_rewards_for_completions_swissaiformat/datasets-with-ref-rewards datasets-with-ref-rewards  
+ln -s ../../outputs/compute_ref_rewards_swissaiformat/datasets-with-ref-rewards datasets-with-ref-rewards  
 ```
 
 ## 1. Filter the dataset prompts and completions

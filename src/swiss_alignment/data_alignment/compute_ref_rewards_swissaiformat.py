@@ -113,9 +113,7 @@ def main(config: DictConfig) -> None:
     )
 
     # End index is exclusive
-    num_subpartitions = (
-        config.num_gpus_per_node // config.model_vllm_config.tensor_parallel_size
-    )
+    num_subpartitions = config.num_gpus_per_node // tp_size
     (
         subpartition_start_idx,
         subpartition_end_idx,
