@@ -44,4 +44,6 @@ if [ $SRUN_EXIT_CODE -eq 0 ] && [ -n "$RETRY_JOB_ID" ]; then
   scancel $RETRY_JOB_ID
 fi
 
+echo "Done"
+
 exit $SRUN_EXIT_CODE

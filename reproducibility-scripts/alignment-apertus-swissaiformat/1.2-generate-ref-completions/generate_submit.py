@@ -50,9 +50,11 @@ sftids = {
     ],
 }
 
-dataset_num_ref_reward = 20
-dataset_with_for_model_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models/"
-dataset_with_for_model_path_prefix_local = "artifacts/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models/"
+dataset_num_ref_reward = 15
+dataset_with_for_model_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models"
+dataset_with_for_model_path_prefix_local = (
+    "artifacts/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models"
+)
 
 
 # Reference numbers for 10 reference completions per prompt:
@@ -128,10 +130,12 @@ for dataset in datasets:
                         (
                             "sbatch "
                             f"-N {num_nodes_per_job} "
+                            f"-p large512 "
+                            f"-t 48:00:00 "
                             f"--ntasks-per-node {num_gpus_per_node // tensor_parallel_size} "
                             f"-o {stdout_root}/out/{jobid}.out "
                             f"-e {stdout_root}/out/{jobid}.err "
-                            "./cscs-shared-submit-scripts/unattended-generate-ref-completions-with-vllm-v2.sh "
+                            "./cscs-shared-submit-scripts/unattended-generate-ref-completions-with-vllm-swissaiformat.sh "
                             f"model={model} "
                             f"model_args.model_name_or_path='{sftid_path}' "
                             f"dataset={dataset} "
