@@ -34,7 +34,7 @@ $WANDB_API_KEY_FILE_AT \
   /opt/template-entrypoints/pre-entrypoint.sh \
   bash -c "\
     sleep 60; \
-    exec python -m swiss_alignment.data_alignment.generate_ref_completions_with_vllm_swissaiformat \
+    exec python -m swiss_alignment.data_alignment.generate_ref_completions_vllm_swissaiformat \
     subpartition_number=\$SLURM_PROCID \
     $*"
 

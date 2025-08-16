@@ -50,9 +50,6 @@ sftids = {
     ],
 }
 
-dataset_num_ref_reward = 30
-dataset_for_model_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models"
-
 num_nodes_per_job = 1
 commands = []
 total_nodes_needed = 0
@@ -71,6 +68,7 @@ for dataset in datasets:
             commands.append(
                 (
                     "sbatch "
+                    f"-p large512 "
                     f"-N {num_nodes_per_job} "
                     f"-o {stdout_root}/out/{jobid}.out "
                     f"-e {stdout_root}/out/{jobid}.err "

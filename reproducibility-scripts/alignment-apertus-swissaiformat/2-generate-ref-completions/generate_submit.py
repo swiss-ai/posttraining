@@ -11,14 +11,16 @@ model = f"{sft_model}"
 model_sftid = f"{model}-(sftid)"
 reward_model = f"{reward_model}"
 
-dataset_for_model = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}"
+dataset_for_model = f"{dataset}-{model}-(sft_id)-maxlen{max_seq_len}"
 # dataset_for_model depends on the SFTid through the tokenizer and chat template to filter by max_seq_len
 
 dataset_with_ref_completions = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}"
 
-dataset_with_ref_logprobs = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs"
+dataset_with_ref_rewards = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-{reward_model}"
 
-dataset_with_ref_rewards = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs-{reward_model}"
+train_datasets = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-{reward_model}-(train_id)"
+
+train_dataset_with_logprobs = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-{reward_model}-(train_id)-logprobs"
 """
 
 stdout_prefix = "8b"
@@ -27,6 +29,7 @@ stdout_root = (
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 )
 
+dataset_for_model_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models"
 datasets = ["swissai-olmo2-32b-preference"]
 splits = ["train_split"]
 
@@ -49,9 +52,6 @@ sftids = {
 }
 
 dataset_num_ref_reward = 30
-dataset_for_model_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models"
-dataset_with_ref_completions_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-with-ref-completions/merged"
-
 
 # Reference numbers for 10 reference completions per prompt:
 
@@ -87,33 +87,6 @@ for dataset in datasets:
 
             commands.append(f"# Dataset-model: {dataset_for_model}")
 
-            # 1. Filter the dataset.
-            commands.append("# Step 1. Command to run the filtering for the ref model.")
-            dataset_type = "datasets-for-ref-models"
-
-            jobid = f"{dataset_for_model}"
-            commands.append(
-                (
-                    "sbatch "
-                    f"-N {num_nodes_per_job} "
-                    f"-o {stdout_root}/out/{jobid}.out "
-                    f"-e {stdout_root}/out/{jobid}.err "
-                    "./cscs-shared-submit-scripts/unattended.sh "
-                    f"python -m swiss_alignment.data_alignment.filter_dataset_for_ref_model_swissaiformat "
-                    f"dataset={dataset} "
-                    f"model={model} "
-                    f"model_args.model_name_or_path='{sftid_path}' "
-                    f"max_seq_len={max_seq_len} "
-                    f"dataset_id={dataset_for_model} "
-                    f"dataset_type={dataset_type} "
-                    f"job_subdir={jobid} "
-                    "artifacts_subdir=shared "
-                    "resuming.resume=True "
-                )
-            )
-            total_nodes_needed += num_nodes_per_job
-
-            # 2.1 Generate ref completions.
             commands.append(
                 "# Step 2.1 Commands to generate the ref completions in parallel"
             )
@@ -140,23 +113,7 @@ for dataset in datasets:
                 f"{dataset_for_model_path_prefix}/{dataset_for_model}"
             )
             dataset_for_model_path_local = f"{dataset_for_model_path_prefix.replace('\${artifacts_dir}', 'artifacts')}/{dataset_for_model}"
-            try:
-                d = load_from_disk(dataset_for_model_path_local)
-            except FileNotFoundError:
-                print(
-                    "Filtered dataset not ready yet, run the filtering first then regenerate the rest of the commands."
-                )
-                # Write th submit commands to a new directory where this batch of experiments will be managed)
-                # Path from the project root
-                submit_dir = Path.cwd() / str(stdout_root)
-                submit_dir.mkdir(parents=True, exist_ok=True)
-                submit_file = submit_dir / "submit.sh"
-                print(f"Writing {len(commands)} commands to {submit_file}")
-                with open(submit_file, "w") as f:
-                    for command in commands:
-                        f.write(command + "\n")
-                print("Total nodes needed:", total_nodes_needed)
-                exit(0)
+            d = load_from_disk(dataset_for_model_path_local)
 
             for split in splits:
                 split_name = dataset_config["dataset_args"][split]["name"]
@@ -177,7 +134,7 @@ for dataset in datasets:
                             f"--ntasks-per-node {num_subpartitions} "
                             f"-o {stdout_root}/out/{jobid}.out "
                             f"-e {stdout_root}/out/{jobid}.err "
-                            "./cscs-shared-submit-scripts/unattended-generate-ref-completions-with-vllm-swissaiformat.sh "
+                            "./cscs-shared-submit-scripts/unattended-generate-ref-completions-vllm-swissaiformat.sh "
                             f"model={model} "
                             f"model_args.model_name_or_path='{sftid_path}' "
                             f"dataset={dataset} "
@@ -219,75 +176,6 @@ for dataset in datasets:
                 )
             )
             total_nodes_needed += num_nodes_per_job
-
-            # Step 3.1: Compute ref log probs
-            commands.append("# Step 3.1 Commands to compute ref log probs")
-            dataset_type = "datasets-with-ref-logprobs"
-
-            dataset_with_ref_logprobs = f"{dataset_with_ref_completions}-logprobs"
-            dataset_with_ref_completions_path = f"{dataset_with_ref_completions_path_prefix}/{dataset_with_ref_completions}"
-
-            for split in splits:
-                split_name = dataset_config["dataset_args"][split]["name"]
-                d_split = d[split_name]
-                split_size = len(d_split)
-                for partition_start_idx in range(0, split_size, partition_size):
-                    partition_end_idx = min(
-                        partition_start_idx + partition_size, split_size
-                    )
-                    jobid = f"{dataset_with_ref_logprobs}/{split}/{partition_start_idx}-{partition_end_idx}"
-
-                    commands.append(
-                        (
-                            "sbatch "
-                            f"-N {num_nodes_per_job} "
-                            f"-p large512 "
-                            f"-t 48:00:00 "
-                            f"--ntasks-per-node {num_subpartitions} "
-                            f"-o {stdout_root}/out/{jobid}.out "
-                            f"-e {stdout_root}/out/{jobid}.err "
-                            "./cscs-shared-submit-scripts/unattended-compute-ref-logprobs-swissaiformat.sh "
-                            f"model={model} "
-                            f"model_args.model_name_or_path='{sftid_path}' "
-                            f"dataset={dataset} "
-                            f"dataset_args.dataset_name='{dataset_with_ref_completions_path}' "
-                            f"split={split_name} "
-                            f"num_gpus_per_node={num_gpus_per_node} "
-                            f"max_seq_len={max_seq_len} "
-                            f"partition_start_idx={partition_start_idx} "
-                            f"partition_end_idx={partition_end_idx} "
-                            f"save_interval={save_interval} "
-                            "artifacts_subdir=shared "
-                            f"job_subdir_prefix={dataset_type}/{jobid} "
-                            "resuming.resume=True "
-                        )
-                    )
-                    total_nodes_needed += num_nodes_per_job
-
-            # 3.2 Merge command: To use at the end.
-            jobid = dataset_with_ref_logprobs
-            commands.append("# Step 3.2 Command to merge the ref logprobs.")
-            commands.append(
-                (
-                    "sbatch "
-                    f"-N {num_nodes_per_job} "
-                    f"-o {stdout_root}/out/{jobid}.out "
-                    f"-e {stdout_root}/out/{jobid}.err "
-                    "./cscs-shared-submit-scripts/unattended.sh "
-                    f"python -m swiss_alignment.data_alignment.merge_partitions_swissaiformat "
-                    f"dataset={dataset} "
-                    f"dataset_args.dataset_name='{dataset_with_ref_completions_path}' "
-                    f"dataset_id={dataset_with_ref_logprobs} "
-                    f"dataset_type={dataset_type} "
-                    f"is_partitioned={is_partitioned} "
-                    f"num_subpartitions={num_subpartitions} "
-                    f"job_subdir={dataset_type}/{jobid} "
-                    "artifacts_subdir=shared "
-                    "resuming.resume=True "
-                )
-            )
-            total_nodes_needed += num_nodes_per_job
-
 
 # Write th submit commands to a new directory where this batch of experiments will be managed)
 # Path from the project root
