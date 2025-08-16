@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J swiss-alignment-ref-completions
+#SBATCH -J swiss-alignment-ref-rewards
 #SBATCH -t 6:00:00
 #SBATCH -A a-infra01-1
 #SBATCH --nodes 1
@@ -11,11 +11,6 @@
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
 export ENABLE_RETRY=1
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/setup.sh
-
-# Limit vllm to 1 node and disable NCCL looking for inter-node AWS libfabric
-export VLLM_DISABLE_COMPILE_CACHE=1
-export NCCL_IB_DISABLE=1
-export NCCL_NET="Socket"
 
 srun \
   --container-image=$CONTAINER_IMAGE \
@@ -34,7 +29,7 @@ $WANDB_API_KEY_FILE_AT \
   /opt/template-entrypoints/pre-entrypoint.sh \
   bash -c "\
     sleep 60; \
-    exec python -m swiss_alignment.data_alignment.generate_ref_completions_with_vllm_swissaiformat \
+    exec python -m swiss_alignment.data_alignment.compute_ref_rewards_swissaiformat \
     subpartition_number=\$SLURM_PROCID \
     $*"
 

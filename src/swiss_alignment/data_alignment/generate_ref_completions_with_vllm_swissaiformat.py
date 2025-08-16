@@ -112,7 +112,9 @@ def compute_subpartition_start_end_indices(
 
 
 @hydra.main(
-    version_base=None, config_path="../configs", config_name="generate-ref-completions"
+    version_base=None,
+    config_path="../configs",
+    config_name="generate-ref-completions-swissaiformat",
 )
 def main(config: DictConfig) -> None:
     config = utils.config.setup_config_and_resuming(config)
@@ -191,10 +193,6 @@ def main(config: DictConfig) -> None:
             llm, current_slice_data, tokenizer, config
         )
 
-        # current_slice_data = subpartition_data.select(range(*current_slice))
-        # current_slice_data = current_slice_data.map(
-        #     lambda _, idx: {"ref_completions": processed_chunk[idx]}, with_indices=True
-        # )
         save_path = resuming_dir / f"checkpoint-{local_end_idx}"
         current_slice_data.save_to_disk(save_path)
         logger.info(f"Saved checkpoint-{local_end_idx} successfully!")
