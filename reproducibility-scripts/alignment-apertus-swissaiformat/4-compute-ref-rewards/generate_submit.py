@@ -16,11 +16,11 @@ dataset_for_model = f"{dataset}-{model}-(sft_id)-maxlen{max_seq_len}"
 
 dataset_with_ref_completions = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}"
 
-dataset_with_ref_rewards = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-{reward_model}"
+dataset_with_ref_logprobs = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-{reward_model}-logprobs"
 
-train_datasets = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-{reward_model}-(train_id)"
+dataset_with_ref_rewards = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs-{reward_model}"
 
-train_dataset_with_logprobs = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-{reward_model}-(train_id)-logprobs"
+train_datasets = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs-{reward_model}-(train_id)"
 """
 
 stdout_prefix = "70b-8b"
