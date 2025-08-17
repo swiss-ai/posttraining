@@ -16,14 +16,14 @@ dataset_for_model = f"{dataset}-{model}-(sft_id)-maxlen{max_seq_len}"
 
 dataset_with_ref_completions = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}"
 
-dataset_with_ref_logprobs = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-{reward_model}-logprobs"
+dataset_with_ref_logprobs = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs"
 
 dataset_with_ref_rewards = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs-{reward_model}"
 
 train_datasets = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs-{reward_model}-(train_id)"
 """
 
-stdout_prefix = "70b-8b"
+stdout_prefix = "8b-70b"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -31,12 +31,14 @@ stdout_root = (
 
 dataset_for_model_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models"
 dataset_with_ref_completions_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-with-ref-completions/merged"
+dataset_with_ref_logprobs_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-with-ref-logprobs/merged"
+
 datasets = ["swissai-olmo2-32b-preference"]
 splits = ["train_split"]
 
 max_seq_len = 4096
 
-models = ["apertus-70b-sft", "apertus-8b-sft"]
+models = ["apertus-8b-sft", "apertus-70b-sft"]
 sftids = {
     "apertus-70b-sft": [
         (
@@ -56,12 +58,10 @@ dataset_num_ref_reward = 30
 
 reward_models = ["skywork-llama3-8b"]
 
-# Reference numbers for 30 reference completions per prompt:
+# Reference numbers for 40 completions per prompt:
 
 # We need N nodes (with 4 GPUs per node) for X prompts in H hours where:
 # 8B:  N = X / (16,384 · H)
-# 32B: N = X / (4,096 · H)
-# 70B: N = X / (1,024 · H)
 
 is_partitioned = True
 partition_size = 4096  # N prompts per node
@@ -83,12 +83,13 @@ for dataset in datasets:
                 commands.append(f"# Dataset-model: {dataset_for_model}")
 
                 commands.append(
-                    "# Step 3.1 Commands to generate the ref rewards in parallel"
+                    "# Step 4.1 Commands to generate the ref rewards in parallel"
                 )
 
                 dataset_with_ref_completions = (
                     f"{dataset_for_model}-Nref{dataset_num_ref_reward}"
                 )
+                dataset_with_ref_logprobs = f"{dataset_with_ref_completions}-logprobs"
 
                 with open(
                     f"src/swiss_alignment/configs/reward_model/{reward_model}.yaml", "r"
@@ -112,10 +113,9 @@ for dataset in datasets:
                 d = load_from_disk(dataset_for_model_path_local)
 
                 dataset_with_ref_completions_path = f"{dataset_with_ref_completions_path_prefix}/{dataset_with_ref_completions}"
+                dataset_with_ref_logprobs_path = f"{dataset_with_ref_logprobs_path_prefix}/{dataset_with_ref_logprobs}"
 
-                dataset_with_ref_rewards = (
-                    f"{dataset_with_ref_completions}-{reward_model}"
-                )
+                dataset_with_ref_rewards = f"{dataset_with_ref_logprobs}-{reward_model}"
                 dataset_type = "datasets-with-ref-rewards"
 
                 for split in splits:
@@ -133,7 +133,7 @@ for dataset in datasets:
                                 "sbatch "
                                 f"-N {num_nodes_per_job} "
                                 f"-p large512 "
-                                f"-t 24:00:00 "
+                                f"-t 12:00:00 "
                                 f"--ntasks-per-node {num_subpartitions} "
                                 f"-o {stdout_root}/out/{jobid}.out "
                                 f"-e {stdout_root}/out/{jobid}.err "
@@ -141,7 +141,7 @@ for dataset in datasets:
                                 f"model={model} "
                                 f"model_args.model_name_or_path='{sftid_path}' "
                                 f"dataset={dataset} "
-                                f"dataset_args.dataset_name='{dataset_with_ref_completions_path}' "
+                                f"dataset_args.dataset_name='{dataset_with_ref_logprobs_path}' "
                                 f"reward_model={reward_model} "
                                 f"split={split_name} "
                                 f"num_gpus_per_node={num_gpus_per_node} "
@@ -164,6 +164,7 @@ for dataset in datasets:
                         "sbatch "
                         f"-N {num_nodes_per_job} "
                         f"-p large512 "
+                        f"-t 12:00:00 "
                         f"-o {stdout_root}/out/{jobid}.out "
                         f"-e {stdout_root}/out/{jobid}.err "
                         "./cscs-shared-submit-scripts/unattended.sh "

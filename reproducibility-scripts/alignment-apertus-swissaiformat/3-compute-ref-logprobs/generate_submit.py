@@ -16,14 +16,14 @@ dataset_for_model = f"{dataset}-{model}-(sft_id)-maxlen{max_seq_len}"
 
 dataset_with_ref_completions = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}"
 
-dataset_with_ref_logprobs = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-{reward_model}-logprobs"
+dataset_with_ref_logprobs = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs"
 
 dataset_with_ref_rewards = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs-{reward_model}"
 
 train_datasets = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs-{reward_model}-(train_id)"
 """
 
-stdout_prefix = "70b-8b"
+stdout_prefix = "70b"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -36,7 +36,7 @@ splits = ["train_split"]
 
 max_seq_len = 4096
 
-models = ["apertus-70b-sft", "apertus-8b-sft"]
+models = ["apertus-70b-sft"]
 sftids = {
     "apertus-70b-sft": [
         (
@@ -52,27 +52,23 @@ sftids = {
     ],
 }
 
-dataset_num_ref_reward = 30
+dataset_num_ref_reward = 10
 
 # Reference numbers for 10 reference completions per prompt:
 
 # 8B
-# ~10000 tokens per second per GPU.
-# 4096 prompts with 30 completions each take 30 min on 1 GPU
+# 2048 prompts with 20 (10 off-policy + 10 offline) completions each take 1h on 1 GPU
 
-# 70B is  4x slower and needs one node with Tensor Parallelism.
-# ~2000 tokens per second per node.
-# 4096 prompts with 30 completions each take 1h on 1 node.
+# 70B
+# 256 prompts with 20 completions each take 1h on 1 node.
 
 # We need N nodes (with 4 GPUs per node) for X prompts in H hours where:
-# 8B:  N = X / (32,768 · H)
-# 70B: N = X / (4,096 · H)
+# 8B:  N = X / (8192 · H)
+# 70B: N = X / (256 · H)
 
 is_partitioned = True
-partition_size = 1024  # N prompts per node
-save_interval = (
-    1024  # Try to keep it to a reasonable number (like 1-4h), e.g. 1024 for 32B
-)
+partition_size = 1024  # N prompts per node (1024 for 70b, 8192 for 8b)
+save_interval = 256  # Try to keep it to a reasonable number (like 1-2h), e.g. 256 for 70b and 2048 for 8b
 num_nodes_per_job = 1  # 1 node per job
 num_gpus_per_node = 4  # 4 GPUs per node
 
