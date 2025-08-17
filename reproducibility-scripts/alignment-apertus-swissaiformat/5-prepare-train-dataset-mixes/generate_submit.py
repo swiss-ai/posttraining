@@ -56,7 +56,7 @@ dataset_num_ref_reward = 30
 
 reward_models = ["skywork-llama3-8b"]
 
-num_train_pairs_per_prompt = 3
+num_train_pairs_per_prompt = 1
 
 num_nodes_per_job = 1
 commands = []
@@ -94,7 +94,7 @@ for dataset in datasets:
                         "sbatch "
                         f"-N {num_nodes_per_job} "
                         f"-p large512 "
-                        f"-t 12:00:00 "
+                        f"-t 1:00:00 "
                         f"-o {stdout_root}/out/{jobid}.out "
                         f"-e {stdout_root}/out/{jobid}.err "
                         "./cscs-shared-submit-scripts/unattended.sh "

@@ -245,7 +245,7 @@ def main(config: DictConfig) -> None:
     logger.info(f"Saving dataset to {config.preference_save_path}")
     data.save_to_disk(config.preference_save_path)
     logger.info("Dataset saved successfully.")
-    logger.info("Dataset filtered successfully!")
+    logger.info("Dataset processed successfully!")
 
 
 if __name__ == "__main__":

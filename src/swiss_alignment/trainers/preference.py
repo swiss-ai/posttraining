@@ -16,6 +16,7 @@
 # limitations under the License.
 
 import inspect
+import math
 import warnings
 from collections import defaultdict
 from contextlib import contextmanager, nullcontext
@@ -87,7 +88,6 @@ class PreferenceTrainerConfig(TrainingArguments):
     disable_dropout: bool = True
     dataset_num_proc: Optional[int] = None
     model_init_kwargs: Optional[dict[str, Any]] = None
-    load_ref_model: Optional[bool] = True
     ref_model_init_kwargs: Optional[dict[str, Any]] = None
     model_adapter_name: Optional[str] = None
     ref_adapter_name: Optional[str] = None
@@ -95,6 +95,7 @@ class PreferenceTrainerConfig(TrainingArguments):
     force_use_ref_model: bool = False
     use_num_logits_to_keep: bool = False
     precompute_ref_log_probs: bool = False
+    ref_logprobs_from_dataset: bool = False
     sync_ref_model: bool = False
 
     def __post_init__(self):
@@ -118,7 +119,7 @@ class PreferenceTrainerCollator(DataCollatorMixin):
     """
 
     pad_token_id: int
-    num_ref_rewards: int = 1
+    num_ref_rewards: int = -1
     return_tensors: str = "pt"
 
     def torch_call(
@@ -208,7 +209,7 @@ class PreferenceTrainerCollator(DataCollatorMixin):
             )
 
         # Extract ref_rewards
-        if "ref_rewards" in examples[0]:
+        if self.num_ref_rewards > 0 and "ref_rewards" in examples[0]:
             output["ref_rewards"] = torch.tensor(
                 [example["ref_rewards"][: self.num_ref_rewards] for example in examples]
             )
@@ -225,6 +226,16 @@ class PreferenceTrainerCollator(DataCollatorMixin):
             )
             output["rejected_rewards"] = torch.tensor(
                 [example["rejected_reward"] for example in examples]
+            )
+        if (
+            "chosen_quantile_reward" in examples[0]
+            and "rejected_quantile_reward" in examples[0]
+        ):
+            output["chosen_quantile_rewards"] = torch.tensor(
+                [example["chosen_quantile_reward"] for example in examples]
+            )
+            output["rejected_quantile_rewards"] = torch.tensor(
+                [example["rejected_quantile_reward"] for example in examples]
             )
 
         return output
@@ -439,7 +450,11 @@ class PreferenceTrainer(Trainer):
 
         if ref_model:
             self.ref_model = ref_model
-        elif self.is_peft_model or args.precompute_ref_log_probs:
+        elif (
+            self.is_peft_model
+            or args.precompute_ref_log_probs
+            or args.ref_logprobs_from_dataset
+        ):
             # The `model` with adapters turned off will be used as the reference model
             self.ref_model = None
         else:
@@ -482,6 +497,7 @@ class PreferenceTrainer(Trainer):
         self.max_prompt_length = args.max_prompt_length
         self.max_completion_length = args.max_completion_length
         self.precompute_ref_log_probs = args.precompute_ref_log_probs
+        self.ref_logprobs_from_dataset = args.ref_logprobs_from_dataset
         self.use_num_logits_to_keep = args.use_num_logits_to_keep
 
         self.beta = args.beta
@@ -565,9 +581,13 @@ class PreferenceTrainer(Trainer):
                 )
 
         if self.ref_model is None:
-            if not (self.is_peft_model or self.precompute_ref_log_probs):
+            if not (
+                self.is_peft_model
+                or self.precompute_ref_log_probs
+                or self.ref_logprobs_from_dataset
+            ):
                 raise ValueError(
-                    "No reference model and model is not a Peft model. Try setting `precompute_ref_log_probs=True`"
+                    "No reference model and model is not a Peft model. Try setting `precompute_ref_log_probs=True` or `ref_logprobs_from_dataset=True` "
                 )
             if args.sync_ref_model:
                 raise ValueError(
@@ -828,6 +848,8 @@ class PreferenceTrainer(Trainer):
                 "ref_rewards",
                 "chosen_rewards",
                 "rejected_rewards",
+                "chosen_quantile_rewards",
+                "rejected_quantile_rewards",
                 "ref_chosen_logps",
                 "ref_rejected_logps",
             ]
@@ -1156,16 +1178,20 @@ class PreferenceTrainer(Trainer):
             ref_chosen_logps = logps["ref_chosen_logps"]
             ref_rejected_logps = logps["ref_rejected_logps"]
 
-        if (
-            "chosen_rewards" in batch
-            and "rejected_rewards" in batch
-            and "ref_rewards" in batch
-        ):
+        if "chosen_rewards" in batch and "rejected_rewards" in batch:
             chosen_rewards = batch["chosen_rewards"]
             rejected_rewards = batch["rejected_rewards"]
+        else:
+            chosen_rewards, rejected_rewards = None, None
+        if "chosen_quantile_rewards" in batch and "rejected_quantile_rewards" in batch:
+            chosen_quantile_rewards = batch["chosen_quantile_rewards"]
+            rejected_quantile_rewards = batch["rejected_quantile_rewards"]
+        else:
+            chosen_quantile_rewards, rejected_quantile_rewards = None, None
+        if "ref_rewards" in batch:
             ref_rewards = batch["ref_rewards"]
         else:
-            chosen_rewards, rejected_rewards, ref_rewards = None, None, None
+            ref_rewards = None
 
         if self.loss_type == "qrpo":
             loss_fc = self.qrpo_loss
@@ -1185,6 +1211,8 @@ class PreferenceTrainer(Trainer):
             ref_rejected_logps,
             chosen_rewards,
             rejected_rewards,
+            chosen_quantile_rewards,
+            rejected_quantile_rewards,
             ref_rewards,
             extra_logs,
         )
@@ -1422,6 +1450,8 @@ class PreferenceTrainer(Trainer):
         ref_rejected_logps: torch.Tensor,
         chosen_rewards: torch.Tensor,
         rejected_rewards: torch.Tensor,
+        chosen_quantile_rewards: torch.Tensor,
+        rejected_quantile_rewards: torch.Tensor,
         ref_rewards: torch.Tensor,
         extra_logs: dict[str, torch.Tensor],
     ) -> tuple[torch.Tensor, float | Any, float | Any]:
@@ -1456,18 +1486,27 @@ class PreferenceTrainer(Trainer):
         rejected_lens = model_outputs["rejected_lens"].to(device)
         ref_chosen_logps = ref_chosen_logps.to(device)
         ref_rejected_logps = ref_rejected_logps.to(device)
-        ref_rewards = ref_rewards.to(device)
+        if ref_rewards is not None:
+            ref_rewards = ref_rewards.to(device)
+        else:
+            assert (
+                chosen_quantile_rewards is not None
+                and rejected_quantile_rewards is not None
+            ), "if ref_rewards is None, then chosen_quantile_rewards and rejected_quantile_rewards must be provided"
+            chosen_quantile_rewards = chosen_quantile_rewards.to(device)
+            rejected_quantile_rewards = rejected_quantile_rewards.to(device)
 
         # Get the log ratios for the chosen and rejected responses
         logratio_chosen = chosen_logps - ref_chosen_logps
         logratio_rejected = rejected_logps - ref_rejected_logps
 
-        chosen_quantile_rewards = (
-            (ref_rewards <= chosen_rewards.unsqueeze(dim=-1)).float().mean(dim=1)
-        )
-        rejected_quantile_rewards = (
-            (ref_rewards <= rejected_rewards.unsqueeze(dim=-1)).float().mean(dim=1)
-        )
+        if ref_rewards is not None:
+            chosen_quantile_rewards = (
+                (ref_rewards <= chosen_rewards.unsqueeze(dim=-1)).float().mean(dim=1)
+            )
+            rejected_quantile_rewards = (
+                (ref_rewards <= rejected_rewards.unsqueeze(dim=-1)).float().mean(dim=1)
+            )
 
         extra_logs["quantile_rewards_chosen"] = chosen_quantile_rewards
         extra_logs["quantile_rewards_rejected"] = rejected_quantile_rewards
@@ -1480,7 +1519,7 @@ class PreferenceTrainer(Trainer):
             beta_chosen = _beta
             beta_rejected = _beta
 
-        # clamp to 0.1
+        # clamp max to 0.1 otherwise grad norm is too high.
         beta_chosen = beta_chosen.clamp(max=0.1)
         beta_rejected = beta_rejected.clamp(max=0.1)
 
@@ -1493,6 +1532,9 @@ class PreferenceTrainer(Trainer):
                       beta * logZ = beta * log(beta * (exp(1 / beta) - 1))
                                   = beta * log(beta) + beta * log(exp(1 / beta) - 1)
               (when beta <= 0.2) ~= beta * log(beta) + 1
+
+            A trick to avoid CPU-GPU synchronization.
+            With the clamp to max 0.1 above the approximation is always used so the trick is not needed, but we keep it for reference.
             """
             use_approx = (beta <= 0.2).float()
             beta_logZ = beta * torch.log(beta)
@@ -1540,6 +1582,8 @@ class PreferenceTrainer(Trainer):
         ref_rejected_logps: torch.Tensor,
         chosen_rewards: torch.Tensor,
         rejected_rewards: torch.Tensor,
+        chosen_quantile_rewards: torch.Tensor,
+        rejected_quantile_rewards: torch.Tensor,
         ref_rewards: torch.Tensor,
         extra_logs: dict[str, torch.Tensor],
     ) -> tuple[torch.Tensor, float | Any, float | Any]:

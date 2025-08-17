@@ -16,7 +16,7 @@ max_seq_len: 4096
 dataset_id: null
 dataset_type: train-datasets
 swissaiformat_save_path: ${artifacts_dir}/${artifacts_subdir}/datasets/alignment-pipeline-swissaiformat/${dataset_type}/swissaiformat/${dataset_id}
-preference_save_path: ${artifacts_dir}/${artifacts_subdir}/datasets/alignment-pipeline-swissaiformat/${dataset_type}/preference-format/${dataset_id}
+preference_save_path: ${artifacts_dir}/${artifacts_subdir}/datasets/alignment-pipeline-swissaiformat/${dataset_type}/hfformat/${dataset_id}
 num_pairs_per_prompt: 3
 min_num_ref_rewards: 2 # filter prompts with less than this many reference rewards
 seed: 43

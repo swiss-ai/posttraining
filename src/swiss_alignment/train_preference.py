@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import timedelta
 from pathlib import Path
 
@@ -61,7 +62,13 @@ def main(config: DictConfig) -> None:
         quantization_config=quantization_config,
     )
     training_args.model_init_kwargs = model_kwargs
-    if training_args.load_ref_model:
+    if (
+        training_args.ref_logprobs_from_dataset
+        or training_args.pre_compute_ref_logprobs
+    ):
+        ref_model = None
+    else:
+        ref_model = model_args.model_name_or_path
         training_args.ref_model_init_kwargs = model_kwargs
 
     full_config = utils_for_trl.merge_and_save_config(
@@ -142,7 +149,7 @@ def main(config: DictConfig) -> None:
             if extra_key in ds[split_name].column_names:
                 ds[split_name] = ds[split_name].remove_columns([extra_key])
 
-        if "ref_rewards" in ds[split_name].column_names:
+        if "ref_completions" in ds[split_name].column_names:
             ds[split_name] = ds[split_name].remove_columns(["ref_completions"])
 
     ############################ Trainer Setup ############################
@@ -170,15 +177,31 @@ def main(config: DictConfig) -> None:
 
     trainer = PreferenceTrainer(
         model_args.model_name_or_path,
-        ref_model=model_args.model_name_or_path
-        if training_args.load_ref_model
-        else None,
+        ref_model=ref_model,
         args=training_args,
         train_dataset=ds["train"],
         eval_dataset=ds["eval"] if training_args.eval_strategy != "no" else None,
         processing_class=tokenizer,
         peft_config=get_peft_config(model_args),
     )
+
+    # Computing the warmup steps for beta3 and alpha in AdEMAMix
+    if training_args.optim == "ademamix":
+        len_ds = len(ds["train"])
+        total_batch_size = trainer.get_total_train_batch_size(training_args)
+        num_steps_per_epoch = int(
+            len_ds // total_batch_size
+            if training_args.dataloader_drop_last
+            else math.ceil(len_ds / total_batch_size)
+        )
+        total_steps = training_args.num_train_epochs * num_steps_per_epoch
+        # TODO move the beta3 and alpha to the training_args.optim_args command line argument.
+        # This is not trivial for write in a way that is sent in a correct format through all the layers down to hydra.
+        training_args.optim_args = (
+            f"beta3=0.999,alpha=8.0,t_beta3={total_steps},t_alpha={total_steps}"
+        )
+        acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
+
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")
 
