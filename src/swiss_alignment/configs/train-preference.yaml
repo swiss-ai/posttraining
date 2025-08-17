@@ -58,6 +58,7 @@ training_args:
   normalize_beta_by_length: false
   normalize_loss_by_length: false
   precompute_ref_log_probs: false
+  ref_logprobs_from_dataset: false
   dataloader_drop_last: true
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 1

@@ -62,6 +62,7 @@ model_hps = {
 reward_models = ["skywork-llama3-8b"]
 
 dataset_num_ref_reward = 30
+ref_logprobs_from_dataset = True
 train_num_ref_rewards = -1  # Directly use the quantile rewards from the dataset.
 nums_train_pairs_per_prompt = [1, 2]
 
@@ -107,7 +108,7 @@ for dataset in datasets:
                                         (
                                             "sbatch "
                                             f"-p large512 "
-                                            f"-t 10:00:00 "
+                                            f"-t 7:00:00 "
                                             f"-N {num_nodes_per_job} "
                                             f"-o {stdout_root}/out/{jobid}.out "
                                             f"-e {stdout_root}/out/{jobid}.err "
@@ -126,6 +127,7 @@ for dataset in datasets:
                                             f"training_args.loss_type={loss} "
                                             f"training_args.normalize_beta_by_length={normalize_beta_by_length} "
                                             f"training_args.num_ref_rewards={train_num_ref_rewards} "
+                                            f"training_args.ref_logprobs_from_dataset={ref_logprobs_from_dataset} "
                                             f"training_args.beta={beta} "
                                             f"global_batch_size={batch_size} "
                                             f"num_nodes={num_nodes_per_job} "

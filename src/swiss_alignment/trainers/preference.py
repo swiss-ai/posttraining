@@ -209,6 +209,8 @@ class PreferenceTrainerCollator(DataCollatorMixin):
             )
 
         # Extract ref_rewards
+        # TODO: add logic to pad ref rewards for samples with different number of ref rewards
+        # TODO: it would need to be taken into account in the computation of the quantile rewards in the loss function
         if self.num_ref_rewards > 0 and "ref_rewards" in examples[0]:
             output["ref_rewards"] = torch.tensor(
                 [example["ref_rewards"][: self.num_ref_rewards] for example in examples]
@@ -847,11 +849,17 @@ class PreferenceTrainer(Trainer):
                 "rejected_attention_mask",
                 "ref_rewards",
                 "chosen_rewards",
+                "chosen_reward",
                 "rejected_rewards",
+                "rejected_reward",
                 "chosen_quantile_rewards",
                 "rejected_quantile_rewards",
                 "ref_chosen_logps",
                 "ref_rejected_logps",
+                "ref_chosen_logprob",
+                "ref_rejected_logprob",
+                "chosen_quantile_reward",
+                "rejected_quantile_reward",
             ]
 
     @contextmanager
