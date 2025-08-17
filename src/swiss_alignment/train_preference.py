@@ -64,7 +64,7 @@ def main(config: DictConfig) -> None:
     training_args.model_init_kwargs = model_kwargs
     if (
         training_args.ref_logprobs_from_dataset
-        or training_args.pre_compute_ref_logprobs
+        or training_args.precompute_ref_log_probs
     ):
         ref_model = None
     else:

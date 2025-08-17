@@ -114,7 +114,7 @@ for dataset in datasets:
                                             "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
                                             f"-m swiss_alignment.train_preference "
                                             f"accelerate_config={accelerate_config} "
-                                            f"dataset={train_dataset} "
+                                            f"dataset={dataset} "
                                             f"dataset_args.dataset_name='{train_dataset_path}' "
                                             f"model={model} "
                                             f"model_args.model_name_or_path='{sftid_path}' "
