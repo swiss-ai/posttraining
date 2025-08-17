@@ -39,6 +39,7 @@ def add_chat_num_tokens_and_filter_completions(row, tokenizer, max_seq_len):
             conv_branch["messages"][-1]["parts"][-1]["metadata"][
                 "context_num_tokens"
             ] = context_tokens_len
+            conv_branch["is_reference_completion"] = False
             filtered_conversation_branches.append(conv_branch)
 
     row["conversation_branches"] = filtered_conversation_branches

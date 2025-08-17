@@ -59,9 +59,10 @@ dataset_num_ref_reward = 30
 reward_models = ["skywork-llama3-8b"]
 
 # Reference numbers for 40 completions per prompt:
+# 1024 prompts with 40 completions each take 1h on 1 GPU.
 
 # We need N nodes (with 4 GPUs per node) for X prompts in H hours where:
-# 8B:  N = X / (16,384 · H)
+# N = X / (4096 · H)
 
 is_partitioned = True
 partition_size = 4096  # N prompts per node

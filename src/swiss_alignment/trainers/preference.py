@@ -189,29 +189,43 @@ class PreferenceTrainerCollator(DataCollatorMixin):
 
         # Ref log probs if already present
         if "ref_chosen_logps" in examples[0] and "ref_rejected_logps" in examples[0]:
-            ref_chosen_logps = torch.tensor(
+            output["ref_chosen_logps"] = torch.tensor(
                 [example["ref_chosen_logps"] for example in examples]
             )
-            ref_rejected_logps = torch.tensor(
+            output["ref_rejected_logps"] = torch.tensor(
                 [example["ref_rejected_logps"] for example in examples]
             )
-            output["ref_chosen_logps"] = ref_chosen_logps
-            output["ref_rejected_logps"] = ref_rejected_logps
+
+        elif (
+            "ref_chosen_logprob" in examples[0]
+            and "ref_rejected_logprob" in examples[0]
+        ):
+            output["ref_chosen_logps"] = torch.tensor(
+                [example["ref_chosen_logprob"] for example in examples]
+            )
+            output["ref_rejected_logps"] = torch.tensor(
+                [example["ref_rejected_logprob"] for example in examples]
+            )
 
         # Extract ref_rewards
         if "ref_rewards" in examples[0]:
-            ref_rewards = torch.tensor(
+            output["ref_rewards"] = torch.tensor(
                 [example["ref_rewards"][: self.num_ref_rewards] for example in examples]
             )
-            chosen_rewards = torch.tensor(
+        if "chosen_rewards" in examples[0] and "rejected_rewards" in examples[0]:
+            output["chosen_rewards"] = torch.tensor(
                 [example["chosen_rewards"] for example in examples]
             )
-            rejected_rewards = torch.tensor(
+            output["rejected_rewards"] = torch.tensor(
                 [example["rejected_rewards"] for example in examples]
             )
-            output["ref_rewards"] = ref_rewards
-            output["chosen_rewards"] = chosen_rewards
-            output["rejected_rewards"] = rejected_rewards
+        elif "chosen_reward" in examples[0] and "rejected_reward" in examples[0]:
+            output["chosen_rewards"] = torch.tensor(
+                [example["chosen_reward"] for example in examples]
+            )
+            output["rejected_rewards"] = torch.tensor(
+                [example["rejected_reward"] for example in examples]
+            )
 
         return output
 
@@ -680,6 +694,7 @@ class PreferenceTrainer(Trainer):
                 prompt_input_ids = [tokenizer.bos_token_id] + prompt_input_ids
             if tokenizer.eos_token_id is not None:
                 prompt_input_ids = prompt_input_ids + [tokenizer.eos_token_id]
+        # Patch: This is bug in TRL and shouldn't be applied. It adds an extra eos.
         # Patch: Remove extra eos token as it is added in the maybe_apply_chat_template before already.
         chosen_input_ids = chosen_input_ids  # + [tokenizer.eos_token_id]
         rejected_input_ids = rejected_input_ids  # + [tokenizer.eos_token_id]

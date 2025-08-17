@@ -65,7 +65,6 @@ def generate_completions_batch(llm, batch, tokenizer, config):
                                 "type": "response",
                                 "content": completion,
                                 "metadata": {
-                                    "is_reference_completion": True,
                                     "model": str(
                                         Path(
                                             config.model_args.model_name_or_path
@@ -92,6 +91,7 @@ def generate_completions_batch(llm, batch, tokenizer, config):
                 new_conv_branch["messages"][0]["parts"][-1]["metadata"][
                     "context_num_tokens"
                 ] = context_tokens_len
+                new_conv_branch["is_reference_completion"] = True
                 row["conversation_branches"].append(new_conv_branch)
         rows_result.append(row)
 
