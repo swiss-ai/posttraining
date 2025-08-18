@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-stdout_prefix = "adam"
+stdout_prefix = "adam-new-eos"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -12,6 +12,7 @@ stdout_root = (
 job_name = "final-run"
 
 models = ["apertus-8b"]
+new_eos_token_id = 68  # The new EOS token ID to be used in the model
 
 # Hyperparameters
 num_device_per_node = 4
@@ -27,13 +28,7 @@ hyper_params = {
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            # "tulu3-sft-mixture-original-ln",
-            # "tulu3-sft-mixture-ln",
-            # "tulu3-sft-mixture-licenseFiltered-ln",
-            # "tulu3-sft-olmo-2-mixture-0225-ln",
-            # "apertus-sft-mixture-5-ln",
-            # "apertus-sft-mixture-6-ln",
-            "olmo2-with-tools-ln"
+            "apertus-sft-mixture-7-ln-v2"
         ],
     }
 }
@@ -72,6 +67,7 @@ for model in models:
             f"training_args.per_device_train_batch_size={hp['device_train_batch_size']} "
             f"training_args.learning_rate={hp['learning_rate']} "
             f"tokenizer_args.chat_template_name={hp['chat_template']} "
+            f"tokenizer_args.model_eos_token_id={new_eos_token_id} "
             f"training_args.num_train_epochs={hp['num_epochs']} "
             "artifacts_subdir=shared "
             f"job_subdir={run_name} "
