@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import timedelta
 from pathlib import Path
 
@@ -61,9 +62,14 @@ def main(config: DictConfig) -> None:
         quantization_config=quantization_config,
     )
     training_args.model_init_kwargs = model_kwargs
-    if training_args.load_ref_model:
+    if (
+        training_args.ref_logprobs_from_dataset
+        or training_args.precompute_ref_log_probs
+    ):
+        ref_model = None
+    else:
+        ref_model = model_args.model_name_or_path
         training_args.ref_model_init_kwargs = model_kwargs
-    peft_config = get_peft_config(model_args)
 
     full_config = utils_for_trl.merge_and_save_config(
         config, script_args, training_args, model_args, acc_state
@@ -112,13 +118,6 @@ def main(config: DictConfig) -> None:
                     "train": ds,
                 }
             )
-        if config.dataset_args.debug_oom:
-            with acc_state.main_process_first():
-                ds = ds.sort("max_chosen_rejected_reward_tokens_len", reverse=True)
-
-        # Shuffle at the end to preserve previous cache across seeds.
-        ds = ds.shuffle(seed=config.seed)
-
         for split_name in ds.keys():
             if config.dataset_args.debug_subsample[split_name] > 0:
                 ds[split_name] = ds[split_name].select(
@@ -129,29 +128,29 @@ def main(config: DictConfig) -> None:
                         )
                     )
                 )
-            # We only support the "preference with implicit prompt" format
-            # with "chosen" and "rejected" columns including both chat and ref completions
-            # https://huggingface.co/docs/trl/main/en/dataset_formats#preference
-            # Drop the extra preference columns
-            for extra_key in ["prompt", "completion", "messages", "label"]:
-                if extra_key in ds[split_name].column_names:
-                    ds[split_name] = ds[split_name].remove_columns([extra_key])
+        if config.dataset_args.debug_oom:
+            if "max_chosen_rejected_reward_tokens_len" in ds["train"].column_names:
+                ds = ds.sort("max_chosen_rejected_reward_tokens_len", reverse=True)
+            elif "max_chosen_rejected_model_tokens_len" in ds["train"].column_names:
+                ds = ds.sort("max_chosen_rejected_model_tokens_len", reverse=True)
+            else:
+                acc_logger.warning(
+                    "No column for sorting dataset found. Using default order."
+                )
 
-            if "ref_rewards" in ds[split_name].column_names:
-                # Extract ref rewards and drop ref completions and rewards columns
-                # ref_rewards = np.array(ds[split_name]["ref_rewards"])[
-                #     :, : training_args.num_ref_rewards
-                # ]
-                # ds[split_name] = ds[split_name].remove_columns(
-                #     ["ref_rewards", "ref_completions"]
-                # )
+        # Shuffle at the end to preserve previous cache across seeds.
+        ds = ds.shuffle(seed=config.seed)
 
-                ds[split_name] = ds[split_name].remove_columns(["ref_completions"])
+        # We only support the "preference with implicit prompt" format
+        # with "chosen" and "rejected" columns including both chat and ref completions
+        # https://huggingface.co/docs/trl/main/en/dataset_formats#preference
+        # Drop the extra preference columns
+        for extra_key in ["prompt", "completion", "messages", "label"]:
+            if extra_key in ds[split_name].column_names:
+                ds[split_name] = ds[split_name].remove_columns([extra_key])
 
-                # # put truncated ref_rewards back to the datasets
-                # ds[split_name] = ds[split_name].add_column(
-                #     name="ref_rewards", column=ref_rewards.tolist()
-                # )
+        if "ref_completions" in ds[split_name].column_names:
+            ds[split_name] = ds[split_name].remove_columns(["ref_completions"])
 
     ############################ Trainer Setup ############################
 
@@ -178,15 +177,31 @@ def main(config: DictConfig) -> None:
 
     trainer = PreferenceTrainer(
         model_args.model_name_or_path,
-        ref_model=model_args.model_name_or_path
-        if training_args.load_ref_model
-        else None,
+        ref_model=ref_model,
         args=training_args,
         train_dataset=ds["train"],
         eval_dataset=ds["eval"] if training_args.eval_strategy != "no" else None,
         processing_class=tokenizer,
-        peft_config=peft_config,
+        peft_config=get_peft_config(model_args),
     )
+
+    # Computing the warmup steps for beta3 and alpha in AdEMAMix
+    if training_args.optim == "ademamix":
+        len_ds = len(ds["train"])
+        total_batch_size = trainer.get_total_train_batch_size(training_args)
+        num_steps_per_epoch = int(
+            len_ds // total_batch_size
+            if training_args.dataloader_drop_last
+            else math.ceil(len_ds / total_batch_size)
+        )
+        total_steps = training_args.num_train_epochs * num_steps_per_epoch
+        # TODO move the beta3 and alpha to the training_args.optim_args command line argument.
+        # This is not trivial for write in a way that is sent in a correct format through all the layers down to hydra.
+        training_args.optim_args = (
+            f"beta3=0.999,alpha=8.0,t_beta3={total_steps},t_alpha={total_steps}"
+        )
+        acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
+
     trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
     acc_logger.info("Training completed. Performing final evaluation.")
 

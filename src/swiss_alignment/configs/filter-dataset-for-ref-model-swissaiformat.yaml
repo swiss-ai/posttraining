@@ -1,0 +1,20 @@
+# An example config file for an experiment.
+# Keep this, it's used as an example to run the code after a user installs the project.
+
+defaults:
+  # Common setup.
+  - setup
+  # This file.
+  - _self_
+  # Reward model (from the configs/reward_model/ directory).
+  - dataset: swissai-olmo2-32b-preference
+  - model: olmo2-32b-sft
+
+
+######################################################################
+
+max_seq_len: 4096
+dataset_id: null
+dataset_type: datasets-for-ref-models
+save_path: ${artifacts_dir}/${artifacts_subdir}/datasets/alignment-pipeline-swissaiformat/${dataset_type}/${dataset_id}
+seed: 43

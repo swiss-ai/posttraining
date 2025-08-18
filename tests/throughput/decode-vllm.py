@@ -2,6 +2,8 @@ import os
 import time
 
 import torch
+import transformers
+import vllm
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 
@@ -16,19 +18,27 @@ from vllm import LLM, SamplingParams
 # lambda: os.getenv("VLLM_ATTENTION_BACKEND", None),
 
 # set backend for attention
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-# os.environ["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
 
 if __name__ == "__main__":
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+    # Single node, don't load problematic NCCL
+    os.environ["NCCL_IB_DISABLE"] = "1"
+    os.environ["NCCL_NET"] = "Socket"
+
     # model = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/outputs/train_sft/apertus-8b-sweep/chat-template/Apertus8B-tokens7.04T-it1678000-tulu_special_token-swissai-tulu-3-sft-0225/checkpoints/9b811fb20bdd09a4/checkpoint-9000"
     # model = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/models/olmo2-7b-sft"
-    model = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/models/olmo2-32b-sft"
+    # model = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/models/olmo2-32b-sft"
     # model = "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/models/llama3-8b-sft"
+    model = "/users/smoalla/projects/swiss-alignment/dev/artifacts/shared/outputs/train_sft/apertus-sft-mixture-1-fast-ademamix/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-maxgnorm1-epochs1-ademamix/checkpoints/4fc579918b550aac/checkpoint-1622"
+    # model = "/users/smoalla/projects/swiss-alignment/dev/artifacts/shared/outputs/train_sft/final-run/Apertus8B-tokens10.2T-it2059810-newcooldown-apertus-sft-mixture-1-ademamix/checkpoints/ee969b526b1995f7/checkpoint-1622"
 
     tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
+    print(tokenizer.chat_template)
     llm = LLM(
         model=model,
         model_impl="vllm",
+        tensor_parallel_size=4,
+        dtype="bfloat16",
         gpu_memory_utilization=0.90,
     )
 
@@ -54,12 +64,13 @@ if __name__ == "__main__":
         avg_latency = (end - start) / avg_seq_len
         duration = end - start
         print(
+            f"\n"
             f"Latency: takes {avg_latency*1000:.2f} ms/token on average for {batch_size} sequences of {avg_seq_len} tokens\n"
-            "The reference number for the latency is 30 +- 15 ms/token\n"
+            "The reference number with an 8B model for the latency is 30 +- 15 ms/token\n"
             f"Throughput: generates {throughput:.2f} tokens/sec for {batch_size} sequences of {avg_seq_len} tokens\n"
-            f"Throughput: generates {throughput:.2f} tokens/sec for {batch_size} sequences of {avg_seq_len} tokens\n"
-            f"The reference number for the throughput is {40 * batch_size} +- {20 * batch_size} tokens/sec\n"
+            f"The reference number with an 8B model for the throughput is {40 * batch_size} +- {20 * batch_size} tokens/sec\n"
             f"Time: takes {duration:.2f} seconds to generate {batch_size} sequences of {avg_seq_len} tokens"
+            f"\n"
         )
 
         return throughput, avg_latency
@@ -88,9 +99,11 @@ if __name__ == "__main__":
         throughput = batch_size * n_tokens / (end - start)
 
         print(
+            f"\n"
             f"Latency: takes {latency*1000:.2f} ms/token on average for {batch_size} sequences of {n_tokens} tokens\n"
             f"Throughput: generates {throughput:.2f} tokens/sec for {batch_size} sequences of {n_tokens} tokens\n"
             f"Time: takes {end - start:.2f} seconds to generate {batch_size} sequences of {n_tokens} tokens"
+            f"\n"
         )
 
         return throughput, latency

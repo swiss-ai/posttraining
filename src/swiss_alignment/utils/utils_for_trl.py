@@ -12,6 +12,8 @@ from swiss_alignment import utils
 
 def merge_and_save_config(config, script_args, training_args, model_args, acc_state):
     # Full config will be different between processes as it contains the process index.
+
+    # TODO: deprecate script args. They're redundant with dataset_args.
     full_config = OmegaConf.create(
         {
             "script_args": dataclasses.asdict(script_args),

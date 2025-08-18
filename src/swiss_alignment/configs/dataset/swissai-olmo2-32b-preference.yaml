@@ -1,0 +1,15 @@
+# @package _global_
+
+# https://huggingface.co/datasets/allenai/olmo-2-0325-32b-preference-mix
+
+
+dataset_args:
+  dataset_name: "/capstor/store/cscs/swissai/infra01/posttrain_data/04_decontaminated_newformat/olmo-2-0325-32b-preference-mix-newCompletions"
+  train_split:
+    name: train
+  eval_split:
+    name: null
+
+training_args:
+  eval_strategy: "no"
+  eval_steps: null

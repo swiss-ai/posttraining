@@ -6,10 +6,12 @@
 #SBATCH --output=sremote-development.out
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
+#SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521,nid007352,nid006959,nid006944,nid006904,nid006946,nid006966,nid007017,nid006968,nid007068
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/dev
-source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/env-vars.sh
+export ENABLE_RETRY=0
+source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/setup.sh
 export HF_TOKEN_AT=$HOME/.hf-token
 export SLURM_ONE_REMOTE_DEV=1
 export PRE_COMMIT_HOME=$SCRATCH/pre-commit
