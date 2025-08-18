@@ -59,7 +59,12 @@ class PLWDataCollator(DataCollatorForLanguageModeling):
             padded_field = np.zeros((len(features), max_length), dtype=np.int8)
             for i, ex in enumerate(features):
                 length = min(len(ex[field_name]), max_length)
-                padded_field[i, :length] = ex[field_name][:length]
+                if self.tokenizer.padding_side == "right":
+                    print(f"Padding {field_name} on the right")
+                    padded_field[i, :length] = ex[field_name][:length]
+                else:  # left padding
+                    print(f"Padding {field_name} on the left")
+                    padded_field[i, -length:] = ex[field_name][-length:]
 
             # Convert to appropriate tensor type
             if return_tensors == "pt":
