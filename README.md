@@ -162,6 +162,7 @@ sbatch -N 64 -p large512 -t 48:00:00 \
  wandb.tags=[prod,plw,default,0-apertus-template] \
  resuming.resume=True
 ```
+</details>
 
 These scripts configure the model, dataset, and override training parameters from `src/swiss-alignment/configs/trl-sft.yaml`.
 Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`.
