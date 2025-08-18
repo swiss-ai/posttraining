@@ -27,12 +27,13 @@ stdout_root = (
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 )
 
-job_name = "first-sweep"
+job_name = "apertus-first-sweep"
 
 train_datasets_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/train-datasets/hfformat"
 datasets = ["swissai-olmo2-32b-preference"]
 max_seq_len = 4096
 models = ["apertus-8b-sft", "apertus-70b-sft"]
+models = ["apertus-70b-sft"]
 model_hps = {
     "apertus-70b-sft": {
         "ids_paths": [
@@ -43,7 +44,7 @@ model_hps = {
         ],
         "batch_size": 512,
         "num_nodes_per_job": 64,
-        "per_device_train_batch_size": 1,
+        "per_device_train_batch_size": 2,
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
     },
     "apertus-8b-sft": {
