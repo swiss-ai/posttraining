@@ -5,6 +5,15 @@ copy the whole directory `alignment-apertus-swissaiformat`.
 
 ## 0. Preliminaries
 
+If you're on the login node, have a python environment to run the generate scripts (`generate_submit.py`)
+```
+mamba create -n foo python=3.12
+mamba activate foo
+mamba install python=3.12
+pip install datasets==3.5
+```
+
+
 Make these symlinks (will symlink `.../datasets/X` to generated datasets in `.../outputs/X`).
 ```
 cd artifacts/shared/datasets/alignment-pipeline-swissaiformat
@@ -12,6 +21,8 @@ ln -s ../../outputs/generate_ref_completions_vllm_swissaiformat/datasets-with-re
 ln -s ../../outputs/compute_ref_logprobs_swissaiformat/datasets-with-ref-logprobs datasets-with-ref-logprobs
 ln -s ../../outputs/compute_ref_rewards_swissaiformat/datasets-with-ref-rewards datasets-with-ref-rewards  
 ```
+
+To add a new dataset, add a config under `src/swiss_alignment/config/dataset/`. Look at `swissai-olmo2-32b-preference.yaml` as an example.
 
 ## 1. Filter the dataset prompts and completions
 
