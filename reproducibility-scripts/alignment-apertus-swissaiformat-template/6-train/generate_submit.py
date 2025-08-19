@@ -32,8 +32,8 @@ job_name = "apertus-first-sweep"
 train_datasets_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/train-datasets/hfformat"
 datasets = ["swissai-olmo2-32b-preference"]
 max_seq_len = 4096
-models = ["apertus-8b-sft", "apertus-70b-sft"]
-models = ["apertus-70b-sft"]
+# models = ["apertus-8b-sft", "apertus-70b-sft"]
+models = ["apertus-8b-sft"]
 model_hps = {
     "apertus-70b-sft": {
         "ids_paths": [
@@ -55,7 +55,7 @@ model_hps = {
             ),
         ],
         "batch_size": 512,
-        "num_nodes_per_job": 64,
+        "num_nodes_per_job": 32,
         "per_device_train_batch_size": 2,
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
     },
@@ -65,16 +65,19 @@ reward_models = ["skywork-llama3-8b"]
 dataset_num_ref_reward = 30
 ref_logprobs_from_dataset = True
 train_num_ref_rewards = -1  # Directly use the quantile rewards from the dataset.
-nums_train_pairs_per_prompt = [1, 2]
+# nums_train_pairs_per_prompt = [1, 2]
+nums_train_pairs_per_prompt = [1]
 
-losses = ["qrpo", "dpo"]
+# losses = ["qrpo", "dpo"]
+losses = ["qrpo"]
 normalize_beta_by_length = True
 betas = {
-    "qrpo": [5.0],
+    "qrpo": [1.0],
     "dpo": [5.0],
 }
 learning_rates = [5e-7]
-optimizers = ["adamw_torch", "ademamix"]
+# optimizers = ["adamw_torch", "ademamix"]
+optimizers = ["adamw_torch"]
 max_grad_norm = 20  # Disable but still log.
 
 num_devices_per_node = 4
