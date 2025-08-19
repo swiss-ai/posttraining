@@ -111,7 +111,7 @@ for dataset in datasets:
                                     commands.append(
                                         (
                                             "sbatch "
-                                            f"-p large512 "
+                                            f"-p normal "
                                             f"-t 7:00:00 "
                                             f"-N {num_nodes_per_job} "
                                             f"-o {stdout_root}/out/{jobid}.out "
