@@ -12,7 +12,7 @@ stdout_root = (
 job_name = "final-run"
 
 # models = ["apertus-70b", "apertus-8b"]
-models = ["apertus-8b"]
+models = ["apertus-70b"]
 new_eos_token_id = 68  # The new EOS token ID to be used in the model
 padding_side = "left"  # Padding side for the tokenizer
 
@@ -20,7 +20,7 @@ padding_side = "left"  # Padding side for the tokenizer
 num_device_per_node = 4
 hyper_params = {
     "apertus-8b": {
-        "checkpoint": "Apertus8B-tokens10.2T-it2059810-newcooldown",
+        "checkpoint": "Apertus8B-tokens15T-longcontext64k",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
         "batch_size": (512, 32),  # bs, num_nodes
@@ -32,23 +32,23 @@ hyper_params = {
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-7-ln-v2"
+            "apertus-sft-mixture-8"
         ]
     },
     "apertus-70b": {
         "checkpoint": "Apertus70B-tokens15T-longcontext64k",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 1,
-        "batch_size": (1024, 128),  # bs, num_nodes
+        "batch_size": (1024, 64),  # bs, num_nodes
         "optimizer": "ademamix",
         "learning_rate": 2e-6,
-        "max_grad_norm": 1,
+        "max_grad_norm": 1.0,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-7-ln-v2"
+            "apertus-sft-mixture-8"
         ]
     },
 }
@@ -71,7 +71,7 @@ for model in models:
             f"sbatch "
             f"-N {num_nodes} "
             f"-p normal "
-            f"-t 48:00:00 "
+            f"-t 24:00:00 "
             f"-o {stdout_root}/out/{run_name}.out "
             f"-e {stdout_root}/out/{run_name}.err "
             "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
