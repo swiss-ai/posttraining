@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-stdout_prefix = "ademamix-new-eos-pad-left"
+stdout_prefix = "ademamix-new-eos"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -12,18 +12,17 @@ stdout_root = (
 job_name = "final-run"
 
 # models = ["apertus-70b", "apertus-8b"]
-models = ["apertus-70b"]
+models = ["apertus-8b"]
 new_eos_token_id = 68  # The new EOS token ID to be used in the model
-padding_side = "left"  # Padding side for the tokenizer
 
 # Hyperparameters
 num_device_per_node = 4
 hyper_params = {
     "apertus-8b": {
-        "checkpoint": "Apertus8B-tokens15T-longcontext64k",
+        "checkpoint": "Apertus8B-tokens10.2T-it2059810-newcooldown",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
-        "batch_size": (512, 32),  # bs, num_nodes
+        "batch_size": (512, 64),  # bs, num_nodes
         "optimizer": "ademamix",
         "learning_rate": 5e-6,
         "max_grad_norm": 1.0,
@@ -32,23 +31,23 @@ hyper_params = {
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-8"
+            "apertus-sft-mixture-7-ln-v2"
         ]
     },
     "apertus-70b": {
         "checkpoint": "Apertus70B-tokens15T-longcontext64k",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 1,
-        "batch_size": (1024, 64),  # bs, num_nodes
+        "batch_size": (1024, 128),  # bs, num_nodes
         "optimizer": "ademamix",
         "learning_rate": 2e-6,
-        "max_grad_norm": 1.0,
+        "max_grad_norm": 1,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-8"
+            "apertus-sft-mixture-7-ln-v2"
         ]
     },
 }
@@ -65,13 +64,13 @@ for model in models:
             num_nodes * num_device_per_node * hp["device_train_batch_size"]
         )
 
-        job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-maxgnorm{hp['max_grad_norm']}-epochs{hp['num_epochs']}-ademamix-{hp['chat_template']}-pad-{padding_side}"
+        job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-maxgnorm{hp['max_grad_norm']}-epochs{hp['num_epochs']}-ademamix-{hp['chat_template']}"
         run_name = f"{job_name}/{job_id}"
         command = (
             f"sbatch "
             f"-N {num_nodes} "
-            f"-p normal "
-            f"-t 24:00:00 "
+            f"-p large512 "
+            f"-t 48:00:00 "
             f"-o {stdout_root}/out/{run_name}.out "
             f"-e {stdout_root}/out/{run_name}.err "
             "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
@@ -90,7 +89,6 @@ for model in models:
             f"training_args.max_grad_norm={hp['max_grad_norm']} "
             f"tokenizer_args.chat_template_name={hp['chat_template']} "
             f"tokenizer_args.model_eos_token_id={new_eos_token_id} "
-            f"tokenizer_args.padding_side={padding_side} "
             f"training_args.num_train_epochs={hp['num_epochs']} "
             "artifacts_subdir=shared "
             f"job_subdir={run_name} "
