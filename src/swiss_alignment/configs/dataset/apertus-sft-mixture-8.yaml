@@ -3,7 +3,7 @@
 dataset_name: apertus-sft-mixture-8
 
 dataset_args:
-  dataset_name: /capstor/store/cscs/swissai/infra01/posttrain_data/06_sft_mixtures_newformat/apertus-sft-mixture-8-normalised-clean-hasAssistantTextFalse
+  dataset_name: /capstor/store/cscs/swissai/infra01/posttrain_data/06_sft_mixtures_newformat/apertus-sft-mixture-8-merged-uniform-annotated-hasKeywordsFalse
   train_split: # Only required for DatasetDict objects
     name: null
   eval_split:
