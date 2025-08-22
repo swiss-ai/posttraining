@@ -32,7 +32,7 @@ hyper_params = {
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-8"
+            "apertus-sft-mixture-8-ln"
         ]
     },
     "apertus-70b": {
@@ -48,7 +48,7 @@ hyper_params = {
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-8"
+            "apertus-sft-mixture-8-ln"
         ]
     },
 }
@@ -71,7 +71,7 @@ for model in models:
             f"sbatch "
             f"-N {num_nodes} "
             f"-p normal "
-            f"-t 48:00:00 "
+            f"-t 12:00:00 "
             f"-o {stdout_root}/out/{run_name}.out "
             f"-e {stdout_root}/out/{run_name}.err "
             "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
