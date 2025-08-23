@@ -55,7 +55,7 @@ model_hps = {
             ),
         ],
         "batch_size": 512,
-        "num_nodes_per_job": 32,
+        "num_nodes_per_job": 64,
         "per_device_train_batch_size": 2,
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
     },
@@ -72,12 +72,12 @@ nums_train_pairs_per_prompt = [1]
 losses = ["qrpo"]
 normalize_beta_by_length = True
 betas = {
-    "qrpo": [1.0],
+    "qrpo": [5.0],
     "dpo": [5.0],
 }
 learning_rates = [5e-7]
 # optimizers = ["adamw_torch", "ademamix"]
-optimizers = ["adamw_torch"]
+optimizers = ["ademamix"]
 max_grad_norm = 20  # Disable but still log.
 
 num_devices_per_node = 4
@@ -106,7 +106,7 @@ for dataset in datasets:
                         for optimizer in optimizers:
                             for lr in learning_rates:
                                 for beta in betas[loss]:
-                                    jobid = f"{train_dataset}-{loss}-{optimizer}-r{lr}-beta{beta}"
+                                    jobid = f"{train_dataset}-{loss}-{optimizer}-beta3_0.99-r{lr}-beta{beta}"
                                     run_name = f"{job_name}/{jobid}"
                                     commands.append(
                                         (
@@ -140,6 +140,7 @@ for dataset in datasets:
                                             f"'wandb.tags=[prod,{job_name}]' "
                                             "artifacts_subdir=shared "
                                             "resuming.resume=True "
+                                            "+training_args.optimizer_beta3=0.99 "
                                         )
                                     )
                                     total_nodes_needed += num_nodes_per_job
