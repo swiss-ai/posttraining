@@ -32,7 +32,8 @@ hyper_params = {
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-8-ln"
+            # "apertus-sft-mixture-8-ln",
+            "apertus-sft-mixture-8b-ln"
         ]
     },
     "apertus-70b": {
@@ -48,7 +49,8 @@ hyper_params = {
         "trainer": ("plw", 0.0),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-8-ln"
+            # "apertus-sft-mixture-8-ln",
+            "apertus-sft-mixture-8b-ln"
         ]
     },
 }
