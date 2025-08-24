@@ -6,7 +6,7 @@
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
 # these nodes are large512 partition nodes, comment them out if using a different partition
-## SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521,nid007352,nid006959,nid006944,nid006904,nid006946,nid006966,nid007017,nid006968,nid007068
+# SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521,nid007352,nid006959,nid006944,nid006904,nid006946,nid006966,nid007017,nid006968,nid007068
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
