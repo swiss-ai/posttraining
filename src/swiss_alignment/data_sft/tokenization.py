@@ -350,7 +350,7 @@ CHAT_TEMPLATES = {
         "                    {%- endif -%}"
         "                    {{ tool_calls_token + '[' }}"
         "                    {%- for tool_call in block.calls -%}"
-        "                        {{- '{"' + tool_call.name + '": ' + tool_call.arguments + '}' }}"
+        "                        {{- '{\"' + tool_call.name + '\": ' + tool_call.arguments + '}' }}"
         "                        {%- if not loop.last -%}"
         "                            {{- \", \" }}"
         "                        {%- endif -%}"
