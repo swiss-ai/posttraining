@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-stdout_prefix = "ademamix-new-eos-pad-left"
+stdout_prefix = "ademamix-plw"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -9,10 +9,10 @@ stdout_root = (
 
 # Will be used in the root of the job_subdir.
 # artifacts/shared/outputs/train_sft/job_name/...
-job_name = "final-run"
+job_name = "plw-ablations"
 
-models = ["apertus-70b", "apertus-8b"]
-# models = ["apertus-70b"]
+# models = ["apertus-70b", "apertus-8b"]
+models = ["apertus-8b"]
 new_eos_token_id = 68  # The new EOS token ID to be used in the model
 padding_side = "left"  # Padding side for the tokenizer
 
@@ -29,12 +29,12 @@ hyper_params = {
         "max_grad_norm": 1.0,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
-        "trainer": ("plw", 0.0),
+        "trainer": ("ln-plw", 0.5, True),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-7-ln-v2"
+            # "apertus-sft-mixture-7-ln-v2"
             # "apertus-sft-mixture-8-ln",
-            # "apertus-sft-mixture-8b-ln",
+            "apertus-sft-mixture-8b-ln",
             # "apertus-sft-mixture-8c-ln"
         ]
     },
@@ -48,12 +48,12 @@ hyper_params = {
         "max_grad_norm": 1.0,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
-        "trainer": ("plw", 0.0),
+        "trainer": ("ln-plw", 0.5, True),
         "chat_template": "apertus",
         "datasets": [
-            "apertus-sft-mixture-7-ln-v2"
+            # "apertus-sft-mixture-7-ln-v2"
             # "apertus-sft-mixture-8-ln",
-            # "apertus-sft-mixture-8b-ln",
+            "apertus-sft-mixture-8b-ln",
             # "apertus-sft-mixture-8c-ln"
         ]
     },
@@ -65,13 +65,13 @@ for model in models:
     hp = hyper_params[model]
     for dataset in hp["datasets"]:
         batch_size, num_nodes = hp["batch_size"]
-        trainer, plw = hp["trainer"]
+        trainer, plw, seq_loss = hp["trainer"]
 
         accumulation_steps = batch_size // (
             num_nodes * num_device_per_node * hp["device_train_batch_size"]
         )
 
-        job_id = f"{hp['checkpoint']}-{dataset}-bs{batch_size}-lr{hp['learning_rate']}-maxgnorm{hp['max_grad_norm']}-epochs{hp['num_epochs']}-ademamix-{hp['chat_template']}-pad-{padding_side}"
+        job_id = f"{hp['checkpoint']}-{dataset}-plw{plw}-bs{batch_size}-lr{hp['learning_rate']}-maxgnorm{hp['max_grad_norm']}-epochs{hp['num_epochs']}-ademamix-{hp['chat_template']}-pad-{padding_side}"
         run_name = f"{job_name}/{job_id}"
         command = (
             f"sbatch "
@@ -89,6 +89,7 @@ for model in models:
             f"trainer={trainer} "
             f"accelerate_config={hp['accelerate_config']} "
             f"plw_args.prompt_loss_weight={plw} "
+            f"plw_args.sequence_level_loss={str(seq_loss).lower()} "
             f"training_args.gradient_accumulation_steps={accumulation_steps} "
             f"training_args.per_device_train_batch_size={hp['device_train_batch_size']} "
             f"training_args.optim={hp['optimizer']} "
