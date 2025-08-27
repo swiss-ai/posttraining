@@ -3,7 +3,7 @@
 dataset_name: Apertus-8B-aligned_0.1_0.7_correctness_no_refuse_sft_data
 
 dataset_args:
-  dataset_name: /iopsstor/scratch/cscs/bmessmer/SFT4Honesty/Apertus-8B-aligned_0.1_0.7_correctness_no_refuse_sft_data/ # /iopsstor/scratch/cscs/bmessmer/SFT4Honesty/german-sft4Honesty-2thresholds
+  dataset_name: /capstor/store/cscs/swissai/infra01/users/bmessmer/Apertus-8B-aligned_0.1_0.7_correctness_no_refuse_sft_data
   train_split: # Only required for DatasetDict objects
     name: null
   eval_split:
