@@ -1,3 +1,5 @@
+# @package _global_
+
 dataset_name: Apertus-8B-aligned_0.33_0.67_majority_no_refuse_sft_data_correct
 
 dataset_args:

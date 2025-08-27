@@ -21,7 +21,7 @@ hyper_params = {
         "checkpoint": "Apertus-8B-aligned-apertus-sft-qa-simple",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
-        "batch_size": (512, 1),  # bs, num_nodes
+        "batch_size": (512, 4),  # bs, num_nodes
         "optimizer": "ademamix",
         "learning_rate": 2e-6,
         "max_grad_norm": 1.0,
