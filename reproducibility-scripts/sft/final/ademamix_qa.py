@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-stdout_prefix = "ademamix-test"
+stdout_prefix = "ademamix-qa"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -9,10 +9,10 @@ stdout_root = (
 
 # Will be used in the root of the job_subdir.
 # artifacts/shared/outputs/train_sft/job_name/...
-job_name = "test-run"
+job_name = "qa-run"
 
 # models = ["apertus-70b", "apertus-8b"]
-models = ["apertus-8b"]
+models = ["apertus-70b"]
 new_eos_token_id = 68  # The new EOS token ID to be used in the model
 padding_side = "left"  # Padding side for the tokenizer
 
@@ -41,12 +41,12 @@ hyper_params = {
         ]
     },
     "apertus-70b": {
-        "checkpoint": "Apertus70B-tokens15T-longcontext64k-apertus-sft-mixture-8d-ln-ademamix",
+        "checkpoint": "Apertus-70B-aligned",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 4,
         "batch_size": (64, 8),  # bs, num_nodes
         "optimizer": "ademamix",
-        "learning_rate": 2e-6,
+        "learning_rate": 5e-6,
         "max_grad_norm": 1.0,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
