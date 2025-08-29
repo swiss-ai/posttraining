@@ -36,7 +36,8 @@ hyper_params = {
             # "apertus-sft-mixture-8-ln",
             # "apertus-sft-mixture-8b-ln",
             # "apertus-sft-mixture-8c-ln"
-            "apertus-sft-mixture-8d-ln"
+            # "apertus-sft-mixture-8d-ln",
+            "apertus-sft-mixture-8e-ln"
         ]
     },
     "apertus-70b": {
@@ -56,7 +57,8 @@ hyper_params = {
             # "apertus-sft-mixture-8-ln",
             # "apertus-sft-mixture-8b-ln",
             # "apertus-sft-mixture-8c-ln",
-            "apertus-sft-mixture-8d-ln"
+            # "apertus-sft-mixture-8d-ln",
+            "apertus-sft-mixture-8e-ln"
         ]
     },
 }
