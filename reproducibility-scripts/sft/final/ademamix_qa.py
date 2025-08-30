@@ -12,7 +12,7 @@ stdout_root = (
 job_name = "qa-run"
 
 # models = ["apertus-70b", "apertus-8b"]
-models = ["apertus-70b"]
+models = ["apertus-8b"]
 new_eos_token_id = 68  # The new EOS token ID to be used in the model
 padding_side = "left"  # Padding side for the tokenizer
 
@@ -20,12 +20,12 @@ padding_side = "left"  # Padding side for the tokenizer
 num_device_per_node = 4
 hyper_params = {
     "apertus-8b": {
-        "checkpoint": "Apertus-8B-aligned",
+        "checkpoint": "Apertus-8B-sft-mixture-8e-aligned",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
-        "num_epochs": 4,
+        "num_epochs": 6,
         "batch_size": (16, 2),  # bs, num_nodes
         "optimizer": "ademamix",
-        "learning_rate": 5e-6,
+        "learning_rate": 5e-7,
         "max_grad_norm": 1.0,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
@@ -37,7 +37,8 @@ hyper_params = {
             # "apertus-sft-mixture-8b-ln",
             # "apertus-sft-mixture-8c-ln"
             # "apertus-sft-mixture-8d-ln"
-            "apertus-sft-qa-simple"
+            # "apertus-sft-qa-simple",
+            "branding-qa"
         ]
     },
     "apertus-70b": {
@@ -58,7 +59,8 @@ hyper_params = {
             # "apertus-sft-mixture-8b-ln",
             # "apertus-sft-mixture-8c-ln",
             # "apertus-sft-mixture-8d-ln",
-            "apertus-sft-qa-simple"
+            # "apertus-sft-qa-simple",
+            "branding-qa"
         ]
     },
 }
@@ -97,6 +99,9 @@ for model in models:
             f"training_args.per_device_train_batch_size={hp['device_train_batch_size']} "
             f"training_args.optim={hp['optimizer']} "
             f"training_args.learning_rate={hp['learning_rate']} "
+            f"training_args.lr_scheduler_type=constant "
+            f"training_args.warmup_ratio=0 "
+            f"training_args.warmup_steps=0 "
             f"training_args.max_grad_norm={hp['max_grad_norm']} "
             f"training_args.dataset_num_proc=1 "
             f"tokenizer_args.chat_template_name={hp['chat_template']} "
