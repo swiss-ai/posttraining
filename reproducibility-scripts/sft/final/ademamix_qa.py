@@ -22,10 +22,10 @@ hyper_params = {
     "apertus-8b": {
         "checkpoint": "Apertus-8B-sft-mixture-8e-aligned",
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
-        "num_epochs": 6,
-        "batch_size": (16, 2),  # bs, num_nodes
+        "num_epochs": 15,
+        "batch_size": (128, 8),  # bs, num_nodes
         "optimizer": "ademamix",
-        "learning_rate": 5e-7,
+        "learning_rate": 5e-6,
         "max_grad_norm": 1.0,
         "num_device_per_node": num_device_per_node,
         "device_train_batch_size": 2,
@@ -102,6 +102,7 @@ for model in models:
             f"training_args.lr_scheduler_type=constant "
             f"training_args.warmup_ratio=0 "
             f"training_args.warmup_steps=0 "
+            f"training_args.dataloader_drop_last=false "
             f"training_args.max_grad_norm={hp['max_grad_norm']} "
             f"training_args.dataset_num_proc=1 "
             f"tokenizer_args.chat_template_name={hp['chat_template']} "
