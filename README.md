@@ -1,123 +1,41 @@
 # SwissAI Alignment Codebase
 
-Docs for SwissAI users. To update when open-sourcing, if we want to support other users. Editing the template docs should help for this.
-
-## Getting Started
-
-### Preliminaries
-
-- You can log in to Clariden and know the basic setup (https://github.com/swiss-ai/documentation/blob/main/pages/setup_clariden.md).
-- You understand Clariden uses SLURM for job scheduling (https://github.com/swiss-ai/documentation/blob/main/pages/slurm_intro.md).
-- You can authenticate to GitHub on Clariden through SSH agent forwarding (keys from your laptop follow your SSH connections) (`ssh -T git@github.com`). Check the [troubleshooting section](#github-authentication-through-ssh-agent-forwarding) if you have issues.
-
-### Understand the storage structure
-
-#### Scratch storage: shared and private
-
-Use it to read and write during jobs.
-
-In `iopstor/scratch` (deletion policy: 30 days):  
-Shared: `/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared`  
-Private: `/iopsstor/scratch/cscs/$USER/projects/swiss-alignment/artifacts/private`
-
-#### Permanent storage: shared
-
-Move valuable permanent assets there, like good final checkpoints, checkpoints to keep for the release, container images...  
-
-In `capstor/store`: `/capstor/store/cscs/swissai/infra01/swiss-alignment/artifacts`.
-
-Check `reproducibility-scripts/data-management.sh` for example scripts to move data.
-A todo is to automate this so that it's done at the end of jobs.
-
-#### Storage summary:
-
-These paths are symlinked  under the git root and all you have to remember are the following relative paths from the project root.  
-Use these relative paths in the code so that it works for everyone.
-
+## Repository structure
 ```
-PROJECT_ROOT/                  # In your home directory.
-├── artifacts/                 # Anything that lives on other storage scratch and store.
-│   ├── shared/                # Shared  (smoalla's iopsstor/scratch).
-│   ├── private/               # Private (your iopsstor/scratch).
-│   └── store/                 # Store   (infra01's capstor/store).
-├── src/                       # Source code.
-│   └── swiss_alignment/
-...
+└── reproducibility-scripts            # scripts to reproduce SFT and alignment experiments
+└── src/                               # Source code directory
+    └── swiss_alignment/                  # Core package for alignment tasks
+        ├── configs/                          # Hydra configuration files for flexible experiment setup
+        │   ├── accelerate/                       # DeepSpeed configs (stages 1/2/3).
+        │   ├── dataset/                          # Dataset definitions (local paths or HF datasets).
+        │   ├── model/                            # Model/tokenizer configs.
+        │   ├── model-merging/                    # Model merging techniques configs.
+        │   ├── dataset-mixture.yaml              # Defines dataset mixtures for training.
+        │   ├── dataset-split.yaml                # Configures (stratified) evaluation splits.
+        │   ├── model-merging.yaml                # Hydra config for model merging (requires a model_merging/ config).
+        │   ├── setup.yaml                        # Base Hydra template inherited by other configs.
+        │   └── train-sft.yaml                    # Hydra config for SFT (e.g. training arguments).
+        |   └── train-preference.yaml             # Hydra config for preference (e.g. training arguments).
+        ├── model_merging/                    # Model merging module.
+        │   └── model_merging.py                  # Implements model merging using mergekit.
+        ├── data_sft/                         # SFT Data related logic.
+        │   ├── dataset_mixture.py                # Creates SFT dataset mixtures (logic in utils_for_dataset.py).
+        │   ├── dataset_split.py                  # Generates (stratified) evaluation splits.
+        │   ├── prompt_generation_ratios.py       # Calculates generation ratio (=completion length / prompt length)
+        │   ├── tokenization.py                   # Configures tokenizer, BOS/PAD/EOS tokens, and chat templates.
+        │   ├── utils_for_dataset.py              # Handles dataset loading, dataset mixing, message format conversion, and tokenization.
+        │   └── utils_for_gen_ratio.py            # Contains all generation ratio logic.
+        ├── data_alignment/                   # Preference Data related logic.
+        ├── trainers/                         # Core training logic.
+        |   ├── dpo.py                            # DPO experiments code.
+        |   ├── preference.py                     # QRPO experiments code.
+        │   └── sft.py                            # SFT and Prompt-Loss-Weight training modules.
+        ├── utils/                            # Infra utility functions.  
+        └── train_sft.py                  # SFT training entrypoint
+        └── train_preference.py           # Preference training entrypoint
 ```
 
-#### Note
-
-Everything in `store` and `shared` should have group write permissions for `infra01` by default.
-If at any point this is not the case in some subdirectory you created, run the following:
-```bash
-cd the-problemetic-subdirectory
-chown -R :infra01 .
-chmod -R g+wrxs .
-setfacl -R -m group::rwx,default:group::rwx,group:infra01:rwx,default:group:infra01:rwx .
-
-# If you want to give another group read access:
-GROUP_NAME=some-other-group
-setfacl -R -m group:$GROUP_NAME:r-x,default:group:$GROUP_NAME:r-x .
-```
-
-### Clone the code and set up the storage
-
-It will look like this:
-
-```bash
-$HOME/projects/swiss_alignment
-├── dev/    # A dev instance of the repo for development jobs, which can be broken at any time.
-└── run/    # A run instance of the repo from where experiments in the queue will read the code.
-# Each has the same storage structure above.
-```
-
-commands:
-
-```bash
-mkdir -p $HOME/projects/swiss-alignment && cd $HOME/projects/swiss-alignment
-
-git clone git@github.com:swiss-ai/swiss-alignment.git dev
-git clone git@github.com:swiss-ai/swiss-alignment.git run
-
-for INSTANCE in dev run; do
-  INSTANCE=$INSTANCE ./$INSTANCE/artifacts/setup-symlinks.sh
-done
-```
-
-### Set up credentials
-
-They will be mounted in the containers at runtime.
-
-```bash
-# Weights & Biases
-echo <my-wandb-api-key> > $HOME/.wandb-api-key
-chmod 600 $HOME/.wandb-api-key
-
-# Hugging Face  
-echo <my-huggingface-api-key> > $HOME/.hf-token
-chmod 600 $HOME/.hf-token
-```
-
-## What's next?
-
-Check the sections below:
-- [Convert Megatron checkpoints to HuggingFace](#convert-megatron-checkpoints-to-huggingface): how to convert pretrained Megatron checkpoints to HuggingFace.
-- [Running the typical training experiment](#running-the-typical-training-experiment): how to run a training experiment with the codebase.
-- [Where to change what to do what](#where-to-change-what-to-do-what): how to change the codebase to do different things.
-- [Repository structure](#repository-structure): where to find what in the codebase.
-- [Contributing](#contributing): good practices and guides for changing specific parts of the codebase.
-- [Remote development](#remote-development): every user does this differently. We give you some docs but won't support you for this.
-  We however have comprehensive documentation in TODO.
-- [Rebuilding the container image](#rebuilding-the-container-image): how to rebuild the container image if you change the dependencies.
-
-## Convert Megatron checkpoints to HuggingFace
-Follow the instructions in [hfconverter](https://github.com/swiss-ai/hfconverter). From the hfconverter repository, run:
-```bash
-sbatch convert.sbatch <ckpt-path> <iteration> <output-path>
-```
-Ensure paths are valid and check `progress.txt` to find the correct iteration number.
-
-## Running the typical training experiment
+## Reproducibility
 
 The `reproducibility-scripts` directory includes scripts to generate SLURM jobs for training models like Apertus 8B and 70B.
 Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using a template in
@@ -130,12 +48,6 @@ The same for alignment in `/reproducibility-scripts/alignment-apertus-swissaifor
 
 For example  `reproducibility-scripts/sft/0-apertus-template/generate_submit.py`
 creates `reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025-08-07-17-14/submit.sh`
-
-The commands in a `submit.sh` should be pasted and ran from your dev instance of the repo to have their logs there.
-```
-cd $HOME/projects/swiss_alignment/dev
-```
-The code used for the run will be the one in the stable `$HOME/projects/swiss_alignment/run` repo.
 
 <details>
 <summary>Apertus 70B sbatch command</summary>
@@ -166,25 +78,8 @@ sbatch -N 64 -p large512 -t 48:00:00 \
 ```
 </details>
 
-These scripts configure the model, dataset, and override training parameters from `src/swiss-alignment/configs/trl-sft.yaml`.
+These scripts configure the model, dataset, and override training parameters from `src/swiss-alignment/configs/train-sft.yaml`.
 Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`.
-
-> [!NOTE]
-> **Artifact subdirectory**:
-> Artifact subdirectory for outputs need to be specified in the config file:
-> ```bash
-> artifacts_subdir: private  # Can be private/shared/store
-> ```
-
-> [!NOTE]
-> **Debugging**:
-> For debugging purposes, defining the following in `trl-plw.yaml` might help:
-> ```bash
-> dataset_args:
->   debug_oom=True # Sorts dataset by sequence length (largest first) to identify memory issues.
->   debug_subsample.train=10_000 # Subsample size for train split.
->   debug_subsample.eval=100 # Subsample size for eval split.
-> ```
 
 > [!IMPORTANT]
 > **Checkpointing**:
@@ -193,7 +88,7 @@ Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`
 ### Customizing Training Runs
 
 #### Adding a Dataset
-To add a new dataset, create a YAML file in `src/swiss-alignment/configs/dataset` and update the `dataset` field in `src/swiss-alignment/configs/trl-plw.yaml` to reference the new file.
+To add a new dataset, create a YAML file in `src/swiss-alignment/configs/dataset` and update the `dataset` field in `src/swiss-alignment/configs/train-sft.yaml` (e.g. for SFT) to reference the new file.
 We also recommend caching datasets to `artifacts/{artifacts_subdir}/datasets` instead of loading from HF directly.
 
 **Example: `apertus-sft-mixture-1.yaml`**
@@ -212,7 +107,7 @@ training_args:
 ```
 
 #### Configuring Loss Functions
-The SFT trainer supports: PLW, LN-PLW, and IRL. Set the desired mode in `src/swiss-alignment/configs/trl-sft.yaml`:
+The SFT trainer supports: PLW, LN-PLW, and IRL. Set the desired mode in `src/swiss-alignment/configs/train-sft.yaml`:
 - **PLW/LN-PLW**: Applies `prompt_loss_weight` to the prompt token loss and can normalize everything together or separate the
 normalization for prompt and completion (LN).
 
@@ -232,51 +127,6 @@ $$\mathcal{L}_{\text{LN-PLW}} = \frac{w}{m} \sum_{i=1}^{m} \log p(x_i | x_{\text
 trainer: ln-plw # Options: sft, plw, ln-plw, irl
 plw_args:
   prompt_loss_weight: 0.1
-```
-
-To add new trainers, update `src/swiss-alignment/trl/trainers.py` following the project standard.
-
-## Where to change what to do what:
-
-#### Creating a new data mix.
-
-https://github.com/swiss-ai/post-training-scripts
-
-
-#### Model Merging
-The `src/swiss_alignment/trl/model_merging/model_merging.py` file initializes the model merging process by calling
-`run_merge` from [mergekit](https://github.com/swiss-ai/mergekit). Configure the merge by specifying a technique in
-`src/swiss_alignment/configs/model_merging.yaml`, setting the `config_yml` field to, for example,
-`src/swiss_alignment/configs/model_merging/linear.yaml`.
-
-
-## Repository structure
-```
-└── src/                               # Source code directory
-    └── swiss_alignment/                  # Core package for alignment tasks
-        ├── configs/                          # Hydra configuration files for flexible experiment setup
-        │   ├── accelerate/                       # DeepSpeed configs (stages 1/2/3).
-        │   ├── dataset/                          # Dataset definitions (local paths or HF datasets).
-        │   ├── model/                            # Model/tokenizer configs.
-        │   ├── model-merging/                    # Model merging techniques configs.
-        │   ├── dataset-mixture.yaml              # Defines dataset mixtures for training.
-        │   ├── dataset-split.yaml                # Configures (stratified) evaluation splits.
-        │   ├── model-merging.yaml                # Hydra config for model merging (requires a model_merging/ config).
-        │   ├── setup.yaml                        # Base Hydra template inherited by other configs.
-        │   └── train-sft.yaml                    # Hydra config for SFT (e.g. training arguments).
-        ├── model_merging/                    # Model merging module.
-        │   └── model_merging.py                  # Implements model merging using mergekit.
-        ├── data_sft/                         # SFT Data related logic.
-        │   ├── dataset_mixture.py                # Creates SFT dataset mixtures (logic in utils_for_dataset.py).
-        │   ├── dataset_split.py                  # Generates (stratified) evaluation splits.
-        │   ├── prompt_generation_ratios.py       # Calculates generation ratio (=completion length / prompt length) for datasets.
-        │   ├── tokenization.py                   # Configures tokenizer, BOS/PAD/EOS tokens, and chat templates.
-        │   ├── utils_for_dataset.py              # Handles dataset loading, dataset mixing, message format conversion, and tokenization.
-        │   └── utils_for_gen_ratio.py            # Contains all generation ratio logic.
-        ├── trainers/                         # Core training logic.
-        │   └── sft.py                            # SFT and Prompt-Loss-Weight training modules.
-        ├── utils/                            # Infra utility functions.  
-        └── train_sft.py                  # SFT training entrypoint
 ```
 
 
@@ -314,29 +164,4 @@ with the LICENSE.ml-template file.
 
 Additional LICENSE files may be present in subdirectories of the project.
 
-## Getting started - Troubleshooting and extra information (for SwissAI users)
 
-### GitHub authentication through SSH Agent Forwarding
-
-A quick checklist for troubleshooting SSH agent forwarding.
-- You can authenticate to GitHub on your laptop: `ssh -T git@github.com`. If not, you don't have an SSH key set up, or it's not added to GitHub.
-    ```bash
-    # generate new ssh key
-    ssh-keygen -t ed25519 -C "your_email@example.com"
-
-    # Add the following to .zshrc
-    ssh-add ~/.ssh/id_ed25519
-
-    # add public key id_ed25519.pub to your github account
-    # Follow https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
-
-    # Try again
-    ssh -T git@github.com
-    ```
-- The key is forwarded by your SSH agent: `ssh-add -l # List the keys added to your SSH agent.` If not there,
-    ```bash
-    ssh-add <the path to your SSH key, e.g., ~/.ssh/id_rsa>
-    # And add that to your bashrc or equivalent to automatically add it on login.
-    ```
-- Agent forwarding is enabled on you SSH connection to Clariden: on Clariden `echo "$SSH_AUTH_SOCK"`. Otherwise, you are missing a field `ForwardAgent yes` in your `~/.ssh/config` config for clariden.
-- The key is visible on Clariden `ssh-add -l # List the keys added to your SSH agent.` If not, go back 2 steps.
