@@ -1,10 +1,10 @@
-# SwissAI Alignment Codebase
+# SwissAI Post-Training Codebase
 
 ## Repository structure
 ```
 └── reproducibility-scripts            # scripts to reproduce SFT and alignment experiments
 └── src/                               # Source code directory
-    └── swiss_alignment/                  # Core package for alignment tasks
+    └── swiss_alignment/                  # Core package for post-training tasks
         ├── configs/                          # Hydra configuration files for flexible experiment setup
         │   ├── accelerate/                       # DeepSpeed configs (stages 1/2/3).
         │   ├── dataset/                          # Dataset definitions (local paths or HF datasets).
