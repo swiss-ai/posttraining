@@ -21,7 +21,7 @@ num_device_per_node = 4
 hyper_params = {
     "apertus-8b": {
         "checkpoint": "Apertus-8B-sft-mixture-8e-aligned",
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 15,
         "batch_size": (128, 8),  # bs, num_nodes
         "optimizer": "ademamix",
@@ -43,7 +43,7 @@ hyper_params = {
     },
     "apertus-70b": {
         "checkpoint": "Apertus-70B-aligned",
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 4,
         "batch_size": (64, 8),  # bs, num_nodes
         "optimizer": "ademamix",
@@ -87,7 +87,7 @@ for model in models:
             f"-o {stdout_root}/out/{run_name}.out "
             f"-e {stdout_root}/out/{run_name}.err "
             "./cscs-shared-submit-scripts/unattended-accelerate.sh "
-            f"-m swiss_alignment.train_sft "
+            f"-m post_training.train_sft "
             f"dataset={dataset} "
             f"model={model} "
             f"model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/swiss-alignment/checkpoints/{hp['checkpoint']} "

@@ -4,7 +4,7 @@
 ```
 └── reproducibility-scripts            # scripts to reproduce SFT and alignment experiments
 └── src/                               # Source code directory
-    └── swiss_alignment/                  # Core package for post-training tasks
+    └── post_training/                  # Core package for post-training tasks
         ├── configs/                          # Hydra configuration files for flexible experiment setup
         │   ├── accelerate/                       # DeepSpeed configs (stages 1/2/3).
         │   ├── dataset/                          # Dataset definitions (local paths or HF datasets).
@@ -39,7 +39,7 @@
 
 The `reproducibility-scripts` directory includes scripts to generate SLURM jobs for training models like Apertus 8B and 70B.
 Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using a template in
-[reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/swiss-alignment/tree/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
+[reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/post-training/tree/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
 
 To create new experiments copy the directory `reproducibility-scripts/sft/0-apertus-template/` and rename `0-apertus-template` to your new experiment.
 Then run the submit script inside to create sub-experiments whose submit script and SLURM logs will be recorded under.
@@ -56,13 +56,13 @@ creates `reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025
 sbatch -N 64 -p large512 -t 48:00:00 \
  -o reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025-08-07-17-14/out/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-epochs1-adamw_torch.out \
  -e reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025-08-07-17-14/out/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-epochs1-adamw_torch.err \
- ./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh -m swiss_alignment.train_sft \
+ ./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh -m post_training.train_sft \
  dataset=apertus-sft-mixture-1 \
  model=apertus-70b \
  model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens15T-it1155828 \
  tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens15T-it1155828 \
  trainer=plw \
- accelerate_config=src/swiss_alignment/configs/accelerate/ds-zero3.yaml \
+ accelerate_config=src/post_training/configs/accelerate/ds-zero3.yaml \
  plw_args.prompt_loss_weight=0.0 \
  training_args.gradient_accumulation_steps=1 \
  training_args.per_device_train_batch_size=2 \
@@ -78,7 +78,7 @@ sbatch -N 64 -p large512 -t 48:00:00 \
 ```
 </details>
 
-These scripts configure the model, dataset, and override training parameters from `src/swiss-alignment/configs/train-sft.yaml`.
+These scripts configure the model, dataset, and override training parameters from `src/post_training/configs/train-sft.yaml`.
 Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`.
 
 > [!IMPORTANT]
@@ -88,7 +88,7 @@ Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`
 ### Customizing Training Runs
 
 #### Adding a Dataset
-To add a new dataset, create a YAML file in `src/swiss-alignment/configs/dataset` and update the `dataset` field in `src/swiss-alignment/configs/train-sft.yaml` (e.g. for SFT) to reference the new file.
+To add a new dataset, create a YAML file in `src/post_training/configs/dataset` and update the `dataset` field in `src/post_training/configs/train-sft.yaml` (e.g. for SFT) to reference the new file.
 We also recommend caching datasets to `artifacts/{artifacts_subdir}/datasets` instead of loading from HF directly.
 
 **Example: `apertus-sft-mixture-1.yaml`**
@@ -107,7 +107,7 @@ training_args:
 ```
 
 #### Configuring Loss Functions
-The SFT trainer supports: PLW, LN-PLW, and IRL. Set the desired mode in `src/swiss-alignment/configs/train-sft.yaml`:
+The SFT trainer supports: PLW, LN-PLW, and IRL. Set the desired mode in `src/post_training/configs/train-sft.yaml`:
 - **PLW/LN-PLW**: Applies `prompt_loss_weight` to the prompt token loss and can normalize everything together or separate the
 normalization for prompt and completion (LN).
 

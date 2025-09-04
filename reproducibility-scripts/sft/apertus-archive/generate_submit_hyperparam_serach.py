@@ -14,7 +14,7 @@ datasets = ["swissai-tulu-3-sft-0225"]
 num_proc_per_node = 4
 hyper_params = {
     "apertus-8b": {
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 2,  # we save intermediate checkpoints
         "max_seq_length": 4096,
         "batch_size": [
@@ -37,7 +37,7 @@ hyper_params = {
         "chat_templates": ["tulu"],
     },
     "apertus-70b": {
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 2,  # we save intermediate checkpoints
         "max_seq_length": 4096,
         "batch_size": [
@@ -95,7 +95,7 @@ for (
             f"--output={stdout_root}/{hp_config}.out "
             f"--error={stdout_root}/{hp_config}.err "
             "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/recursive-unattended-accelerate.sh "
-            f"-m swiss_alignment.train_sft "
+            f"-m post_training.train_sft "
             f"dataset={dataset} "
             f"model={model}.yaml "
             f"tokenizer_args.chat_template_name={chat_template} "

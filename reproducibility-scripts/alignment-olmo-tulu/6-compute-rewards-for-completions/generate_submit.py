@@ -64,7 +64,7 @@ for dataset in datasets:
                     dataset_with_ref_rewards = f"{dataset_with_ref_completions}-offline"
 
                     with open(
-                        f"src/swiss_alignment/configs/dataset/{dataset_with_chosen_rewards_for_model}.yaml",
+                        f"src/post_training/configs/dataset/{dataset_with_chosen_rewards_for_model}.yaml",
                         "r",
                     ) as file:
                         dataset_config = yaml.safe_load(file)

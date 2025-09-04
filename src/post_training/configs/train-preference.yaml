@@ -1,0 +1,98 @@
+# An example config file for an experiment.
+# Keep this, it's used as an example to run the code after a user installs the project.
+
+defaults:
+  # Common setup.
+  - setup
+  # This file.
+  - _self_
+  # Model (from the configs/model/ directory).
+  - model: apertus-8b
+  # Dataset (from the configs/dataset/ directory).
+  - dataset: olmo2-32b-preference-skywork-llama3-8b-olmo2-32b-sft
+
+######################################################################
+
+# model_args from the model config file
+# reward_model_args from the reward model config file
+# dataset args from the dataset config file
+
+wandb:
+  project: post-training-alignment
+
+dataset_args:
+  debug_oom: false # Reorder the dataset with largest batch first to test OOM
+  debug_subsample:
+    train: 0
+    eval: 0
+  shuffle: true
+
+script_args:
+  dataset_name: ${dataset_args.dataset_name}
+  dataset_train_split: ${dataset_args.train_split.name}
+  dataset_test_split: ${dataset_args.eval_split.name}
+
+accelerate_config: "src/post_training/configs/accelerate/ds-zero1.yaml"
+
+# These args are not captured by the TRL config or are computed at runtime.
+# We put them here to make the hash of the config depend on them.
+global_batch_size: 32
+num_nodes: 1
+
+training_args:
+  bf16: true
+  max_prompt_length: 4096
+  max_completion_length: 4096
+  max_length: 4096
+  learning_rate: 2.0e-7
+  max_grad_norm: 1e5  # Disable gradient clipping but still log grad norm. (-1 doesn't log).
+  lr_scheduler_type: linear
+  warmup_ratio: 0.1
+  optim: adamw_torch
+  optim_args: null
+  weight_decay: 0.0
+  num_train_epochs: 1
+  num_ref_rewards: 10
+  loss_type: qrpo
+  beta: 0.1
+  normalize_beta_by_length: false
+  normalize_loss_by_length: false
+  precompute_ref_log_probs: false
+  ref_logprobs_from_dataset: false
+  dataloader_drop_last: true
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 1
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false # https://pytorch.org/docs/stable/checkpoint.html, https://github.com/huggingface/trl/issues/1348
+  logging_first_step: true
+  logging_steps: 1
+  per_device_eval_batch_size: 2
+  eval_strategy: no
+  eval_steps: null
+  eval_on_start: false
+  save_strategy: steps
+  save_steps: 1000
+  save_total_limit: 3
+  report_to: wandb
+  seed: ${seed}
+  dataset_num_proc: 32
+  dataloader_num_workers: ${training_args.per_device_train_batch_size}
+
+seed: 42
+
+resuming:
+  resume: false
+  ignore_keys:
+    - run_dir
+    - resuming_dir
+    - resuming_hash
+    - artifacts_dir
+    - artifacts_subdir
+    - job_subdir
+    - wandb
+    - resuming.ignore_keys
+    - training_args.logging_dir
+    - training_args.dataloader_num_workers
+    - training_args.dataset_num_proc
+    - training_args.save_steps

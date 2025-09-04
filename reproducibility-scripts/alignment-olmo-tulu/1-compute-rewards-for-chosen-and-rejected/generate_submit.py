@@ -34,7 +34,7 @@ for dataset in datasets:
             jobid = f"{dataset_with_chosen_rewards}/{split}"
 
             with open(
-                f"src/swiss_alignment/configs/dataset/{dataset}.yaml", "r"
+                f"src/post_training/configs/dataset/{dataset}.yaml", "r"
             ) as file:
                 dataset_config = yaml.safe_load(file)
             split_config = dataset_config["dataset_args"][split]

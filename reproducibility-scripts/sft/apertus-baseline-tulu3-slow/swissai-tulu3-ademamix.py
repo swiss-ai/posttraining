@@ -19,7 +19,7 @@ num_device_per_node = 4
 hyper_params = {
     "apertus-8b": {
         "checkpoint": "Apertus8B-tokens7.2T-it1728000-hotfix",
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 2,
         "batch_size": (128, 16),  # bs, num_nodes
         "optim": "ademamix",
@@ -34,7 +34,7 @@ hyper_params = {
     },
     "apertus-70b": {
         "checkpoint": "Apertus70B-tokens15T-it1155828",
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 2,
         "batch_size": (128, 32),  # bs, num_nodes
         "optim": "ademamix",
@@ -70,7 +70,7 @@ for model in models:
         f"-o {stdout_root}/out/{job_id}.out "
         f"-e {stdout_root}/out/{job_id}.err "
         "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
-        f"-m swiss_alignment.train_sft "
+        f"-m post_training.train_sft "
         f"dataset={dataset} "
         f"model={model} "
         f"model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{hp['checkpoint']} "

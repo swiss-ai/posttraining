@@ -14,7 +14,7 @@
     <option name="ADD_CONTENT_ROOTS" value="false" />
     <option name="ADD_SOURCE_ROOTS" value="false" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-    <option name="SCRIPT_NAME" value="swiss_alignment.trl.model_merging.model_merging" />
+    <option name="SCRIPT_NAME" value="post_training.trl.model_merging.model_merging" />
     <option name="PARAMETERS" value="artifacts_subdir=private job_subdir=apertus-8B-chat-template-merged seed=42" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />

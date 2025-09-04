@@ -73,7 +73,7 @@ for dataset in datasets:
                     f"-o {stdout_root}/out/{jobid}.out "
                     f"-e {stdout_root}/out/{jobid}.err "
                     "./cscs-shared-submit-scripts/unattended.sh "
-                    f"python -m swiss_alignment.data_alignment.filter_dataset_for_ref_model_swissaiformat "
+                    f"python -m post_training.data_alignment.filter_dataset_for_ref_model_swissaiformat "
                     f"dataset={dataset} "
                     f"model={model} "
                     f"model_args.model_name_or_path='{sftid_path}' "

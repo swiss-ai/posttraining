@@ -68,7 +68,7 @@ for dataset in datasets:
                             f"-o {stdout_root}/out/{jobid}.out "
                             f"-e {stdout_root}/out/{jobid}.err "
                             "./cscs-shared-submit-scripts/unattended.sh "
-                            f"python -m swiss_alignment.data_alignment.mix_dataset_with_ref_rewards "
+                            f"python -m post_training.data_alignment.mix_dataset_with_ref_rewards "
                             f"dataset={dataset_with_chosen_rewards_for_model} "
                             f"'to_mix_ids=[{','.join(to_mix_ids)}]' "
                             f"new_dataset_id={new_dataset_with_ref_rewards} "

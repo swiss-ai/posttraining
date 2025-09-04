@@ -42,7 +42,7 @@ for dataset in datasets:
                     f"-o {stdout_root}/out/{jobid}.out "
                     f"-e {stdout_root}/out/{jobid}.err "
                     "./cscs-shared-submit-scripts/unattended.sh "
-                    f"python -m swiss_alignment.data_alignment.filter_model_sequences "
+                    f"python -m post_training.data_alignment.filter_model_sequences "
                     f"model={model} "
                     f"dataset_id={dataset_with_chosen_rewards} "
                     f"dataset_type={dataset_type} "

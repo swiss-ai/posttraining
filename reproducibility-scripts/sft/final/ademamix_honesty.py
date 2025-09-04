@@ -19,8 +19,8 @@ num_device_per_node = 4
 hyper_params = {
     "apertus-8b": {
         "checkpoint": "Apertus-8B-aligned-apertus-sft-qa-simple",
-        "checkpoint_path": "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/outputs/train_sft/qa-run/Apertus-8B-aligned-apertus-sft-qa-simple-bs16-lr5e-06-maxgnorm1.0-epochs4-ademamix-apertus-pad-left/checkpoints/04e19e7c2c512f95/checkpoint-27",
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
+        "checkpoint_path": "/iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/outputs/train_sft/qa-run/Apertus-8B-aligned-apertus-sft-qa-simple-bs16-lr5e-06-maxgnorm1.0-epochs4-ademamix-apertus-pad-left/checkpoints/04e19e7c2c512f95/checkpoint-27",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
         "batch_size": (512, 4),  # bs, num_nodes
         "optimizer": "ademamix",
@@ -38,8 +38,8 @@ hyper_params = {
     },
     "apertus-70b": {
         "checkpoint": "Apertus-70B-aligned-apertus-sft-qa-simple",
-        "checkpoint_path": "/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared/outputs/train_sft/qa-run/Apertus-70B-aligned-apertus-sft-qa-simple-bs64-lr2e-06-maxgnorm1.0-epochs4-ademamix-apertus-pad-left/checkpoints/c9ba745f27e3c126/checkpoint-2",
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
+        "checkpoint_path": "/iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/outputs/train_sft/qa-run/Apertus-70B-aligned-apertus-sft-qa-simple-bs64-lr2e-06-maxgnorm1.0-epochs4-ademamix-apertus-pad-left/checkpoints/c9ba745f27e3c126/checkpoint-2",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 1,
         "batch_size": (1024, 16),  # bs, num_nodes
         "optimizer": "ademamix",
@@ -81,7 +81,7 @@ for model in models:
             f"-o {stdout_root}/out/{run_name}.out "
             f"-e {stdout_root}/out/{run_name}.err "
             "./cscs-shared-submit-scripts/unattended-accelerate.sh "
-            f"-m swiss_alignment.train_sft "
+            f"-m post_training.train_sft "
             f"dataset={dataset} "
             f"model={model} "
             f"model_args.model_name_or_path={hp['checkpoint_path']} "

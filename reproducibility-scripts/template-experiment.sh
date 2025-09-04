@@ -1,1 +1,1 @@
-exec python -m swiss_alignment.template_experiment
+exec python -m post_training.template_experiment

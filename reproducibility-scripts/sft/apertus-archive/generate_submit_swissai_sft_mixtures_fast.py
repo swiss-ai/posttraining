@@ -13,7 +13,7 @@ num_proc_per_node = 4
 hyper_params = {
     "apertus-8b": {
         "checkpoint": "Apertus8B-tokens7.2T-it1728000",
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
         "max_seq_length": 4096,
         "batch_size": (512, 16),  # bs, num_nodes
@@ -26,7 +26,7 @@ hyper_params = {
     },
     "apertus-70b": {
         "checkpoint": "Apertus70B-tokens15T-it1155828",
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero3.yaml",
         "num_epochs": 1,
         "max_seq_length": 4096,
         "batch_size": (512, 64),  # bs, num_nodes
@@ -60,7 +60,7 @@ for model in models:
             f"-t 48:00:00 "
             f"--output=reproducibility-scripts/trl-plw/out-{current_time}/{model_config}/swissai-tulu-3-sft.out "
             "./installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/recursive-unattended-accelerate.sh "
-            f"-m swiss_alignment.train_sft "
+            f"-m post_training.train_sft "
             f"dataset={dataset} "
             f"model={model}.yaml "
             f"model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/{hp['checkpoint']} "

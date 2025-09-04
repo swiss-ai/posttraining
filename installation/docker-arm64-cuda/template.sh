@@ -40,8 +40,8 @@ PYCHARM_IDE_AT=
 # Project-specific environment variables.
 ## Used to avoid writing paths multiple times and creating inconsistencies.
 ## You should not need to change anything below this line.
-PROJECT_NAME=swiss-alignment
-PACKAGE_NAME=swiss_alignment
+PROJECT_NAME=post-training
+PACKAGE_NAME=post_training
 IMAGE_NAME=\${LAB_NAME}/\${USR}/\${PROJECT_NAME}
 IMAGE_PLATFORM=arm64-cuda
 # The image name includes the USR to separate the images in an image registry.
@@ -188,7 +188,7 @@ push_usr_or_root() {
   PUSH_IMAGE_NAME="${2}"
   if [ "${PUSH_IMAGE_NAME}" == "" ]; then
     echo "[TEMPLATE ERROR] Please specify the complete name of the image to push."
-    echo "For example: ./template.sh push docker.io/docker-username/swiss-alignment"
+    echo "For example: ./template.sh push docker.io/docker-username/post-training"
     echo "EPFL people can just do ./template.sh push IC or ./template.sh push RCP
       And it will be pushed to ic-registry.epfl.ch/${IMAGE_NAME}
       or registry.rcp.epfl.ch/${IMAGE_NAME}"

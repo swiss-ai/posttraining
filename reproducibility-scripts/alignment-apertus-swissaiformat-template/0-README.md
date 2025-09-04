@@ -22,7 +22,7 @@ ln -s ../../outputs/compute_ref_logprobs_swissaiformat/datasets-with-ref-logprob
 ln -s ../../outputs/compute_ref_rewards_swissaiformat/datasets-with-ref-rewards datasets-with-ref-rewards  
 ```
 
-To add a new dataset, add a config under `src/swiss_alignment/config/dataset/`. Look at `swissai-olmo2-32b-preference.yaml` as an example.
+To add a new dataset, add a config under `src/post_training/config/dataset/`. Look at `swissai-olmo2-32b-preference.yaml` as an example.
 
 ## 1. Filter the dataset prompts and completions
 

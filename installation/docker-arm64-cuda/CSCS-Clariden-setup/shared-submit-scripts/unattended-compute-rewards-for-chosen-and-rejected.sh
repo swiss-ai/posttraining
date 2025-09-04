@@ -8,7 +8,7 @@
 
 # Variables used by the entrypoint script
 # Change this to the path of your project (can be the /dev or /run copy)
-export PROJECT_ROOT_AT=$HOME/projects/swiss-alignment/run
+export PROJECT_ROOT_AT=$HOME/projects/post-training/run
 export ENABLE_RETRY=0
 source $PROJECT_ROOT_AT/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/setup.sh
 
@@ -29,7 +29,7 @@ $WANDB_API_KEY_FILE_AT \
   /opt/template-entrypoints/pre-entrypoint.sh \
   bash -c "\
     sleep 60; \
-    exec python -m swiss_alignment.data_alignment.compute_rewards_for_chosen_and_rejected \
+    exec python -m post_training.data_alignment.compute_rewards_for_chosen_and_rejected \
     subpartition_number=\$SLURM_PROCID \
     $*"
 

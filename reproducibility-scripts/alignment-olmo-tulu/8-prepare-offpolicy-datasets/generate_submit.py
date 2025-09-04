@@ -63,7 +63,7 @@ for dataset in datasets:
                             f"-o {stdout_root}/out/{jobid}.out "
                             f"-e {stdout_root}/out/{jobid}.err "
                             "./cscs-shared-submit-scripts/unattended.sh "
-                            f"python -m swiss_alignment.data_alignment.prepare_offpolicy_dataset "
+                            f"python -m post_training.data_alignment.prepare_offpolicy_dataset "
                             f"dataset={dataset_with_chosen_rewards_for_model} "
                             f"dataset_id={dataset_with_ref_rewards} "
                             f"new_dataset_id={new_dataset_with_ref_rewards} "

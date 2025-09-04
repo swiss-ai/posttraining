@@ -1,0 +1,14 @@
+defaults:
+  - setup
+  - _self_
+
+config_yml: ${hydra:runtime.cwd}/src/post_training/configs/model_merging/linear.yaml
+output_path: ${artifacts_dir}/${artifacts_subdir}/${hydra:job.name}/${job_subdir}/checkpoints
+
+# https://github.com/arcee-ai/mergekit/blob/main/mergekit/options.py#L66
+gpu_rich: true
+copy_tokenizer: true
+lazy_unpickle: false
+low_cpu_memory: false
+trust_remote_code: true
+seed: 42

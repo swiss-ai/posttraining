@@ -45,7 +45,7 @@ model_hps = {
         "batch_size": 512,
         "num_nodes_per_job": 64,
         "per_device_train_batch_size": 2,
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero3.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero3.yaml",
     },
     "apertus-8b-sft": {
         "ids_paths": [
@@ -57,7 +57,7 @@ model_hps = {
         "batch_size": 512,
         "num_nodes_per_job": 64,
         "per_device_train_batch_size": 2,
-        "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
+        "accelerate_config": "src/post_training/configs/accelerate/ds-zero2.yaml",
     },
 }
 reward_models = ["skywork-llama3-8b"]
@@ -114,7 +114,7 @@ for dataset in datasets:
                                             f"-o {stdout_root}/out/{jobid}.out "
                                             f"-e {stdout_root}/out/{jobid}.err "
                                             "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
-                                            f"-m swiss_alignment.train_preference "
+                                            f"-m post_training.train_preference "
                                             f"accelerate_config={accelerate_config} "
                                             f"dataset={dataset} "
                                             f"dataset_args.dataset_name='{train_dataset_path}' "

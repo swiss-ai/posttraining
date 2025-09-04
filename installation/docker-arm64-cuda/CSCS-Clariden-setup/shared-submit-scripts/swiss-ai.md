@@ -17,8 +17,8 @@ Docs for SwissAI users. To update when open-sourcing, if we want to support othe
 Use it to read and write during jobs.
 
 In `iopstor/scratch` (deletion policy: 30 days):  
-Shared: `/iopsstor/scratch/cscs/smoalla/projects/swiss-alignment/artifacts/shared`  
-Private: `/iopsstor/scratch/cscs/$USER/projects/swiss-alignment/artifacts/private`
+Shared: `/iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared`  
+Private: `/iopsstor/scratch/cscs/$USER/projects/post-training/artifacts/private`
 
 #### Permanent storage: shared
 
@@ -41,7 +41,7 @@ PROJECT_ROOT/                  # In your home directory.
 │   ├── private/               # Private (your iopsstor/scratch).
 │   └── store/                 # Store   (infra01's capstor/store).
 ├── src/                       # Source code.
-│   └── swiss_alignment/
+│   └── post_training/
 ...
 ```
 
@@ -65,7 +65,7 @@ setfacl -R -m group:$GROUP_NAME:r-x,default:group:$GROUP_NAME:r-x .
 It will look like this:
 
 ```bash
-$HOME/projects/swiss_alignment
+$HOME/projects/post_training
 ├── dev/    # A dev instance of the repo for development jobs, which can be broken at any time.
 └── run/    # A run instance of the repo from where experiments in the queue will read the code.
 # Each has the same storage structure above.
@@ -74,10 +74,10 @@ $HOME/projects/swiss_alignment
 commands:
 
 ```bash
-mkdir -p $HOME/projects/swiss-alignment && cd $HOME/projects/swiss-alignment
+mkdir -p $HOME/projects/post-training && cd $HOME/projects/post-training
 
-git clone git@github.com:swiss-ai/swiss-alignment.git dev
-git clone git@github.com:swiss-ai/swiss-alignment.git run
+git clone git@github.com:swiss-ai/post-training.git dev
+git clone git@github.com:swiss-ai/post-training.git run
 
 for INSTANCE in dev run; do
   INSTANCE=$INSTANCE ./$INSTANCE/artifacts/setup-symlinks.sh
@@ -121,7 +121,7 @@ Ensure paths are valid and check `progress.txt` to find the correct iteration nu
 
 The `reproducibility-scripts` directory includes scripts to generate SLURM jobs for training models like Apertus 8B and 70B.
 Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using a template in
-[reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/swiss-alignment/tree/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
+[reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/post-training/tree/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
 
 To create new experiments copy the directory `reproducibility-scripts/sft/0-apertus-template/` and rename `0-apertus-template` to your new experiment.
 Then run the submit script inside to create sub-experiments whose submit script and SLURM logs will be recorded under.
@@ -133,9 +133,9 @@ creates `reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025
 
 The commands in a `submit.sh` should be pasted and ran from your dev instance of the repo to have their logs there.
 ```
-cd $HOME/projects/swiss_alignment/dev
+cd $HOME/projects/post_training/dev
 ```
-The code used for the run will be the one in the stable `$HOME/projects/swiss_alignment/run` repo.
+The code used for the run will be the one in the stable `$HOME/projects/post_training/run` repo.
 
 <details>
 <summary>Apertus 70B sbatch command</summary>
@@ -144,13 +144,13 @@ The code used for the run will be the one in the stable `$HOME/projects/swiss_al
 sbatch -N 64 -p large512 -t 48:00:00 \
  -o reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025-08-07-17-14/out/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-epochs1-adamw_torch.out \
  -e reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025-08-07-17-14/out/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-epochs1-adamw_torch.err \
- ./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh -m swiss_alignment.train_sft \
+ ./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh -m post_training.train_sft \
  dataset=apertus-sft-mixture-1 \
  model=apertus-70b \
  model_args.model_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens15T-it1155828 \
  tokenizer_args.tokenizer_name_or_path=/capstor/store/cscs/swissai/infra01/pretrain-checkpoints/apertus/Apertus70B-tokens15T-it1155828 \
  trainer=plw \
- accelerate_config=src/swiss_alignment/configs/accelerate/ds-zero3.yaml \
+ accelerate_config=src/post_training/configs/accelerate/ds-zero3.yaml \
  plw_args.prompt_loss_weight=0.0 \
  training_args.gradient_accumulation_steps=1 \
  training_args.per_device_train_batch_size=2 \
@@ -166,7 +166,7 @@ sbatch -N 64 -p large512 -t 48:00:00 \
 ```
 </details>
 
-These scripts configure the model, dataset, and override training parameters from `src/swiss-alignment/configs/trl-sft.yaml`.
+These scripts configure the model, dataset, and override training parameters from `src/post_training/configs/trl-sft.yaml`.
 Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`.
 
 > [!NOTE]
@@ -193,7 +193,7 @@ Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`
 ### Customizing Training Runs
 
 #### Adding a Dataset
-To add a new dataset, create a YAML file in `src/swiss-alignment/configs/dataset` and update the `dataset` field in `src/swiss-alignment/configs/trl-plw.yaml` to reference the new file.
+To add a new dataset, create a YAML file in `src/post_training/configs/dataset` and update the `dataset` field in `src/post_training/configs/trl-plw.yaml` to reference the new file.
 We also recommend caching datasets to `artifacts/{artifacts_subdir}/datasets` instead of loading from HF directly.
 
 **Example: `apertus-sft-mixture-1.yaml`**
@@ -212,7 +212,7 @@ training_args:
 ```
 
 #### Configuring Loss Functions
-The SFT trainer supports: PLW, LN-PLW, and IRL. Set the desired mode in `src/swiss-alignment/configs/trl-sft.yaml`:
+The SFT trainer supports: PLW, LN-PLW, and IRL. Set the desired mode in `src/post_training/configs/trl-sft.yaml`:
 - **PLW/LN-PLW**: Applies `prompt_loss_weight` to the prompt token loss and can normalize everything together or separate the
 normalization for prompt and completion (LN).
 
@@ -234,7 +234,7 @@ plw_args:
   prompt_loss_weight: 0.1
 ```
 
-To add new trainers, update `src/swiss-alignment/trl/trainers.py` following the project standard.
+To add new trainers, update `src/post_training/trl/trainers.py` following the project standard.
 
 ## Where to change what to do what:
 
@@ -244,16 +244,16 @@ https://github.com/swiss-ai/post-training-scripts
 
 
 #### Model Merging
-The `src/swiss_alignment/trl/model_merging/model_merging.py` file initializes the model merging process by calling
+The `src/post_training/trl/model_merging/model_merging.py` file initializes the model merging process by calling
 `run_merge` from [mergekit](https://github.com/swiss-ai/mergekit). Configure the merge by specifying a technique in
-`src/swiss_alignment/configs/model_merging.yaml`, setting the `config_yml` field to, for example,
-`src/swiss_alignment/configs/model_merging/linear.yaml`.
+`src/post_training/configs/model_merging.yaml`, setting the `config_yml` field to, for example,
+`src/post_training/configs/model_merging/linear.yaml`.
 
 
 ## Repository structure
 ```
 └── src/                               # Source code directory
-    └── swiss_alignment/                  # Core package for alignment tasks
+    └── post_training/                  # Core package for alignment tasks
         ├── configs/                          # Hydra configuration files for flexible experiment setup
         │   ├── accelerate/                       # DeepSpeed configs (stages 1/2/3).
         │   ├── dataset/                          # Dataset definitions (local paths or HF datasets).

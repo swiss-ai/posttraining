@@ -93,7 +93,7 @@ for dataset in datasets:
                 dataset_with_ref_logprobs = f"{dataset_with_ref_completions}-logprobs"
 
                 with open(
-                    f"src/swiss_alignment/configs/reward_model/{reward_model}.yaml", "r"
+                    f"src/post_training/configs/reward_model/{reward_model}.yaml", "r"
                 ) as file:
                     reward_model_config = yaml.safe_load(file)
                 tensor_parallel_size = reward_model_config[
@@ -103,7 +103,7 @@ for dataset in datasets:
                 num_subpartitions = num_gpus_per_node // tensor_parallel_size
 
                 with open(
-                    f"src/swiss_alignment/configs/dataset/{dataset}.yaml", "r"
+                    f"src/post_training/configs/dataset/{dataset}.yaml", "r"
                 ) as file:
                     dataset_config = yaml.safe_load(file)
 
@@ -169,7 +169,7 @@ for dataset in datasets:
                         f"-o {stdout_root}/out/{jobid}.out "
                         f"-e {stdout_root}/out/{jobid}.err "
                         "./cscs-shared-submit-scripts/unattended.sh "
-                        f"python -m swiss_alignment.data_alignment.merge_partitions_swissaiformat "
+                        f"python -m post_training.data_alignment.merge_partitions_swissaiformat "
                         f"dataset={dataset} "
                         f"dataset_args.dataset_name='{dataset_for_model_path}' "
                         f"dataset_id={dataset_with_ref_rewards} "

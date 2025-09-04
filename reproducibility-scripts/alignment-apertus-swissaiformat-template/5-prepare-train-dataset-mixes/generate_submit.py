@@ -98,7 +98,7 @@ for dataset in datasets:
                         f"-o {stdout_root}/out/{jobid}.out "
                         f"-e {stdout_root}/out/{jobid}.err "
                         "./cscs-shared-submit-scripts/unattended.sh "
-                        f"python -m swiss_alignment.data_alignment.prepare_train_dataset_swissaiformat "
+                        f"python -m post_training.data_alignment.prepare_train_dataset_swissaiformat "
                         f"dataset={dataset} "
                         f"dataset_args.dataset_name='{dataset_with_ref_rewards_path}' "
                         f"num_pairs_per_prompt={num_train_pairs_per_prompt} "
