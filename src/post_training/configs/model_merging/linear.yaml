@@ -1,25 +1,25 @@
 merge_method: linear
 
 models: # avg models
-  - model: /iopsstor/scratch/cscs/smoalla/projects/post-training/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-code/checkpoints/74f4c49ea9345a9e/checkpoint-2222
+  - model: /iopsstor/scratch/cscs/smoalla/projects/posttraining/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-code/checkpoints/74f4c49ea9345a9e/checkpoint-2222
     parameters:
       weight: 1
-  - model: /iopsstor/scratch/cscs/smoalla/projects/post-training/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-general/checkpoints/e4be262df5d99bee/checkpoint-266
+  - model: /iopsstor/scratch/cscs/smoalla/projects/posttraining/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-general/checkpoints/e4be262df5d99bee/checkpoint-266
     parameters:
       weight: 1
-  - model: /iopsstor/scratch/cscs/smoalla/projects/post-training/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-if/checkpoints/e231b6dbb2bcc4fa/checkpoint-468
+  - model: /iopsstor/scratch/cscs/smoalla/projects/posttraining/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-if/checkpoints/e231b6dbb2bcc4fa/checkpoint-468
     parameters:
       weight: 1
-  - model: /iopsstor/scratch/cscs/smoalla/projects/post-training/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-knowledge/checkpoints/cac1273420aeb168/checkpoint-1638
+  - model: /iopsstor/scratch/cscs/smoalla/projects/posttraining/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-knowledge/checkpoints/cac1273420aeb168/checkpoint-1638
     parameters:
       weight: 1
-  - model: /iopsstor/scratch/cscs/smoalla/projects/post-training/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-math/checkpoints/de16a882ca9a852b/checkpoint-4092/
+  - model: /iopsstor/scratch/cscs/smoalla/projects/posttraining/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-math/checkpoints/de16a882ca9a852b/checkpoint-4092/
     parameters:
       weight: 1
-  - model: /iopsstor/scratch/cscs/smoalla/projects/post-training/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-multilingual/checkpoints/3def61b995d853e9/checkpoint-1560
+  - model: /iopsstor/scratch/cscs/smoalla/projects/posttraining/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-multilingual/checkpoints/3def61b995d853e9/checkpoint-1560
     parameters:
       weight: 1
-  - model: /iopsstor/scratch/cscs/smoalla/projects/post-training/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-safety/checkpoints/a3fa833873624b9f/checkpoint-1598
+  - model: /iopsstor/scratch/cscs/smoalla/projects/posttraining/outputs/shared/train_plw/capabilities-llama-8b-sweep/meta-llama-3-1-8b-swissai-tulu-3-sft-0225-task-safety/checkpoints/a3fa833873624b9f/checkpoint-1598
     parameters:
       weight: 1
 

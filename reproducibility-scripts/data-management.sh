@@ -11,10 +11,10 @@ find . -mindepth 1 -maxdepth 1 -type d | parallel -j32 'find {} -type f -name "c
 # Touch to keep the files we still need and avoid automatic cleanup
 # Delete anything not needed and only touch the files we need to keep.
 # This can only be done by the file owner.
-find /iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/ -type f ! -name 'cache-*' -exec touch -a {} +
+find /iopsstor/scratch/cscs/smoalla/projects/posttraining/artifacts/shared/ -type f ! -name 'cache-*' -exec touch -a {} +
 
 # For urgent cases, can touch with not the file owner but will re-trigger rsync
-find  /iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/ -type f ! -name 'cache-*' \
+find  /iopsstor/scratch/cscs/smoalla/projects/posttraining/artifacts/shared/ -type f ! -name 'cache-*' \
   -exec bash -c '
         for f; do
             touch -a "$f" || touch "$f"
@@ -27,7 +27,7 @@ find  /iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/ -t
 # Parallel rsync
 
 # For example from
-cd /iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/outputs/train_preference/olmo2-qrpo && \
+cd /iopsstor/scratch/cscs/smoalla/projects/posttraining/artifacts/shared/outputs/train_preference/olmo2-qrpo && \
 find . -mindepth 1 -maxdepth 1 -type d -print0   | \
   parallel --line-buffer -0 -j10 \
   rsync -av --info=progress2 {} \

@@ -3,7 +3,7 @@ export HYDRA_FULL_ERROR=1
 export PROJECT_NAME=post-training
 export PACKAGE_NAME=post_training
 export STORE=/capstor/store/cscs/swissai/infra01/
-export SHARED_SCRATCH=/iopsstor/scratch/cscs/smoalla/projects/post-training/
+export SHARED_SCRATCH=/iopsstor/scratch/cscs/smoalla/projects/posttraining/
 export CONTAINER_IMAGE=/capstor/store/cscs/swissai/infra01/swiss-alignment/container-images/swiss-alignment+apertus-vllm-38c6036.sqsh
 export CONTAINER_ENV_FILE="${PROJECT_ROOT_AT}/installation/docker-arm64-cuda/CSCS-Clariden-setup/shared-submit-scripts/edf.toml"
 

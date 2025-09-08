@@ -15,7 +15,7 @@ _logger = logging.getLogger(__name__)
 os.environ["SLURM_JOB_ID"] = ""
 os.environ[
     "SLURM_STDERR"
-] = "/users/smoalla/projects/post-training/dev/reproducibility-scripts/sft/fix-overfit/adam-2025-08-07-00-16/out/Apertus8B-tokens7.2T-it1728000-hotfix-apertus-sft-mixture-1-bs512-lr5e-06-epochs1-adam.err"
+] = "/users/smoalla/projects/posttraining/dev/reproducibility-scripts/sft/fix-overfit/adam-2025-08-07-00-16/out/Apertus8B-tokens7.2T-it1728000-hotfix-apertus-sft-mixture-1-bs512-lr5e-06-epochs1-adam.err"
 
 
 def try_sync_wandb(logger=_logger):

@@ -25,12 +25,12 @@ if __name__ == "__main__":
     os.environ["NCCL_IB_DISABLE"] = "1"
     os.environ["NCCL_NET"] = "Socket"
 
-    # model = "/iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/outputs/train_sft/apertus-8b-sweep/chat-template/Apertus8B-tokens7.04T-it1678000-tulu_special_token-swissai-tulu-3-sft-0225/checkpoints/9b811fb20bdd09a4/checkpoint-9000"
-    # model = "/iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/models/olmo2-7b-sft"
-    # model = "/iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/models/olmo2-32b-sft"
-    # model = "/iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared/models/llama3-8b-sft"
-    model = "/users/smoalla/projects/post-training/dev/artifacts/shared/outputs/train_sft/apertus-sft-mixture-1-fast-ademamix/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-maxgnorm1-epochs1-ademamix/checkpoints/4fc579918b550aac/checkpoint-1622"
-    # model = "/users/smoalla/projects/post-training/dev/artifacts/shared/outputs/train_sft/final-run/Apertus8B-tokens10.2T-it2059810-newcooldown-apertus-sft-mixture-1-ademamix/checkpoints/ee969b526b1995f7/checkpoint-1622"
+    # model = "/iopsstor/scratch/cscs/smoalla/projects/posttraining/artifacts/shared/outputs/train_sft/apertus-8b-sweep/chat-template/Apertus8B-tokens7.04T-it1678000-tulu_special_token-swissai-tulu-3-sft-0225/checkpoints/9b811fb20bdd09a4/checkpoint-9000"
+    # model = "/iopsstor/scratch/cscs/smoalla/projects/posttraining/artifacts/shared/models/olmo2-7b-sft"
+    # model = "/iopsstor/scratch/cscs/smoalla/projects/posttraining/artifacts/shared/models/olmo2-32b-sft"
+    # model = "/iopsstor/scratch/cscs/smoalla/projects/posttraining/artifacts/shared/models/llama3-8b-sft"
+    model = "/users/smoalla/projects/posttraining/dev/artifacts/shared/outputs/train_sft/apertus-sft-mixture-1-fast-ademamix/Apertus70B-tokens15T-it1155828-apertus-sft-mixture-1-bs512-lr2e-06-maxgnorm1-epochs1-ademamix/checkpoints/4fc579918b550aac/checkpoint-1622"
+    # model = "/users/smoalla/projects/posttraining/dev/artifacts/shared/outputs/train_sft/final-run/Apertus8B-tokens10.2T-it2059810-newcooldown-apertus-sft-mixture-1-ademamix/checkpoints/ee969b526b1995f7/checkpoint-1622"
 
     tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
     print(tokenizer.chat_template)

@@ -3,7 +3,7 @@ import time
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-model_name = "/iopsstor/scratch/cscs/smoalla/projects/post-training/outputs/shared/train_plw/apertus3-8b-sweep/chat-template/Apertus8B-tokens7.04T-it1678000-tulu_special_token-swissai-tulu-3-sft-0225/checkpoints/9b811fb20bdd09a4/checkpoint-9000"
+model_name = "/iopsstor/scratch/cscs/smoalla/projects/posttraining/outputs/shared/train_plw/apertus3-8b-sweep/chat-template/Apertus8B-tokens7.04T-it1678000-tulu_special_token-swissai-tulu-3-sft-0225/checkpoints/9b811fb20bdd09a4/checkpoint-9000"
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     device_map="auto",

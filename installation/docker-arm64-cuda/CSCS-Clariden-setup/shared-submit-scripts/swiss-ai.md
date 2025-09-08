@@ -17,8 +17,8 @@ Docs for SwissAI users. To update when open-sourcing, if we want to support othe
 Use it to read and write during jobs.
 
 In `iopstor/scratch` (deletion policy: 30 days):  
-Shared: `/iopsstor/scratch/cscs/smoalla/projects/post-training/artifacts/shared`  
-Private: `/iopsstor/scratch/cscs/$USER/projects/post-training/artifacts/private`
+Shared: `/iopsstor/scratch/cscs/smoalla/projects/posttraining/artifacts/shared`  
+Private: `/iopsstor/scratch/cscs/$USER/projects/posttraining/artifacts/private`
 
 #### Permanent storage: shared
 
@@ -74,7 +74,7 @@ $HOME/projects/post_training
 commands:
 
 ```bash
-mkdir -p $HOME/projects/post-training && cd $HOME/projects/post-training
+mkdir -p $HOME/projects/posttraining && cd $HOME/projects/posttraining
 
 git clone git@github.com:swiss-ai/post-training.git dev
 git clone git@github.com:swiss-ai/post-training.git run

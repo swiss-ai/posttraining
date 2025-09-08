@@ -3,7 +3,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 # Load model and tokenizer
 device = "cuda:0"
-model_name = "/users/smoalla/projects/post-training/dev/artifacts/shared/reward-models/skywork-qwen3-8b"
+model_name = "/users/smoalla/projects/posttraining/dev/artifacts/shared/reward-models/skywork-qwen3-8b"
 rm = AutoModelForSequenceClassification.from_pretrained(
     model_name,
     torch_dtype=torch.bfloat16,
