@@ -181,7 +181,7 @@ All the directories will be created automatically.
    (something like `/iopsstor/scratch/cscs/smoalla/jetbrains-server/dist`)
    not in its default location **(use the small "installation options..." link)**.
    For the project directory, it should be in the same location where it was mounted (`${PROJECT_ROOT_AT}`,
-   something like `/iopsstor/scratch/cscs/smoalla/post-training/dev`).
+   something like `/iopsstor/scratch/cscs/smoalla/posttraining/dev`).
 
 When in the container, locate the name of the PyCharm IDE installed.
 It will be at

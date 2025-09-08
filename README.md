@@ -39,7 +39,7 @@
 
 The `reproducibility-scripts` directory includes scripts to generate SLURM jobs for training models like Apertus 8B and 70B.
 Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using a template in
-[reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/post-training/tree/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
+[reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/posttraining/tree/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
 
 To create new experiments copy the directory `reproducibility-scripts/sft/0-apertus-template/` and rename `0-apertus-template` to your new experiment.
 Then run the submit script inside to create sub-experiments whose submit script and SLURM logs will be recorded under.

@@ -46,8 +46,8 @@ We provide the following guides for obtaining/building and running the environme
 Clone the git repository.
 
 ```bash
-git clone git@github.com:swiss-ai/post-training.git post-training
-cd post-training
+git clone git@github.com:swiss-ai/posttraining.git posttraining
+cd posttraining
 ```
 
 ### Obtain/build the images
@@ -115,7 +115,7 @@ For the local deployment option with Docker Compose, follow the instructions bel
 Push the generic image if you built it (`LAB_NAME/USR/PROJECT_NAME:PLATFORM-root-latest`).
 
 ```bash
-./template.sh push_generic docker.io/docker-username/post-training
+./template.sh push_generic docker.io/docker-username/posttraining
 ```
 
 Pro-tip: it will also push them with the git commit hash as a tag if the build is at the latest commit.
@@ -124,7 +124,7 @@ You can rebuild the images with `./template.sh build` to tag them with the lates
 > [!IMPORTANT]
 > **TEMPLATE TODO:**
 > Give the generic image name you just pushed
-> (e.g., `docker.io/docker-username/post-training`)
+> (e.g., `docker.io/docker-username/posttraining`)
 > Replace the _TODO ADD PULL_IMAGE_NAME_ above with this name.
 
 ## Running locally with Docker Compose
@@ -191,11 +191,11 @@ you're simultaneously developing.
 You could for example
 
 ```bash
-mv post-training post-training-tmp
-mkdir post-training
-mv post-training-tmp post-training/dev
+mv posttraining posttraining-tmp
+mkdir posttraining
+mv posttraining-tmp posttraining/dev
 # Make sure to rerun your .env so that the new paths are correct.
-git clone git@github.com:swiss-ai/post-training.git post-training/run
+git clone git@github.com:swiss-ai/posttraining.git posttraining/run
 # Then you can follow the same steps for .../run to run your experiments.
 # Remember to generate and edit the .env file there as well.
 ```
@@ -343,7 +343,7 @@ You can use your favorite container runtime to run these images.
 They have an entrypoint which installs the project with pip
 and expects it to be mounted in the container and its location specified with the
 environment variable `PROJECT_ROOT_AT`.
-E.g., you can mount it at `/project/post-training` and specify `PROJECT_ROOT_AT=/project/post-training`.
+E.g., you can mount it at `/project/posttraining` and specify `PROJECT_ROOT_AT=/project/posttraining`.
 The entrypoint can then take any command to run in the container and will run it with PID 1.
 (If you don't specify the `PROJECT_ROOT_AT`, the entrypoint will skip the project installation and warn you about it.)
 It also expects the working directory to be set to `$PROJECT_ROOT_AT`.

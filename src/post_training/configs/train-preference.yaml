@@ -18,7 +18,7 @@ defaults:
 # dataset args from the dataset config file
 
 wandb:
-  project: post-training-alignment
+  project: posttraining-alignment
 
 dataset_args:
   debug_oom: false # Reorder the dataset with largest batch first to test OOM

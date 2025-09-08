@@ -36,7 +36,7 @@ hydra:
   verbose: false  # Set to true for logging at debug level.
 
 wandb:
-  project: post-training
+  project: posttraining
   mode: online
   anonymous: allow
   tags:

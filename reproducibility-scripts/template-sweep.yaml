@@ -1,7 +1,7 @@
 # Run `wandb sweep reproducibility-scripts/template-sweep.yaml` to generate a sweep.
 # Run `wandb agent template-sweep-id` to run the sweep.
 
-project: post-training
+project: posttraining
 name: template-sweep
 method: grid
 metric:

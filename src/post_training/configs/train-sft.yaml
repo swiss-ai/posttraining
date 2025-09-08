@@ -11,7 +11,7 @@ defaults:
 ######################################################################
 
 wandb:
-  project: post-training-sft
+  project: posttraining-sft
 
 dataset_args:
   debug_oom: false # Reorder the dataset with largest batch first to test OOM
