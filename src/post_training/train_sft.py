@@ -118,113 +118,115 @@ def main(config: DictConfig) -> None:
 
     ############################ Dataset Setup ############################
     ds = get_dataset_sft(dataset_config, tokenizer, acc_state)
-
-    ############################ Trainer Setup ############################
-    # Find the last checkpoint
-    resuming_dir = Path.cwd()
-    # Handle resuming
-    last_checkpoint_number = 0
-    for item in resuming_dir.iterdir():
-        if item.is_dir() and item.name.startswith("checkpoint-"):
-            if (item / "scheduler.pt").is_file() and (
-                item / "trainer_state.json"
-            ).is_file():
-                last_checkpoint_number = max(
-                    last_checkpoint_number, int(item.name.split("-")[-1])
-                )
-
-    if last_checkpoint_number > 0:
-        acc_logger.info(
-            f"TRL will attempt to resume from last checkpoint: {last_checkpoint_number}"
-        )
-        eval_file = resuming_dir / f"eval_{last_checkpoint_number}_results.json"
-        if eval_file.exists():
-            training_args.eval_on_start = False
-
-    trainer_args = {
-        "model": model_args.model_name_or_path,
-        "args": training_args,
-        "train_dataset": ds["train"],
-        "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
-        "processing_class": tokenizer,
-        "data_collator": PLWDataCollator(tokenizer=tokenizer, mlm=False),
-        "peft_config": peft_config,
-    }
-    if config.trainer == "sft":
-        acc_logger.info("Starting sft trainer.")
-        trainer = CustomSFTTrainer(
-            **trainer_args,
-        )
-    elif config.trainer == "plw":
-        acc_logger.info(f"Starting plw={config.plw_args.prompt_loss_weight} trainer.")
-        trainer = PLWTrainer(
-            prompt_loss_weight=config.plw_args.prompt_loss_weight,
-            sequence_level_loss=config.plw_args.sequence_level_loss,
-            **trainer_args,
-        )
-    elif config.trainer == "ln-plw":
-        acc_logger.info(
-            f"Starting ln-plw={config.plw_args.prompt_loss_weight} trainer."
-        )
-        trainer = LengthNormalizedPLWTrainer(
-            prompt_loss_weight=config.plw_args.prompt_loss_weight,
-            sequence_level_loss=config.plw_args.sequence_level_loss,
-            **trainer_args,
-        )
-    else:
-        raise ValueError(f"Unknown trainer type: {config.trainer}")
-
-    # Apply the token patches to the model
-    if tokenizer_args.model_eos_token_id is not None:
-        trainer.model.config.eos_token_id = tokenizer_args.model_eos_token_id
-        trainer.model.generation_config.eos_token_id = tokenizer_args.model_eos_token_id
-        acc_logger.info(
-            f"Overriding model eos token id to {tokenizer_args.model_eos_token_id}"
-        )
-
-    # Computing the warmup steps for beta3 and alpha in AdEMAMix
-    if training_args.optim == "ademamix":
-        len_ds = len(ds["train"])
-        total_batch_size = trainer.get_total_train_batch_size(training_args)
-        num_steps_per_epoch = int(
-            len_ds // total_batch_size
-            if training_args.dataloader_drop_last
-            else math.ceil(len_ds / total_batch_size)
-        )
-        total_steps = training_args.num_train_epochs * num_steps_per_epoch
-        # TODO move the beta3 and alpha to the training_args.optim_args command line argument.
-        # This is not trivial for write in a way that is sent in a correct format through all the layers down to hydra.
-        training_args.optim_args = (
-            f"beta3=0.999,alpha=8.0,t_beta3={total_steps},t_alpha={total_steps}"
-        )
-        acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
-
-    trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
-    acc_logger.info("Training completed. Performing final evaluation.")
-
-    last_eval_file = resuming_dir / f"eval_results.json"
-    if training_args.eval_strategy != "no":
-        if last_eval_file.exists():
-            acc_logger.info("Last evaluation already performed.")
-        else:
-            torch.cuda.empty_cache()
-            acc_logger.info("Performing final evaluation.")
-            metrics = trainer.evaluate()
-            trainer.log_metrics("eval", metrics)
-            trainer.save_metrics("eval", metrics)
-            acc_logger.info("Final evaluation completed.")
-
-    if training_args.num_train_epochs == 0:
-        acc_logger.info("Training skipped. Saving the model.")
-        trainer.save_model()
-
-    acc_state.wait_for_everyone()
-    acc_logger.info("Training completed. Checkpoints saved.")
+    
     if acc_state.is_main_process:
-        wandb.finish()
-        utils.config.try_sync_wandb()
-    acc_state.wait_for_everyone()
-    accelerate.Accelerator().end_training()
+        ds.save_to_disk("/iopsstor/scratch/cscs/ismayilz/projects/posttraining/apertus-sft-mixture-8e-ln")
+    # ############################ Trainer Setup ############################
+    # # Find the last checkpoint
+    # resuming_dir = Path.cwd()
+    # # Handle resuming
+    # last_checkpoint_number = 0
+    # for item in resuming_dir.iterdir():
+    #     if item.is_dir() and item.name.startswith("checkpoint-"):
+    #         if (item / "scheduler.pt").is_file() and (
+    #             item / "trainer_state.json"
+    #         ).is_file():
+    #             last_checkpoint_number = max(
+    #                 last_checkpoint_number, int(item.name.split("-")[-1])
+    #             )
+
+    # if last_checkpoint_number > 0:
+    #     acc_logger.info(
+    #         f"TRL will attempt to resume from last checkpoint: {last_checkpoint_number}"
+    #     )
+    #     eval_file = resuming_dir / f"eval_{last_checkpoint_number}_results.json"
+    #     if eval_file.exists():
+    #         training_args.eval_on_start = False
+
+    # trainer_args = {
+    #     "model": model_args.model_name_or_path,
+    #     "args": training_args,
+    #     "train_dataset": ds["train"],
+    #     "eval_dataset": ds["eval"] if training_args.eval_strategy != "no" else None,
+    #     "processing_class": tokenizer,
+    #     "data_collator": PLWDataCollator(tokenizer=tokenizer, mlm=False),
+    #     "peft_config": peft_config,
+    # }
+    # if config.trainer == "sft":
+    #     acc_logger.info("Starting sft trainer.")
+    #     trainer = CustomSFTTrainer(
+    #         **trainer_args,
+    #     )
+    # elif config.trainer == "plw":
+    #     acc_logger.info(f"Starting plw={config.plw_args.prompt_loss_weight} trainer.")
+    #     trainer = PLWTrainer(
+    #         prompt_loss_weight=config.plw_args.prompt_loss_weight,
+    #         sequence_level_loss=config.plw_args.sequence_level_loss,
+    #         **trainer_args,
+    #     )
+    # elif config.trainer == "ln-plw":
+    #     acc_logger.info(
+    #         f"Starting ln-plw={config.plw_args.prompt_loss_weight} trainer."
+    #     )
+    #     trainer = LengthNormalizedPLWTrainer(
+    #         prompt_loss_weight=config.plw_args.prompt_loss_weight,
+    #         sequence_level_loss=config.plw_args.sequence_level_loss,
+    #         **trainer_args,
+    #     )
+    # else:
+    #     raise ValueError(f"Unknown trainer type: {config.trainer}")
+
+    # # Apply the token patches to the model
+    # if tokenizer_args.model_eos_token_id is not None:
+    #     trainer.model.config.eos_token_id = tokenizer_args.model_eos_token_id
+    #     trainer.model.generation_config.eos_token_id = tokenizer_args.model_eos_token_id
+    #     acc_logger.info(
+    #         f"Overriding model eos token id to {tokenizer_args.model_eos_token_id}"
+    #     )
+
+    # # Computing the warmup steps for beta3 and alpha in AdEMAMix
+    # if training_args.optim == "ademamix":
+    #     len_ds = len(ds["train"])
+    #     total_batch_size = trainer.get_total_train_batch_size(training_args)
+    #     num_steps_per_epoch = int(
+    #         len_ds // total_batch_size
+    #         if training_args.dataloader_drop_last
+    #         else math.ceil(len_ds / total_batch_size)
+    #     )
+    #     total_steps = training_args.num_train_epochs * num_steps_per_epoch
+    #     # TODO move the beta3 and alpha to the training_args.optim_args command line argument.
+    #     # This is not trivial for write in a way that is sent in a correct format through all the layers down to hydra.
+    #     training_args.optim_args = (
+    #         f"beta3=0.999,alpha=8.0,t_beta3={total_steps},t_alpha={total_steps}"
+    #     )
+    #     acc_logger.info(f"AdEMAMix optim_args: {trainer.args.optim_args}")
+
+    # trainer.train(resume_from_checkpoint=last_checkpoint_number > 0)
+    # acc_logger.info("Training completed. Performing final evaluation.")
+
+    # last_eval_file = resuming_dir / f"eval_results.json"
+    # if training_args.eval_strategy != "no":
+    #     if last_eval_file.exists():
+    #         acc_logger.info("Last evaluation already performed.")
+    #     else:
+    #         torch.cuda.empty_cache()
+    #         acc_logger.info("Performing final evaluation.")
+    #         metrics = trainer.evaluate()
+    #         trainer.log_metrics("eval", metrics)
+    #         trainer.save_metrics("eval", metrics)
+    #         acc_logger.info("Final evaluation completed.")
+
+    # if training_args.num_train_epochs == 0:
+    #     acc_logger.info("Training skipped. Saving the model.")
+    #     trainer.save_model()
+
+    # acc_state.wait_for_everyone()
+    # acc_logger.info("Training completed. Checkpoints saved.")
+    # if acc_state.is_main_process:
+    #     wandb.finish()
+    #     utils.config.try_sync_wandb()
+    # acc_state.wait_for_everyone()
+    # accelerate.Accelerator().end_training()
 
 
 if __name__ == "__main__":

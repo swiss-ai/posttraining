@@ -11,8 +11,8 @@ stdout_root = (
 # artifacts/shared/outputs/train_sft/job_name/...
 job_name = "final-run"
 
-models = ["apertus-70b", "apertus-8b"]
-# models = ["apertus-70b"]
+# models = ["apertus-70b", "apertus-8b"]
+models = ["apertus-8b"]
 new_eos_token_id = 68  # The new EOS token ID to be used in the model
 padding_side = "left"  # Padding side for the tokenizer
 
@@ -23,7 +23,7 @@ hyper_params = {
         "checkpoint": "Apertus8B-tokens15T-longcontext64k",
         "accelerate_config": "src/post_training/configs/accelerate/ds-zero2.yaml",
         "num_epochs": 1,
-        "batch_size": (512, 64),  # bs, num_nodes
+        "batch_size": (512, 1),  # bs, num_nodes
         "optimizer": "ademamix",
         "learning_rate": 5e-6,
         "max_grad_norm": 1.0,
@@ -84,7 +84,7 @@ for model in models:
             f"-t 12:00:00 "
             f"-o {stdout_root}/out/{run_name}.out "
             f"-e {stdout_root}/out/{run_name}.err "
-            "./cscs-shared-submit-scripts/recursive-unattended-accelerate.sh "
+            "./cscs-shared-submit-scripts/unattended-accelerate.sh "
             f"-m post_training.train_sft "
             f"dataset={dataset} "
             f"model={model} "
