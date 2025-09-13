@@ -1,0 +1,19 @@
+
+model_name: "apertus-8b-sft"
+dataset_path: /users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/logprobs-analysis/magpieair_apertus8b_sft_num_completions_1000_temp_1.0_top_p_1.0
+model_path: /users/smatreno/projects/swiss-alignment/dev/artifacts/shared/outputs/train_preference/apertus-first-sweep/apertus-8b-sft-10T-mixture-7-7fea1f8c44336360
+
+# --- Data settings ---
+sample_indexes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+
+# --- Plot settings ---
+num_bins: 50
+num_rows: 8
+num_cols: 4
+min_length: 0
+max_length: null
+color: "#1f77b4"
+alpha: 0.7
+x_label: "Completion Length (tokens)"
+y_label: "Frequency"
+title: "Histogram of Completion Lengths ${model_name}"
