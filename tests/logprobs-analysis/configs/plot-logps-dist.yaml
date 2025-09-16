@@ -1,0 +1,20 @@
+# --- Parameters ---
+model_type: qrpo  # Options: dpo, qrpo, sft
+sample_idx: 7  # Index of the sample to plot
+remove_outliers: true
+outlier_iqr_multiplier: 2.0
+
+# --- Dataset paths ---
+datasets_dir: /users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/logprobs-analysis
+datasets:
+  trained_model_completions_trained_model_logps: ${datasets_dir}/magpieair_apertus8b_${model_type}_num_completions_1000_temp_1.0_top_p_1.0_with_logps_${model_type}_model
+  trained_model_completions_ref_model_logps: ${datasets_dir}/magpieair_apertus8b_${model_type}_num_completions_1000_temp_1.0_top_p_1.0_with_logps_sft_model
+  ref_model_completions_trained_model_logps: ${datasets_dir}/magpieair_apertus8b_sft_num_completions_1000_temp_1.0_top_p_1.0_with_logps_${model_type}_model
+  ref_model_completions_ref_model_logps: ${datasets_dir}/magpieair_apertus8b_sft_num_completions_1000_temp_1.0_top_p_1.0_with_logps_sft_model
+
+# --- Plot settings ---
+num_bins: 40
+alpha: 0.5
+xlim: null
+ylim: null
+title: "logprobs for sample {sample_idx}"

@@ -154,7 +154,7 @@ def main():
                 pbar.update(1)
 
     data = data.map(
-        lambda _, idx: {"ref_completions": batched_data[idx]}, with_indices=True
+        lambda _, idx: {"completions": batched_data[idx]}, with_indices=True
     )
     data.save_to_disk(args.save_path)
     print(f"Completions generated and saved {args.save_path} successfully!")

@@ -1,0 +1,23 @@
+# --- Parameters ---
+model_type: dpo_Npairs1  # Options: dpo, qrpo, sft
+sample_idx: 0  # Index of the sample to plot
+add_beta: false
+use_lengthnorm_beta: true
+
+# --- Dataset paths ---
+datasets_dir: /users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/logprobs-analysis
+datasets:
+  trained_model_completions_trained_model_logps: ${datasets_dir}/magpieair_apertus8b_${model_type}_num_completions_1000_temp_1.0_top_p_1.0_with_logps_${model_type}_model
+  trained_model_completions_ref_model_logps: ${datasets_dir}/magpieair_apertus8b_${model_type}_num_completions_1000_temp_1.0_top_p_1.0_with_logps_sft_model
+  ref_model_completions_trained_model_logps: ${datasets_dir}/magpieair_apertus8b_sft_num_completions_1000_temp_1.0_top_p_1.0_with_logps_${model_type}_model
+  ref_model_completions_ref_model_logps: ${datasets_dir}/magpieair_apertus8b_sft_num_completions_1000_temp_1.0_top_p_1.0_with_logps_sft_model
+
+
+# --- Plot settings ---
+num_bins: 50
+alpha: 0.5
+xlim: null
+ylim: null
+title: "DPO Rewards for sample {sample_idx}"
+xlabel: "DPO Reward"
+ylabel: "Frequency"

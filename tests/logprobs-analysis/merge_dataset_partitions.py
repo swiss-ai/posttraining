@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 from datasets import load_from_disk, concatenate_datasets
 from transformers import AutoTokenizer
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
+
 def find_dataset_partitions(base_path: str):
     """
     Given a base path like
@@ -28,9 +31,6 @@ def find_dataset_partitions(base_path: str):
     results.sort(key=lambda t: t[0])
     return [p for _, p in results]
 
-
-import hydra
-from omegaconf import DictConfig, OmegaConf
 
 @hydra.main(version_base=None,
             config_path="./configs",

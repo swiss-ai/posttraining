@@ -24,7 +24,7 @@ def compute_logprobs(
     sample_idx,
     batch_size=75,
 ):
-    ref_completions = json.loads(data[sample_idx]["ref_completions"][1]["content"])
+    completions = json.loads(data[sample_idx]["completions"][1]["content"])
     prompt = data[sample_idx]["chosen"][0]["content"]
     prompt_length = len(
         tokenizer.apply_chat_template(
@@ -37,9 +37,9 @@ def compute_logprobs(
     inputs = [
         [
             {"role": "user", "content": prompt},
-            {"role": "assistant", "content": ref_completion},
+            {"role": "assistant", "content": completion},
         ]
-        for ref_completion in ref_completions
+        for completion in completions
     ]
 
     tokenized_inputs = tokenizer.apply_chat_template(
@@ -50,9 +50,9 @@ def compute_logprobs(
     all_logps = []
     all_lengths = []
 
-    batch_size = min(batch_size, len(ref_completions))
+    batch_size = min(batch_size, len(completions))
     total_batches = (
-        len(ref_completions) + batch_size - 1
+        len(completions) + batch_size - 1
     ) // batch_size  # Calculate total number of batches
 
     with tqdm(total=total_batches, desc="Computing logprobs") as pbar:
