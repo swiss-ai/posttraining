@@ -41,12 +41,12 @@ The `reproducibility-scripts` directory includes scripts to generate SLURM jobs 
 Below are example `sbatch` scripts for training Apertus 8B and 70B checkpoints, generated using a template in
 [reproducibility-scripts/sft/0-apertus-template/generate_submit.py](https://github.com/swiss-ai/posttraining/tree/main/reproducibility-scripts/sft/0-apertus-template/generate_submit.py).
 
-To create new experiments copy the directory `reproducibility-scripts/sft/0-apertus-template/` and rename `0-apertus-template` to your new experiment.
+To create new experiments, copy the directory `reproducibility-scripts/sft/0-apertus-template/` and rename `0-apertus-template` to your new experiment.
 Then run the submit script inside to create sub-experiments whose submit script and SLURM logs will be recorded under.
 
 The same for alignment in `/reproducibility-scripts/alignment-apertus-swissaiformat`.
 
-For example  `reproducibility-scripts/sft/0-apertus-template/generate_submit.py`
+For example,  `reproducibility-scripts/sft/0-apertus-template/generate_submit.py`
 creates `reproducibility-scripts/sft/0-apertus-template/some-sub-experiment-2025-08-07-17-14/submit.sh`
 
 <details>
@@ -84,6 +84,8 @@ Training outputs are saved to `artifacts/private/outputs/train_sft/{job_subdir}`
 > [!IMPORTANT]
 > **Checkpointing**:
 > Checkpointing only works if `resuming.resume` is set to True in the config.
+
+Final dataset mixture for SFT can be found [here](https://huggingface.co/datasets/swiss-ai/apertus-sft-mixture).
 
 ### Customizing Training Runs
 
