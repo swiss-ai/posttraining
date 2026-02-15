@@ -8,27 +8,23 @@ stdout_root = (
 )
 
 # trained_models_names = ["dpo", "qrpo"]
-trained_models_names = ["dpo_Npairs1_lengthnormFalse_beta0.3", "qrpo_Npairs1_lengthnormFalse_beta0.1", "qrpo_Npairs1_lengthnormFalse_beta0.01"]
+trained_models_names = ["qrpo_Npairs1_lengthnormFalse_beta0.03"]
 ref_model_name = "sft"
 
 compute_sft_loprobs_for_sft_completions = False
 
 trained_models_paths = [
-    "/users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/train_preference/apertus-first-sweep/swissai-olmo2-32b-preference-apertus-8b-sft-10T-mixture-7-7fea1f8c44336360-maxlen4096-Nref30-logprobs-skywork-llama3-8b-Npairs1-dpo-adamw_torch-lr5e-07-beta0.3-lengthnormFalse/checkpoints/9490ea7c23f8769c/checkpoint-719",
-    "/users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/train_preference/apertus-first-sweep/swissai-olmo2-32b-preference-apertus-8b-sft-10T-mixture-7-7fea1f8c44336360-maxlen4096-Nref30-logprobs-skywork-llama3-8b-Npairs1-qrpo-adamw_torch-lr5e-07-beta0.1-lengthnormFalse/checkpoints/738839dedbfbcdab/checkpoint-719",
-    "/users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/train_preference/apertus-first-sweep/swissai-olmo2-32b-preference-apertus-8b-sft-10T-mixture-7-7fea1f8c44336360-maxlen4096-Nref30-logprobs-skywork-llama3-8b-Npairs1-qrpo-adamw_torch-lr5e-07-beta0.01-lengthnormFalse/checkpoints/04b5c5999d694b42/checkpoint-719"
+    "/users/smatreno/projects/swiss-alignment/dev/artifacts/shared/outputs/train_preference/apertus-first-sweep/swissai-olmo2-32b-preference-apertus-8b-sft-10T-mixture-7-7fea1f8c44336360-maxlen4096-Nref30-logprobs-skywork-llama3-8b-Npairs1-qrpo-adamw_torch-r5e-07-beta0.03/checkpoints/bd8d4c147767bd1a/checkpoint-720"
 ]
 ref_model_path = "/users/smatreno/projects/swiss-alignment/dev/artifacts/shared/outputs/train_preference/apertus-first-sweep/apertus-8b-sft-10T-mixture-7-7fea1f8c44336360"
 
 datasets_with_completions_for_trained_models = [
-    "/users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/logprobs-analysis/magpieair_apertus8b_dpo_Npairs1_lengthnormFalse_beta0.3_num_completions_1000_temp_1.0_top_p_1.0",
-    "/users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/logprobs-analysis/magpieair_apertus8b_qrpo_Npairs1_lengthnormFalse_beta0.1_num_completions_1000_temp_1.0_top_p_1.0",
-    "/users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/logprobs-analysis/magpieair_apertus8b_qrpo_Npairs1_lengthnormFalse_beta0.01_num_completions_1000_temp_1.0_top_p_1.0"
+    "/users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/logprobs-analysis/magpieair_apertus8b_qrpo_Npairs1_lengthnormFalse_beta0.03_num_completions_1000_temp_1.0_top_p_1.0"
 ]
 dataset_with_completions_for_ref_model = "/users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/logprobs-analysis/magpieair_apertus8b_sft_num_completions_1000_temp_1.0_top_p_1.0"
 
 batch_size = 25
-betas = [0.3, 0.1, 0.01]
+betas = [0.03]
 
 commands = []
 for model_name, model_path, beta, dataset_path in zip(trained_models_names, trained_models_paths, betas, datasets_with_completions_for_trained_models):

@@ -1,8 +1,30 @@
 # --- Parameters ---
-model_type: dpo_Npairs1  # Options: dpo, qrpo, sft
-sample_idx: 0  # Index of the sample to plot
-add_beta: false
+model_type: dpo_Npairs1_lengthnormFalse_beta0.03  # Options: dpo, qrpo, sft
+#model_type: dpo_Npairs1  # Options: dpo, qrpo, sft
+sample_idx: 7  # Index of the sample to plot
+add_beta: true
 use_lengthnorm_beta: true
+beta: 0.03
+
+# --- Histogram / line scaling ---
+hist_density: false   # if false, lines are scaled to counts using mean bin width
+
+# --- Smooth ref line (green) ---
+show_ref_density_line: false
+ref_density_mode: adaptive   # fixed | adaptive | gaussian
+kde_bw_scale: 0.5            # <1.0 sharpens; try 0.4–0.8 if right tail too heavy
+kde_adaptive_alpha: 0.5      # 0.3–0.7 typical
+kde_grid_points: 2048
+
+# --- Predicted trained line (red) ---
+show_predicted_trained_line: false
+predicted_mode: kde_tilt     # kde_tilt | gaussian_shift
+pred_beta: 0.5               # β used in exp(x/β)
+tilt_sign: 1                 # set -1 if direction looks flipped
+
+# --- Outlier removal ---
+remove_outliers: true
+outlier_k: 1.5
 
 # --- Dataset paths ---
 datasets_dir: /users/smatreno/projects/swiss-alignment/dev/artifacts/private/outputs/logprobs-analysis
@@ -14,7 +36,7 @@ datasets:
 
 
 # --- Plot settings ---
-num_bins: 50
+num_bins: 100
 alpha: 0.5
 xlim: null
 ylim: null

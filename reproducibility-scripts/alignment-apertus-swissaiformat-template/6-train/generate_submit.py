@@ -70,14 +70,15 @@ nums_train_pairs_per_prompt = [1]
 
 # losses = ["qrpo", "dpo"]
 losses = ["qrpo"]
-normalize_beta_by_length = True
+normalize_beta_by_length = False
 betas = {
-    "qrpo": [5.0],
-    "dpo": [5.0],
+    "qrpo": [0.01, 0.1],
+    # "dpo": [1.0, 5.0, 10.0],
+    "dpo": [0.1, 0.3],
 }
 learning_rates = [5e-7]
 # optimizers = ["adamw_torch", "ademamix"]
-optimizers = ["ademamix"]
+optimizers = ["adamw_torch"]
 max_grad_norm = 20  # Disable but still log.
 
 num_devices_per_node = 4
@@ -106,7 +107,7 @@ for dataset in datasets:
                         for optimizer in optimizers:
                             for lr in learning_rates:
                                 for beta in betas[loss]:
-                                    jobid = f"{train_dataset}-{loss}-{optimizer}-beta3_0.99-r{lr}-beta{beta}"
+                                    jobid = f"{train_dataset}-{loss}-{optimizer}-lr{lr}-beta{beta}-lengthnorm{normalize_beta_by_length}"
                                     run_name = f"{job_name}/{jobid}"
                                     commands.append(
                                         (
@@ -138,9 +139,8 @@ for dataset in datasets:
                                             f"job_subdir={run_name} "
                                             f"wandb.run_name={run_name} "
                                             f"'wandb.tags=[prod,{job_name}]' "
-                                            "artifacts_subdir=shared "
+                                            "artifacts_subdir=private "
                                             "resuming.resume=True "
-                                            "+training_args.optimizer_beta3=0.99 "
                                         )
                                     )
                                     total_nodes_needed += num_nodes_per_job
