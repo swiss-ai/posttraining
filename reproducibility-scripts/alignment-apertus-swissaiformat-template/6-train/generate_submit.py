@@ -27,7 +27,7 @@ stdout_root = (
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 )
 
-job_name = "apertus-first-sweep"
+job_name = "apertus-test-sweep"
 
 train_datasets_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/train-datasets/hfformat"
 datasets = ["swissai-olmo2-32b-preference"]
@@ -69,12 +69,15 @@ train_num_ref_rewards = -1  # Directly use the quantile rewards from the dataset
 nums_train_pairs_per_prompt = [1]
 
 # losses = ["qrpo", "dpo"]
-losses = ["qrpo"]
+losses = ["dpo"]
 normalize_beta_by_length = False
+# betas = {
+#     "qrpo": [5.0],
+#     "dpo": [5.0],
+# }
 betas = {
-    "qrpo": [0.01, 0.1],
-    # "dpo": [1.0, 5.0, 10.0],
-    "dpo": [0.1, 0.3],
+    "qrpo": [0.01],
+    "dpo": [0.05],
 }
 learning_rates = [5e-7]
 # optimizers = ["adamw_torch", "ademamix"]
@@ -102,7 +105,7 @@ for dataset in datasets:
             for sftid, sftid_path in sftids:
                 for num_train_pairs_per_prompt in nums_train_pairs_per_prompt:
                     train_dataset = f"{dataset}-{model}-{sftid}-maxlen{max_seq_len}-Nref{dataset_num_ref_reward}-logprobs-{reward_model}-Npairs{num_train_pairs_per_prompt}"
-                    train_dataset_path = f"{train_datasets_prefix}/{train_dataset}"
+                    train_dataset_path = f"{train_datasets_prefix}/{train_dataset}/train"
                     for loss in losses:
                         for optimizer in optimizers:
                             for lr in learning_rates:
