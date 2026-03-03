@@ -30,7 +30,7 @@ stdout_root = (
 )
 
 dataset_for_model_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models"
-datasets = ["swissai-olmo2-32b-preference"]
+datasets = ["dolci-instruct-dpo-regenerated-qwen06-qwen32"]
 splits = ["train_split"]
 
 max_seq_len = 4096

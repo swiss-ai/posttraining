@@ -23,7 +23,7 @@ dataset_with_ref_rewards = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{
 train_datasets = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs-{reward_model}-(train_id)"
 """
 
-stdout_prefix = "70b"
+stdout_prefix = "8b"
 stdout_root = (
     Path(__file__).parent.resolve().relative_to(Path.cwd())
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
@@ -31,12 +31,12 @@ stdout_root = (
 
 dataset_for_model_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-for-ref-models"
 dataset_with_ref_completions_path_prefix = "\${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-with-ref-completions/merged"
-datasets = ["swissai-olmo2-32b-preference"]
+datasets = ["dolci-instruct-dpo-regenerated-qwen06-qwen32"]
 splits = ["train_split"]
 
 max_seq_len = 4096
 
-models = ["apertus-70b-sft"]
+models = ["apertus-8b-sft"]
 sftids = {
     "apertus-70b-sft": [
         (
@@ -67,8 +67,8 @@ dataset_num_ref_reward = 10
 # 70B: N = X / (256 · H)
 
 is_partitioned = True
-partition_size = 1024  # N prompts per node (1024 for 70b, 8192 for 8b)
-save_interval = 256  # Try to keep it to a reasonable number (like 1-2h), e.g. 256 for 70b and 2048 for 8b
+partition_size = 8192  # N prompts per node (1024 for 70b, 8192 for 8b)
+save_interval = 2048  # Try to keep it to a reasonable number (like 1-2h), e.g. 256 for 70b and 2048 for 8b
 num_nodes_per_job = 1  # 1 node per job
 num_gpus_per_node = 4  # 4 GPUs per node
 
@@ -102,12 +102,16 @@ for dataset in datasets:
                 f"src/swiss_alignment/configs/dataset/{dataset}.yaml", "r"
             ) as file:
                 dataset_config = yaml.safe_load(file)
+            print(f"Loaded dataset config for {dataset}: {dataset_config}")
 
             dataset_for_model_path = (
                 f"{dataset_for_model_path_prefix}/{dataset_for_model}"
             )
             dataset_for_model_path_local = f"{dataset_for_model_path_prefix.replace('\${artifacts_dir}', 'artifacts')}/{dataset_for_model}"
             d = load_from_disk(dataset_for_model_path_local)
+            print(dataset_for_model_path_local)
+            print(d)
+            # exit()
 
             dataset_with_ref_completions_path = f"{dataset_with_ref_completions_path_prefix}/{dataset_with_ref_completions}"
 
@@ -128,8 +132,8 @@ for dataset in datasets:
                         (
                             "sbatch "
                             f"-N {num_nodes_per_job} "
-                            f"-p large512 "
-                            f"-t 24:00:00 "
+                            f"-p normal "
+                            f"-t 12:00:00 "
                             f"--ntasks-per-node {num_subpartitions} "
                             f"-o {stdout_root}/out/{jobid}.out "
                             f"-e {stdout_root}/out/{jobid}.err "
@@ -158,7 +162,7 @@ for dataset in datasets:
                 (
                     "sbatch "
                     f"-N {num_nodes_per_job} "
-                    f"-p large512 "
+                    f"-p normal "
                     f"-o {stdout_root}/out/{jobid}.out "
                     f"-e {stdout_root}/out/{jobid}.err "
                     "./cscs-shared-submit-scripts/unattended.sh "

@@ -48,7 +48,10 @@ from transformers import (
     is_wandb_available,
 )
 from transformers.data.data_collator import DataCollatorMixin
-from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES
+try:
+    from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES
+except ImportError:
+    MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES = {}
 from transformers.trainer_callback import TrainerCallback
 from transformers.trainer_utils import EvalLoopOutput
 from transformers.utils import is_peft_available
@@ -526,6 +529,8 @@ class PreferenceTrainer(Trainer):
         # of the input, floating-point operations will not be computed." To suppress this warning, we set the
         # "estimate_tokens" key in the model's "warnings_issued" dictionary to True. This acts as a flag to indicate
         # that the warning has already been issued.
+        if not hasattr(model, "warnings_issued"):
+            model.warnings_issued = {}
         model.warnings_issued["estimate_tokens"] = True
 
         # Dataset preparation

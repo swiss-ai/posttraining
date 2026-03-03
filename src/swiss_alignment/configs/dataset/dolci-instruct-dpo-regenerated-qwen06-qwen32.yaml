@@ -1,0 +1,14 @@
+# @package _global_
+
+dataset_args:
+  dataset_name: ${artifacts_dir}/shared/datasets/alignment-pipeline-swissaiformat/datasets-with-ref-completions/merged/dolci-instruct-dpo-regenerated-qwen06-qwen32-apertus-8b-sft-10T-mixture-7-7fea1f8c44336360-maxlen4096-Nref10
+  train_split:
+    name: train_split
+    start: 0
+    end: 256339
+  eval_split:
+    name: null
+
+training_args:
+  eval_strategy: "no"
+  eval_steps: null
