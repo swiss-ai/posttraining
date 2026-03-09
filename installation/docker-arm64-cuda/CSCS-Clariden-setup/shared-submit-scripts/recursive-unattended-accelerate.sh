@@ -45,7 +45,7 @@ $WANDB_API_KEY_FILE_AT \
     DONE_FILE=/tmp/pip_install_datasets.done; \
     if mkdir \$LOCK_FILE 2>/dev/null; then \
       echo \"[Node \$SLURM_NODEID] Installing datasets...\"; \
-      pip install --upgrade datasets && touch \$DONE_FILE; \
+      pip install --upgrade \"transformers<5.0.0\" datasets && touch \$DONE_FILE; \
       echo \"[Node \$SLURM_NODEID] Install complete.\"; \
     else \
       echo \"[Node \$SLURM_NODEID] Waiting for install...\"; \
