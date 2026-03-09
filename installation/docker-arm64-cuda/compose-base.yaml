@@ -2,7 +2,7 @@ services:
   build-args:
     build:
       args:
-        BASE_IMAGE: localhost/vllm:v0.9.0.1-apertus-vllm
+        BASE_IMAGE: localhost/vllm:v0.9.0.1-apertus-vllm-tr4576
         # vLLM custom-build from ./build-vllm/Dockerfile-apertus-vllm
         # Bsed on the nvcr.io/nvidia/pytorch:25.02-py3
         # With  Python 3.12. Pytorch 2.7.0a0+ecf3bae40a.nv25.2
