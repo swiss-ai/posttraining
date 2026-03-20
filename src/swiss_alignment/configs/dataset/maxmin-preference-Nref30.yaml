@@ -1,0 +1,14 @@
+# @package _global_
+
+dataset_args:
+  dataset_name: /iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered-Ref-Completions-Annotated-Combined-Final
+  train_split:
+    name: train_split
+    start: 0
+    end: 259453
+  eval_split:
+    name: null
+
+training_args:
+  eval_strategy: "no"
+  eval_steps: null
