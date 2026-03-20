@@ -5,7 +5,7 @@
 #SBATCH -A infra01
 #SBATCH -p normal
 ##SBATCH --reservation=PA-2338-RL
-#SBATCH --nodes 4
+#SBATCH --nodes 16
 #SBATCH --ntasks-per-node 1
 #SBATCH --gpus-per-node=4
 #SBATCH --cpus-per-task=288
@@ -87,7 +87,7 @@ $WANDB_API_KEY_FILE_AT \
     --max_length 4096 \
     --epochs 1 \
     --lr ${LR:-2e-5} \
-    --bsz 4 \
+    --bsz 8 \
     --gas 1 \
     --save_steps 500 \
     --logging_steps 10 \

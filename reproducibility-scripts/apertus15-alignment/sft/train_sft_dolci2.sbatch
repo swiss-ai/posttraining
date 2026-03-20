@@ -5,7 +5,7 @@
 #SBATCH -A infra01
 #SBATCH -p normal
 ##SBATCH --reservation=PA-2338-RL
-#SBATCH --nodes 4
+#SBATCH --nodes 8
 #SBATCH --ntasks-per-node 1
 #SBATCH --gpus-per-node=4
 #SBATCH --cpus-per-task=288
@@ -27,7 +27,7 @@ CACHE_DIR="$SCRATCH/cache"
 export OUTPUT_DIR="$SCRATCH/apertus_sft/${SLURM_JOB_ID}"
 mkdir -p "$OUTPUT_DIR" "$CACHE_DIR"/{hf,datasets,hub,tmp}
 
-export HF_HOME="$CACHE_DIR/huggingface"
+export HF_HOME="$CACHE_DIR/hf"
 export HF_DATASETS_CACHE="$CACHE_DIR/datasets"
 export TRANSFORMERS_CACHE="$CACHE_DIR/hub"
 export TMPDIR="$CACHE_DIR/tmp"
@@ -35,6 +35,8 @@ export PYTHONPATH="$PROJECT_ROOT_AT:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 export TOKENIZERS_PARALLELISM=false
 export NCCL_TIMEOUT=7200
+export WANDB_ENTITY=apertus
+export WANDB_PROJECT=apertus-sft
 
 # Load API keys from .env if present
 if [[ -f "$PROJECT_ROOT_AT/.env" ]]; then
