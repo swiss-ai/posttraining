@@ -39,25 +39,21 @@ WANDB_TAGS="prod,dpo-sweep"
 # --- Model ---
 # MODEL_PATH="$HOME/projects/posttraining/run/artifacts/shared/outputs/train_sft/final-run/Apertus8B-tokens10.2T-it2059810-newcooldown-apertus-sft-mixture-7-ln-v2-ademamix/checkpoints/7fea1f8c44336360/checkpoint-8925"
 # MODEL_PATH="$HOME/projects/posttraining/run/artifacts/shared/outputs/train_sft/final-run/apertus1-base-sft-stage1/global_step_2406/huggingface"
-MODEL_PATH="/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--allenai--Olmo-3-7B-Instruct-SFT/snapshots/e1452fc572d51966ff4aaeb25118b891eb93e549"
-MODEL_SHORTNAME="olmo-3-7b-sft"
+MODEL_PATH="/iopsstor/scratch/cscs/dmelikidze/aper_sft/baseline-apertus-1-sft"
+MODEL_SHORTNAME="apertus1-8b-sft"
 
 # --- Sweep Hyperparameters ---
-BETAS=(0.1) #(5.0)
-LEARNING_RATES=(1e-6 1e-7 5e-7 8e-8)
+BETAS=(0.01 0.05 0.1 0.5 1.0) #(5.0)
+LEARNING_RATES=(1e-6 5e-7 1e-7 5e-8)
 SEEDS=(42)
 NORMALIZE_LOGPS=("False")
 MAX_LENGTHS=(4096)
 WARMUP_RATIOS=(0.1)
-NUM_TRAIN_EPOCHS=(1)
+NUM_TRAIN_EPOCHS=(1) #(1 2 3)
 PER_DEVICE_TRAIN_BATCH_SIZE=(2)
 MAX_GRAD_NORM=(20)
 LR_SCHEDULER_TYPES=("linear")
-
-# --- Effective Batch Size Sweep ---
-# The gradient_accumulation_steps will be computed automatically as:
-#   gas = effective_batch_size / (SLURM_NODES * NUM_DEVICES_PER_NODE * per_device_train_batch_size)
-EFFECTIVE_BATCH_SIZES=(128)
+EFFECTIVE_BATCH_SIZES=(128 256 512)
 
 # --- SLURM ---
 SLURM_NODES=4
@@ -69,10 +65,10 @@ NUM_DEVICES_PER_NODE=4
 
 # --- Output / Logging ---
 TIMESTAMP=$(date +"%Y-%m-%d-%H-%M-%S")
-SWEEP_NAME="dpo-sweep-${TIMESTAMP}"
+SWEEP_NAME="dpo-hp-grid-${TIMESTAMP}"
 SWEEP_DIR="$(cd "$(dirname "$0")" && pwd)/sweeps/${SWEEP_NAME}"
 LOG_DIR="${SWEEP_DIR}/logs"
-OUTPUT_BASE_DIR="$HOME/projects/posttraining/run/artifacts/private/outputs/dpo-sweep-final/${SWEEP_NAME}"
+OUTPUT_BASE_DIR="$HOME/projects/posttraining/run/artifacts/private/outputs/dpo-hp-grid-aper/${SWEEP_NAME}"
 
 # ============================================================================
 # ARGUMENT PARSING
@@ -102,6 +98,7 @@ set -e
 HEADER
 
 COUNT=0
+SKIPPED=0
 
 for dataset_path in "${DATASET_PATHS[@]}"; do
     DATASET_BASENAME=$(basename "$dataset_path")
@@ -122,12 +119,28 @@ for lr_scheduler in "${LR_SCHEDULER_TYPES[@]}"; do
     DEVICE_BATCH=$((TOTAL_DEVICES * pbs))
     gas=$((ebs / DEVICE_BATCH))
 
-    COUNT=$((COUNT + 1))
-
     # --- Unique job identifier including all hps---
-    JOB_ID="dpo-model-beta${beta}-lr${lr}-norm${normalize}-ebs${ebs}-epochs${epochs}-${DATASET_BASENAME}-${MODEL_SHORTNAME}"
+    JOB_ID="dpo-beta${beta}-lr${lr}-norm${normalize}-ebs${ebs}-epochs${epochs}-${DATASET_BASENAME}-${MODEL_SHORTNAME}"
     OUTPUT_DIR="${OUTPUT_BASE_DIR}/${JOB_ID}"
     RUN_NAME="${SWEEP_NAME}/${JOB_ID}"
+
+    # --- Skip check 1: job with this name already running/pending in SLURM ---
+    if squeue --me --name="${JOB_ID}" --noheader 2>/dev/null | grep -q .; then
+        echo "SKIP (running/pending): ${JOB_ID}"
+        SKIPPED=$((SKIPPED + 1))
+        continue
+    fi
+
+    # --- Skip check 2: output directory already has model files ---
+    if [[ -d "${OUTPUT_DIR}" ]] && compgen -G "${OUTPUT_DIR}/model*.safetensors" > /dev/null 2>&1 || \
+       [[ -d "${OUTPUT_DIR}" ]] && compgen -G "${OUTPUT_DIR}/pytorch_model*.bin" > /dev/null 2>&1 || \
+       [[ -d "${OUTPUT_DIR}" ]] && [[ -f "${OUTPUT_DIR}/config.json" && -f "${OUTPUT_DIR}/adapter_config.json" ]]; then
+        echo "SKIP (model files exist): ${JOB_ID}"
+        SKIPPED=$((SKIPPED + 1))
+        continue
+    fi
+
+    COUNT=$((COUNT + 1))
 
     # Global batch size (should equal ebs)
     GLOBAL_BS=$((TOTAL_DEVICES * pbs * gas))
@@ -206,6 +219,7 @@ echo "============================================"
 echo " Sweep Summary"
 echo "============================================"
 echo " Total jobs:           ${COUNT}"
+echo " Skipped jobs:         ${SKIPPED}"
 echo " Submit script:        ${SUBMIT_FILE}"
 echo " Log directory:        ${LOG_DIR}"
 echo " Output base dir:      ${OUTPUT_BASE_DIR}"

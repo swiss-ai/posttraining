@@ -146,8 +146,9 @@ def main(script_args, training_args, model_args):
 
         dataset = process_dataset_split(dataset)
 
-        # Clean columns
-        cols_to_keep = {"chosen", "rejected", "prompt"}
+        # Clean columns — drop prompt so TRL re-extracts it from chosen/rejected
+        # (avoids Arrow type conflict when prompt column has mixed null/string values)
+        cols_to_keep = {"chosen", "rejected"}
         cols_to_remove = [c for c in dataset.column_names if c not in cols_to_keep]
         if cols_to_remove:
             dataset = dataset.remove_columns(cols_to_remove)
