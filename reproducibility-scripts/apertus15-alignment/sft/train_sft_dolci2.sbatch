@@ -71,7 +71,7 @@ echo $CMD
 
 START=$(date +%s)
 
-srun --environment=activeuf bash -c "$CMD"
+srun --environment=sample-efficient-rlvr bash -c "$CMD"
 
 SRUN_EXIT_CODE=$?
 END=$(date +%s)
