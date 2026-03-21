@@ -1,7 +1,11 @@
 import argparse
+import os
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTTrainer, SFTConfig
+
+os.environ.setdefault("WANDB_ENTITY", "apertus")
+os.environ.setdefault("WANDB_PROJECT", "apertus-1.5-post-training-dpo")
 
 # Simplified Apertus-native chat template (matches Apertus-8B-Instruct format)
 # Uses tokens already in the pretrained vocabulary — no embedding resize needed
@@ -86,7 +90,7 @@ def main():
         dataset_num_proc=128,
         dataloader_num_workers=4,
         dataloader_pin_memory=True,
-        report_to="none",
+        report_to="wandb",
         run_name="apertus-8b-sft-dolci",
     )
 

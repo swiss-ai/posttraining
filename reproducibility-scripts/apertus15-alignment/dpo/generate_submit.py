@@ -4,9 +4,13 @@ from pathlib import Path
 """
 Generate sbatch commands for preference training on the MaxMin dataset.
 
-Run from the project root:
+Adapted from alignment-apertus-swissaiformat-template/6-train/generate_submit.py.
+
+This script must be run from the project root:
     cd /iopsstor/scratch/cscs/dmelikidze/dmelikidze/projects/posttraining/run
     python reproducibility-scripts/alignment-apertus-swissaiformat-template/6-train/generate_submit.py
+    # or:
+    python /iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/6-train/generate_submit.py
 """
 
 stdout_prefix = "init"
@@ -15,7 +19,7 @@ stdout_root = (
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 )
 
-job_name = "maxmin-apertus1-8b-sweep"
+job_name = "maxmin-preference-sweep"
 
 # Dataset config name (matches the YAML in configs/dataset/)
 dataset_config = "maxmin-preference-Nref30"
@@ -28,26 +32,26 @@ model_hps = {
     "apertus-8b-sft": {
         "ids_paths": [
             (
-                "Apertus-8B-Instruct-2509-SFT",
-                "/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--swiss-ai--Apertus-8B-Instruct-2509-SFT/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364",
+                "10T-mixture-7-7fea1f8c44336360",
+                "\${artifacts_dir}/shared/outputs/train_sft/final-run/Apertus8B-tokens10.2T-it2059810-newcooldown-apertus-sft-mixture-7-ln-v2-ademamix/checkpoints/7fea1f8c44336360/checkpoint-8925",
             ),
         ],
         "batch_size": 512,
-        "num_nodes_per_job": 128,
-        "per_device_train_batch_size": 1,
+        "num_nodes_per_job": 4,
+        "per_device_train_batch_size": 2,
         "accelerate_config": "src/swiss_alignment/configs/accelerate/ds-zero2.yaml",
     },
 }
 
 # Reward / ref settings
-ref_logprobs_from_dataset = False #True
+ref_logprobs_from_dataset = True
 train_num_ref_rewards = -1  # Use precomputed quantile rewards from the dataset
 
-# Hyperparameter sweep
-losses = ["qrpo"] #["qrpo", "dpo"]
+# Hyperparameter sweep (minimal grid for testing)
+losses = ["dpo"]
 normalize_beta_by_length = False
 betas = {
-    "qrpo": [0.1],
+    "qrpo": [0.01],
     "dpo": [0.1],
 }
 learning_rates = [1e-6]
@@ -59,7 +63,7 @@ seeds = [42]
 
 # Run index: use this to re-run exact same hyperparameters (changes the config hash).
 # e.g. run_indices = [0, 1] to run the same config twice.
-run_indices = [7]
+run_indices = [0]
 
 num_devices_per_node = 4
 
@@ -93,7 +97,7 @@ for model in models:
                                     (
                                         "sbatch "
                                         f"-p normal "
-                                        f"-t 12:00:00 "
+                                        f"-t 7:00:00 "
                                         f"-N {num_nodes_per_job} "
                                         f"-o {stdout_root}/out/{jobid}.out "
                                         f"-e {stdout_root}/out/{jobid}.err "
@@ -119,7 +123,6 @@ for model in models:
                                         f"global_batch_size={batch_size} "
                                         f"num_nodes={num_nodes_per_job} "
                                         f"job_subdir={run_name} "
-                                        f"wandb.project=apertus-1.5-post-training-dpo "
                                         f"wandb.run_name={run_name} "
                                         f"'wandb.tags=[prod,{job_name}]' "
                                         "artifacts_subdir=private "

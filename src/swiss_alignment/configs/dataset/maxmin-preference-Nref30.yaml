@@ -1,7 +1,7 @@
 # @package _global_
 
 dataset_args:
-  dataset_name: /iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered-Ref-Completions-Annotated-Combined-Final
+  dataset_name: /iopsstor/scratch/cscs/dmelikidze/posttraining-data/preference_acquisition/datasets/MaxMin
   train_split:
     name: train_split
     start: 0

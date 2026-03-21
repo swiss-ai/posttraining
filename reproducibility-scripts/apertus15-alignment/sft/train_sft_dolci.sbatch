@@ -87,7 +87,7 @@ $WANDB_API_KEY_FILE_AT \
     --max_length 4096 \
     --epochs 1 \
     --lr ${LR:-2e-5} \
-    --bsz 8 \
+    --bsz 4 \
     --gas 1 \
     --save_steps 500 \
     --logging_steps 10 \
