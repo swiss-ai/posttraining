@@ -2,7 +2,8 @@
 
 #SBATCH -J post-trainingun-accelerate
 #SBATCH -t 12:00:00
-#SBATCH -A a-infra01-1
+#SBATCH -A infra01
+#SBATCH --reservation=PA-2338-RL
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
 # these nodes are large512 partition nodes, comment them out if using a different partition
