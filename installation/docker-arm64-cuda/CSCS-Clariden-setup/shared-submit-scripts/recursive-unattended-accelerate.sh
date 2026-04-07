@@ -3,11 +3,9 @@
 #SBATCH -J post-trainingun-accelerate
 #SBATCH -t 12:00:00
 #SBATCH -A infra01
-#SBATCH --reservation=PA-2338-RL
+#SBATCH --reservation=SD-69241-apertus-1-5
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
-# these nodes are large512 partition nodes, comment them out if using a different partition
-# SBATCH --exclude=nid006539,nid007378,nid006931,nid006726,nid006521,nid007352,nid006959,nid006944,nid006904,nid006946,nid006966,nid007017,nid006968,nid007068
 
 # Variables used by the entrypoint script
 export PROJECT_ROOT_AT=$HOME/projects/posttraining/run
@@ -47,6 +45,7 @@ $WANDB_API_KEY_FILE_AT \
     --num_machines $SLURM_NNODES \
     --num_processes $((4*$SLURM_NNODES)) \
     --main_process_ip $(hostname) \
+    --main_process_port $((20000 + SLURM_JOB_ID % 10000)) \
     --machine_rank \$SLURM_NODEID \
     $*"
 
