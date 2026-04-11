@@ -635,7 +635,7 @@ class PreferenceTrainer(Trainer):
     ) -> Dataset:
         # Compute that only on the main process for faster data processing.
         # see: https://github.com/huggingface/trl/pull/1255
-        with PartialState().local_main_process_first():
+        with PartialState().main_process_first():
             # Extract the prompt if needed, and apply the chat template if needed
             dataset = dataset.map(
                 maybe_extract_prompt,

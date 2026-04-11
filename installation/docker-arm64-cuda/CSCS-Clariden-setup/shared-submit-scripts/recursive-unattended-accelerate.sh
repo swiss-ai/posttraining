@@ -3,7 +3,7 @@
 #SBATCH -J post-trainingun-accelerate
 #SBATCH -t 12:00:00
 #SBATCH -A infra01
-#SBATCH --reservation=SD-69241-apertus-1-5
+#SBATCH --reservation=SD-69241-apertus-1-5-5
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
 

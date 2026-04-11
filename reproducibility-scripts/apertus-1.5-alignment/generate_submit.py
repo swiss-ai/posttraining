@@ -31,9 +31,14 @@ job_name = "apertus-first-sweep"
 
 datasets = ["swissai-olmo2-32b-preference"]
 train_dataset_paths = [
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered",
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMinTr-Filtered",
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMinTrPh-Filtered",
+    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_4096-Filtered",
+    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_Tr_4096-Filtered",
+    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_TrPh_4096-Filtered",
+    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_3600-Filtered",
+    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_Tr_3600-Filtered",
+    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_TrPh_3600-Filtered",
+    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered-3",
+    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered-2",
 ]
 
 models = ["apertus-8b-sft"]
@@ -71,10 +76,10 @@ train_num_ref_rewards = -1  # Directly use the quantile rewards from the dataset
 losses = ["dpo"]
 normalize_beta_by_length = True
 betas = {
-    "qrpo": [5.0],
-    "dpo": [5.0],
+    "qrpo": [2.0],
+    "dpo": [25.0],
 }
-learning_rates = [1e-6]
+learning_rates = [1e-6] # [5e-7] for QRPO
 optimizers = ["adamw_torch"]
 max_grad_norm = 20  # Disable but still log.
 
@@ -103,13 +108,13 @@ for dataset in datasets:
                         for optimizer in optimizers:
                             for lr in learning_rates:
                                 for beta in betas[loss]:
-                                    jobid = f"{train_dataset_name}-{loss}-{optimizer}-r{lr}-beta{beta}"
+                                    jobid = f"{train_dataset_name}-{loss}-lr{lr}-beta{beta}-lenNorm{normalize_beta_by_length}-ebs{batch_size}"
                                     run_name = f"{job_name}/{jobid}"
                                     commands.append(
                                         (
                                             "sbatch "
                                             f"-p normal "
-                                            f"-t 3:00:00 "
+                                            f"-t 4:00:00 "
                                             f"-N {num_nodes_per_job} "
                                             f"-o {stdout_root}/out/{jobid}.out "
                                             f"-e {stdout_root}/out/{jobid}.err "
@@ -136,7 +141,7 @@ for dataset in datasets:
                                             f"job_subdir={run_name} "
                                             f"wandb.run_name={run_name} "
                                             f"'wandb.tags=[prod,{job_name}]' "
-                                            "artifacts_subdir=shared "
+                                            "artifacts_subdir=private "
                                             "resuming.resume=True "
                                         )
                                     )
