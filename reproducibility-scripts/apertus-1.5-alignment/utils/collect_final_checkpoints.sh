@@ -5,7 +5,7 @@
 set -euo pipefail
 
 BASE_DIR="/iopsstor/scratch/cscs/dmelikidze/dmelikidze/projects/posttraining/run/artifacts/private/outputs/train_preference/apertus-first-sweep"
-OUTPUT_DIR="/iopsstor/scratch/cscs/dmelikidze/ap_mo/suite6"
+OUTPUT_DIR="/iopsstor/scratch/cscs/dmelikidze/ap_mo/suite8"
 
 mkdir -p "$OUTPUT_DIR"
 

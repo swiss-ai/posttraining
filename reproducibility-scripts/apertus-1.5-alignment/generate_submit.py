@@ -31,35 +31,33 @@ job_name = "apertus-first-sweep"
 
 datasets = ["swissai-olmo2-32b-preference"]
 train_dataset_paths = [
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_4096-Filtered",
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_Tr_4096-Filtered",
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_TrPh_4096-Filtered",
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_3600-Filtered",
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_Tr_3600-Filtered",
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin_TrPh_3600-Filtered",
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered-3",
-    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/MaxMin-Filtered-2",
+    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_3600-Filtered",
+    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_4096-Filtered",
+    "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered",
+    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_4096-Filtered",
+    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_TrPh_3600-Filtered",
+    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_TrPh_4096-Filtered",
 ]
 
 models = ["apertus-8b-sft"]
 model_hps = {
-    "apertus-70b-sft": {
-        "ids_paths": [
-            (
-                "mixture-7-d0012600a8854237",
-                "\${artifacts_dir}/shared/outputs/train_sft/final-run/Apertus70B-tokens15T-longcontext64k-apertus-sft-mixture-7-ln-v2-bs1024-lr2e-06-maxgnorm1-epochs1-ademamix/checkpoints/d0012600a8854237/checkpoint-4462",
-            ),
-        ],
-        "batch_size": 512,
-        "num_nodes_per_job": 64,
-        "per_device_train_batch_size": 2,
-        "accelerate_config": "src/post_training/configs/accelerate/ds-zero3.yaml",
-    },
+    # "apertus-70b-sft": {
+    #     "ids_paths": [
+    #         (
+    #             "mixture-7-d0012600a8854237",
+    #             "\${artifacts_dir}/shared/outputs/train_sft/final-run/Apertus70B-tokens15T-longcontext64k-apertus-sft-mixture-7-ln-v2-bs1024-lr2e-06-maxgnorm1-epochs1-ademamix/checkpoints/d0012600a8854237/checkpoint-4462",
+    #         ),
+    #     ],
+    #     "batch_size": 512,
+    #     "num_nodes_per_job": 64,
+    #     "per_device_train_batch_size": 2,
+    #     "accelerate_config": "src/post_training/configs/accelerate/ds-zero3.yaml",
+    # },
     "apertus-8b-sft": {
-        "ids_paths": [
+        "ids_paths": [ # Important
             (
-                "10T-mixture-7-7fea1f8c44336360",
-                "\${artifacts_dir}/shared/outputs/train_sft/final-run/Apertus8B-tokens10.2T-it2059810-newcooldown-apertus-sft-mixture-7-ln-v2-ademamix/checkpoints/7fea1f8c44336360/checkpoint-8925",
+                "Apertus-8B-Instruct-2509-SFT",
+                "/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--swiss-ai--Apertus-8B-Instruct-2509-SFT/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364",
             ),
         ],
         "batch_size": 128,
@@ -74,7 +72,7 @@ ref_logprobs_from_dataset = False
 train_num_ref_rewards = -1  # Directly use the quantile rewards from the dataset.
 
 losses = ["dpo"]
-normalize_beta_by_length = True
+normalize_beta_by_length = True # Important
 betas = {
     "qrpo": [2.0],
     "dpo": [25.0],
@@ -84,7 +82,7 @@ optimizers = ["adamw_torch"]
 max_grad_norm = 20  # Disable but still log.
 
 num_devices_per_node = 4
-
+seed = 5315
 
 commands = []
 total_nodes_needed = 0
@@ -136,6 +134,7 @@ for dataset in datasets:
                                             f"training_args.num_ref_rewards={train_num_ref_rewards} "
                                             f"training_args.ref_logprobs_from_dataset={ref_logprobs_from_dataset} "
                                             f"training_args.beta={beta} "
+                                            f"seed={seed} "
                                             f"global_batch_size={batch_size} "
                                             f"num_nodes={num_nodes_per_job} "
                                             f"job_subdir={run_name} "
