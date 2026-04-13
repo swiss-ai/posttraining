@@ -1,0 +1,84 @@
+FROM nvcr.io/nvidia/pytorch:25.12-py3
+
+WORKDIR /workspace
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+      git \
+      curl \
+      wget \
+      sudo \
+      libibverbs-dev \
+      build-essential \
+      pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
+# CUDA & build environment
+ENV TORCH_CUDA_ARCH_LIST='9.0+PTX'
+ENV VLLM_FA_CMAKE_GPU_ARCHES='90-real'
+ENV FORCE_CUDA=1
+ENV MAX_JOBS=64
+ENV NVCC_THREADS=8
+ENV USE_CUDNN=1
+ENV VLLM_FLASH_ATTN_VERSION=3
+ENV CMAKE_BUILD_PARALLEL_LEVEL=64
+ENV FLASHINFER_ENABLE_AOT=1
+ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
+
+# NGC 25.12 ships /etc/pip/constraint.txt; NVIDIA says to edit it if you need different versions.
+# We remove constraints for packages we intentionally manage ourselves.
+RUN if [ -f /etc/pip/constraint.txt ]; then \
+      sed -i '/^vllm==/d;/^transformers==/d;/^flashinfer-python==/d;/^flash-attn==/d;/^xformers==/d' /etc/pip/constraint.txt || true; \
+    fi
+
+# Freeze packages so pip won't touch it
+COPY constraints-packages.txt /workspace/constraints-packages.txt
+RUN REGEX=$(paste -sd'|' /workspace/constraints-packages.txt | sed 's/^/^(/;s/$/)==?/') && \
+    pip list --format=freeze | grep -E "$REGEX" > /workspace/frozen.txt
+RUN echo "=== frozen.txt ===" && cat /workspace/frozen.txt && echo "=== end frozen.txt ==="
+
+COPY requirements-setup.txt /workspace/requirements-setup.txt
+
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    -r /workspace/requirements-setup.txt \
+    --constraint /workspace/frozen.txt
+
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    git+https://github.com/nickjbrowning/XIELU.git@main \
+    --constraint /workspace/frozen.txt
+
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    transformers==4.57.6 \
+    --constraint /workspace/frozen.txt
+
+RUN pip list --format=freeze | grep -E '^transformers==' >> /workspace/frozen.txt && \
+    echo "=== updated frozen.txt (after transformers) ===" && tail -n 80 /workspace/frozen.txt && echo "=== end updated frozen.txt ==="
+
+#RUN pip install --no-cache-dir ninja --constraint /workspace/frozen.txt && \
+#    pip install -v --no-cache-dir --no-build-isolation -U \
+#    git+https://github.com/facebookresearch/xformers.git@v0.0.35#egg=xformers \
+#    --constraint /workspace/frozen.txt
+#
+#RUN pip list --format=freeze | grep -E '^xformers==' >> /workspace/frozen.txt && \
+#    echo "=== updated frozen.txt (after xformers) ===" && tail -n 80 /workspace/frozen.txt && echo "=== end ==="
+
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    flashinfer-python==0.6.1 \
+    flash-attn==2.7.4.post1 \
+    --constraint /workspace/frozen.txt
+
+RUN pip list --format=freeze | grep -E '^(flashinfer-python|flash-attn)==' >> /workspace/frozen.txt && \
+    echo "=== updated frozen.txt (after flashinfer/flash-attn) ===" && tail -n 80 /workspace/frozen.txt && echo "=== end ==="
+
+RUN git clone https://github.com/vllm-project/vllm.git /workspace/vllm && \
+    cd /workspace/vllm && \
+    git checkout v0.18.1 && \
+    python use_existing_torch.py --prefix && \
+    pip install -v --no-cache-dir --no-build-isolation --constraint /workspace/frozen.txt -r requirements/build.txt && \
+    pip install -v --no-cache-dir --no-build-isolation --constraint /workspace/frozen.txt .
+
+RUN pip list --format=freeze | grep -E '^vllm==' >> /workspace/frozen.txt && \
+    echo "=== updated frozen.txt (after vllm) ===" && tail -n 80 /workspace/frozen.txt && echo "=== end ==="
+
+# Sanity check
+RUN python -c "import vllm, transformers; print('vllm', vllm.__version__, 'transformers', transformers.__version__)"
