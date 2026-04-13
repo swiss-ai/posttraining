@@ -15,12 +15,10 @@ RUN apt-get update -y && \
 
 # CUDA & build environment
 ENV TORCH_CUDA_ARCH_LIST='9.0+PTX'
-ENV VLLM_FA_CMAKE_GPU_ARCHES='90-real'
 ENV FORCE_CUDA=1
 ENV MAX_JOBS=64
 ENV NVCC_THREADS=8
 ENV USE_CUDNN=1
-ENV VLLM_FLASH_ATTN_VERSION=3
 ENV CMAKE_BUILD_PARALLEL_LEVEL=64
 ENV FLASHINFER_ENABLE_AOT=1
 ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
@@ -66,6 +64,33 @@ RUN pip list --format=freeze | grep -E '^transformers==' >> /workspace/frozen.tx
 RUN git clone --branch v0.18.1 --depth 1 https://github.com/vllm-project/vllm.git /workspace/vllm && \
     cd /workspace/vllm && \
     python use_existing_torch.py --prefix && \
+    python - <<'PY'
+from pathlib import Path
+
+p = Path("/workspace/vllm/vllm/model_executor/layers/activation.py")
+s = p.read_text()
+
+old = """        if self._xielu_cuda_obj is not None and input.is_cuda:
+            if not is_torchdynamo_compiling():
+                return self._xielu_cuda_fn(input)
+            else:
+                logger.warning_once("torch._dynamo is compiling, using Python version of xIELU.")
+        return self._xielu_python(input)
+"""
+
+new = """        if self._xielu_cuda_obj is not None and input.is_cuda:
+            if not is_torchdynamo_compiling():
+                return self._xielu_cuda_fn(input)
+        return self._xielu_python(input)
+"""
+
+if old not in s:
+    raise SystemExit("Expected xIELU compile-warning block not found")
+p.write_text(s.replace(old, new))
+print("Patched", p)
+PY
+
+RUN cd /workspace/vllm && \
     pip install -v --no-cache-dir --no-build-isolation --constraint /workspace/frozen.txt -r requirements/build.txt && \
     pip install -v --no-cache-dir --no-build-isolation --constraint /workspace/frozen.txt .
 
