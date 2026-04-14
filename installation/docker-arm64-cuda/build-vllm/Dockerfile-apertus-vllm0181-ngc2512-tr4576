@@ -70,22 +70,26 @@ from pathlib import Path
 p = Path("/workspace/vllm/vllm/model_executor/layers/activation.py")
 s = p.read_text()
 
-old = """        if self._xielu_cuda_obj is not None and input.is_cuda:
-            if not is_torchdynamo_compiling():
+old = """    def forward_native(self, input: torch.Tensor) -> torch.Tensor:
+        if self._xielu_cuda_obj is not None and input.is_cuda:
+            if not torch._dynamo.is_compiling():
                 return self._xielu_cuda_fn(input)
             else:
-                logger.warning_once("torch._dynamo is compiling, using Python version of xIELU.")
+                logger.warning_once(
+                    "torch._dynamo is compiling, using Python version of xIELU."
+                )
         return self._xielu_python(input)
 """
 
-new = """        if self._xielu_cuda_obj is not None and input.is_cuda:
-            if not is_torchdynamo_compiling():
+new = """    def forward_native(self, input: torch.Tensor) -> torch.Tensor:
+        if self._xielu_cuda_obj is not None and input.is_cuda:
+            if not torch._dynamo.is_compiling():
                 return self._xielu_cuda_fn(input)
         return self._xielu_python(input)
 """
 
 if old not in s:
-    raise SystemExit("Expected xIELU compile-warning block not found")
+    raise SystemExit("Expected xIELU forward_native block not found")
 p.write_text(s.replace(old, new))
 print("Patched", p)
 PY
