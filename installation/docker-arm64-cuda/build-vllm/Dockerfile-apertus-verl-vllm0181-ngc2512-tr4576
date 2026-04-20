@@ -1,0 +1,188 @@
+FROM nvcr.io/nvidia/pytorch:25.12-py3
+
+WORKDIR /workspace
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+      git \
+      curl \
+      wget \
+      sudo \
+      libibverbs-dev \
+      librdmacm-dev \
+      libnuma-dev \
+      build-essential \
+      pkg-config \
+      cmake \
+      numactl && \
+    rm -rf /var/lib/apt/lists/*
+
+# CUDA & build environment
+ENV TORCH_CUDA_ARCH_LIST='9.0+PTX'
+ENV FORCE_CUDA=1
+ENV MAX_JOBS=64
+ENV NVCC_THREADS=8
+ENV USE_CUDNN=1
+ENV CMAKE_BUILD_PARALLEL_LEVEL=64
+ENV FLASHINFER_ENABLE_AOT=1
+ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
+
+# NGC 25.12 ships /etc/pip/constraint.txt; NVIDIA says to edit it if you need different versions.
+# We remove constraints for packages we intentionally manage ourselves.
+RUN if [ -f /etc/pip/constraint.txt ]; then \
+      sed -i '/^vllm==/d;/^transformers==/d;/^flashinfer-python==/d;/^flash-attn==/d;/^xformers==/d' /etc/pip/constraint.txt || true; \
+    fi
+
+# Freeze packages so pip won't touch it
+COPY constraints-packages.txt /workspace/constraints-packages.txt
+RUN REGEX=$(paste -sd'|' /workspace/constraints-packages.txt | sed 's/^/^(/;s/$/)==?/') && \
+    pip list --format=freeze | grep -E "$REGEX" > /workspace/frozen.txt
+RUN echo "=== frozen.txt ===" && cat /workspace/frozen.txt && echo "=== end frozen.txt ==="
+
+COPY requirements-setup.txt /workspace/requirements-setup.txt
+
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    -r /workspace/requirements-setup.txt \
+    --constraint /workspace/frozen.txt
+
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    git+https://github.com/nickjbrowning/XIELU.git@main \
+    --constraint /workspace/frozen.txt
+
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    transformers==4.57.6 \
+    --constraint /workspace/frozen.txt
+
+RUN pip list --format=freeze | grep -E '^transformers==' >> /workspace/frozen.txt && \
+    echo "=== updated frozen.txt (after transformers) ===" && tail -n 80 /workspace/frozen.txt && echo "=== end updated frozen.txt ==="
+
+#RUN pip install --no-cache-dir ninja --constraint /workspace/frozen.txt && \
+#    pip install -v --no-cache-dir --no-build-isolation -U \
+#    git+https://github.com/facebookresearch/xformers.git@v0.0.35#egg=xformers \
+#    --constraint /workspace/frozen.txt
+#
+#RUN pip list --format=freeze | grep -E '^xformers==' >> /workspace/frozen.txt && \
+#    echo "=== updated frozen.txt (after xformers) ===" && tail -n 80 /workspace/frozen.txt && echo "=== end ==="
+
+
+RUN git clone --branch v0.18.1 --depth 1 https://github.com/vllm-project/vllm.git /workspace/vllm && \
+    cd /workspace/vllm && \
+    python use_existing_torch.py --prefix && \
+    python - <<'PY'
+from pathlib import Path
+
+p = Path("/workspace/vllm/vllm/model_executor/layers/activation.py")
+s = p.read_text()
+
+old = """    def forward_native(self, input: torch.Tensor) -> torch.Tensor:
+        if self._xielu_cuda_obj is not None and input.is_cuda:
+            if not torch._dynamo.is_compiling():
+                return self._xielu_cuda_fn(input)
+            else:
+                logger.warning_once(
+                    "torch._dynamo is compiling, using Python version of xIELU."
+                )
+        return self._xielu_python(input)
+"""
+
+new = """    def forward_native(self, input: torch.Tensor) -> torch.Tensor:
+        if self._xielu_cuda_obj is not None and input.is_cuda:
+            if not torch._dynamo.is_compiling():
+                return self._xielu_cuda_fn(input)
+        return self._xielu_python(input)
+"""
+
+if old not in s:
+    raise SystemExit("Expected xIELU forward_native block not found")
+p.write_text(s.replace(old, new))
+print("Patched", p)
+PY
+
+RUN cd /workspace/vllm && \
+    pip install -v --no-cache-dir --no-build-isolation --constraint /workspace/frozen.txt -r requirements/build.txt && \
+    pip install -v --no-cache-dir --no-build-isolation --constraint /workspace/frozen.txt .
+
+RUN pip list --format=freeze | grep -E '^(vllm|flashinfer-python|flash-attn)==' >> /workspace/frozen.txt || true && \
+    echo "=== updated frozen.txt (after vllm + backend deps) ===" && tail -n 120 /workspace/frozen.txt && echo "=== end ==="
+
+# Re-freeze the core stack explicitly before adding VERL and its deps.
+# This protects torch / torchvision / torchaudio / transformers / vllm / backend libs
+# from being silently replaced by later pip resolution.
+RUN pip list --format=freeze | grep -Ei '^(torch|torchvision|torchaudio|transformers|vllm|flashinfer-python|flash-attn|xformers|transformer[_-]engine)==' >> /workspace/frozen.txt || true && \
+    sort -u /workspace/frozen.txt -o /workspace/frozen.txt && \
+    echo "=== updated frozen.txt (core stack pins) ===" && tail -n 160 /workspace/frozen.txt && echo "=== end ==="
+
+# -------------------------
+# VERL overlay starts here
+# -------------------------
+
+# Build/runtime helpers used by the official VERL stable.vllm image.
+# Safe to add on top of your current stack.
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    pybind11 \
+    wheel \
+    ninja \
+    nvidia-mathdx \
+    --constraint /workspace/frozen.txt
+
+# Apex is part of the official VERL stable.vllm image.
+# Build it against the torch already present in the NGC container.
+RUN pip install -v --disable-pip-version-check --no-build-isolation \
+    --config-settings "--build-option=--cpp_ext" \
+    --config-settings "--build-option=--cuda_ext" \
+    git+https://github.com/NVIDIA/apex.git \
+    --constraint /workspace/frozen.txt
+
+# FlashAttention is also built in the official VERL stable.vllm image.
+# We force a source build against the existing torch/CUDA in this image.
+RUN MAX_JOBS=32 FLASH_ATTENTION_FORCE_BUILD=TRUE \
+    pip install --no-cache-dir --no-build-isolation -U \
+    flash_attn==2.8.3 \
+    --constraint /workspace/frozen.txt
+
+# Utility/runtime deps that the official stable.vllm image installs explicitly
+# and that are not part of your current image.
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    mathruler \
+    pylatexenc \
+    qwen_vl_utils \
+    cachetools \
+    pytest-asyncio \
+    nvtx \
+    matplotlib \
+    --constraint /workspace/frozen.txt
+
+# Official stable.vllm installs TRL separately and with --no-deps.
+# Keep that behavior so pip does not try to solve a different transformers stack.
+RUN pip install --no-cache-dir --no-build-isolation --no-deps \
+    trl==0.27.0
+
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    git+https://github.com/ISEEKYAN/mbridge.git@641a5a0 \
+    --constraint /workspace/frozen.txt
+
+# Official stable.vllm installs Megatron-LM with --no-deps.
+RUN pip install --no-cache-dir --no-build-isolation --no-deps -U \
+    git+https://github.com/NVIDIA/Megatron-LM.git@core_v0.16.0
+
+# Install VERL itself, but NOT the stale [vllm] extra.
+# Let pip install only VERL base deps, while frozen.txt prevents touching the backend stack.
+RUN pip install --no-cache-dir --no-build-isolation -U \
+    git+https://github.com/verl-project/verl.git@v0.7.1 \
+    --constraint /workspace/frozen.txt
+
+RUN pip list --format=freeze | grep -Ei '^(verl|trl|ray|liger-kernel|liger_kernel|flash-attn)==' >> /workspace/frozen.txt || true && \
+    sort -u /workspace/frozen.txt -o /workspace/frozen.txt && \
+    echo "=== updated frozen.txt (after VERL) ===" && tail -n 200 /workspace/frozen.txt && echo "=== end ==="
+
+# Sanity checks
+RUN python - <<'PY'
+import importlib
+
+mods = ["torch", "vllm", "transformers", "trl", "ray", "verl", "flash_attn"]
+for name in mods:
+    mod = importlib.import_module(name)
+    print(name, getattr(mod, "__version__", "OK"))
+PY
+
+RUN pip check
