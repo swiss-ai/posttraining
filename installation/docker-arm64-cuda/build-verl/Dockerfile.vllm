@@ -1,0 +1,95 @@
+ARG UBUNTU_VERSION=24.04
+ARG TARGET_PLATFORM=aarch64
+ARG CUDA_VERSION=13.0.0
+ARG CUDA_VERSION_PATH=cu130
+ARG PYTHON_VERSION=3.12
+ARG BASE_IMAGE=docker.io/library/ubuntu:${UBUNTU_VERSION}
+ARG DEVEL_BASE_IMAGE=docker.io/nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu${UBUNTU_VERSION}
+
+########################################################################
+# Build image
+########################################################################
+
+FROM ${DEVEL_BASE_IMAGE} AS build
+
+WORKDIR /app/build
+
+# Install miniconda, Python, and build dependencies.
+ARG TARGET_PLATFORM
+ARG PYTHON_VERSION
+ENV PATH=/opt/conda/bin:$PATH
+ADD "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${TARGET_PLATFORM}.sh" /root/miniconda.sh
+RUN chmod +x /root/miniconda.sh && \
+    bash /root/miniconda.sh -b -p /opt/conda && \
+    rm /root/miniconda.sh && \
+    /opt/conda/bin/conda install -y python=${PYTHON_VERSION} cmake conda-build pyyaml numpy ipython git compilers make && \
+    /opt/conda/bin/python -m pip install --upgrade --no-cache-dir pip wheel packaging "setuptools<70.0.0" ninja && \
+    /opt/conda/bin/conda clean -ya
+
+########################################################################
+# vLLM — use CUDA 13 nightly wheels (brings torch 2.10.0+cu130).
+
+ARG CUDA_VERSION_PATH
+RUN pip install --no-cache-dir uv && \
+    uv pip install --system -U vllm --torch-backend=auto --extra-index-url https://wheels.vllm.ai/nightly/${CUDA_VERSION_PATH}
+
+# Ray (needed by both vLLM serving and VERL).
+RUN pip install --no-cache-dir "ray[default]"
+
+########################################################################
+# Fix CUDA 13 environment.
+
+# Symlink cuDNN and NCCL headers into conda include path.
+RUN CUDNN_DIR=$(dirname $(find /usr -name 'cudnn.h' -print -quit)) && \
+    ln -sf ${CUDNN_DIR}/cudnn*.h /opt/conda/include/ && \
+    ln -sf $(find /opt/conda/lib -path '*/nvidia/nccl/include/nccl.h' -print -quit) /opt/conda/include/nccl.h
+
+# Remove pip-installed nvidia-cublas — conflicts with CUDA 13 toolkit's own cuBLAS.
+RUN pip uninstall -y nvidia-cublas 2>/dev/null; true
+
+########################################################################
+# Flash Attention — build from source (no CUDA 13 + arm64 wheels).
+
+ARG TORCH_CUDA_ARCH_LIST='9.0+PTX'
+ENV TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}
+ENV MAX_JOBS=8
+ENV NVCC_THREADS=4
+ENV CMAKE_BUILD_PARALLEL_LEVEL=8
+
+ARG FLASH_ATTN_VERSION=v2.8.1
+RUN CUDA_HOME=/usr/local/cuda \
+    FLASH_ATTENTION_FORCE_BUILD=TRUE \
+    pip install -v --no-cache-dir --no-build-isolation --force-reinstall --no-deps \
+    "flash-attn @ git+https://github.com/Dao-AILab/flash-attention.git@${FLASH_ATTN_VERSION}"
+
+########################################################################
+# FlashInfer — build from source (no CUDA 13 + arm64 wheels).
+
+ENV FLASHINFER_ENABLE_AOT=1
+ARG FLASHINFER_VERSION=v0.6.7
+RUN pip install --no-cache-dir --no-build-isolation \
+    "flashinfer-python @ git+https://github.com/flashinfer-ai/flashinfer.git@${FLASHINFER_VERSION}"
+
+########################################################################
+# Python dependencies.
+
+COPY requirements-verl.txt /workspace/requirements-verl.txt
+RUN pip install --no-cache-dir --no-build-isolation \
+    -r /workspace/requirements-verl.txt
+
+########################################################################
+# Utilities.
+
+RUN conda install -y curl && conda clean -ya
+
+########################################################################
+# Verify and record.
+
+RUN pip freeze > /workspace/requirements-freeze.txt && \
+    pip list --format freeze > /workspace/pip-list.txt
+
+RUN python -c "import vllm; print('vllm', vllm.__version__)" && \
+    python -c "import flash_attn; print('flash_attn', flash_attn.__version__)" && \
+    python -c "import torch; print('torch', torch.__version__, 'CUDA', torch.version.cuda)"
+
+WORKDIR /opt

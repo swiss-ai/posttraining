@@ -1,0 +1,28 @@
+# VERL dependencies (from verl requirements.txt + install script).
+# vLLM, flash-attn, flashinfer are built from source in the Dockerfile.
+# torch, numpy, etc. are frozen from the NGC base image.
+accelerate
+codetiming
+datasets
+dill
+hydra-core
+liger-kernel
+pandas
+peft
+pyarrow>=19.0.0
+pylatexenc
+ray[default]
+tensordict>=0.8.0,<=0.10.0,!=0.9.0
+torchdata
+transformers
+cachetools
+wandb
+packaging>=20.0
+uvicorn
+fastapi
+latex2sympy2_extended
+math_verify
+tensorboard
+orjson
+deepspeed
+huggingface-hub

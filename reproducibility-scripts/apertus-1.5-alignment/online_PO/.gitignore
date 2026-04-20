@@ -1,0 +1,12 @@
+data/
+outputs/
+logs/
+wandb/
+__pycache__/
+*.log
+
+recipe/*
+!recipe/.gitkeep
+
+verl/*
+!verl/.gitkeep
