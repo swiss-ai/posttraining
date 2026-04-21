@@ -117,7 +117,6 @@ RUN pip list --format=freeze | grep -Ei '^(torch|torchvision|torchaudio|transfor
 # -------------------------
 
 # Build/runtime helpers used by the official VERL stable.vllm image.
-# Safe to add on top of your current stack.
 RUN pip install --no-cache-dir --no-build-isolation -U \
     pybind11 \
     wheel \
@@ -135,13 +134,12 @@ RUN pip install -v --disable-pip-version-check --no-build-isolation \
 
 # FlashAttention is also built in the official VERL stable.vllm image.
 # We force a source build against the existing torch/CUDA in this image.
-RUN MAX_JOBS=32 FLASH_ATTENTION_FORCE_BUILD=TRUE \
+RUN MAX_JOBS=8 FLASH_ATTENTION_FORCE_BUILD=TRUE \
     pip install --no-cache-dir --no-build-isolation -U \
     flash_attn==2.8.3 \
     --constraint /workspace/frozen.txt
 
-# Utility/runtime deps that the official stable.vllm image installs explicitly
-# and that are not part of your current image.
+# Utility/runtime deps that the official stable.vllm image installs explicitly.
 RUN pip install --no-cache-dir --no-build-isolation -U \
     mathruler \
     pylatexenc \
@@ -153,7 +151,6 @@ RUN pip install --no-cache-dir --no-build-isolation -U \
     --constraint /workspace/frozen.txt
 
 # Official stable.vllm installs TRL separately and with --no-deps.
-# Keep that behavior so pip does not try to solve a different transformers stack.
 RUN pip install --no-cache-dir --no-build-isolation --no-deps \
     trl==0.27.0
 
