@@ -2,8 +2,10 @@
 
 #SBATCH -J post-training-dev
 #SBATCH -t 12:00:00
-#SBATCH -A a-infra01-1
+#SBATCH -A infra01
 #SBATCH --output=sremote-development.out
+##SBATCH --reservation=PA-2338-RL
+#SBATCH --reservation=SD-69241-apertus-1-5
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
 # these nodes are large512 partition nodes, comment them out if using a different partition
@@ -23,6 +25,10 @@ export PYCHARM_IDE_AT=a72a92099e741_pycharm-professional-2024.3.3-aarch64
 # Lazy hack.
 if [ "$(whoami)" = "smoalla" ]; then
   export PYCHARM_IDE_AT=926eda376fbe6_pycharm-2025.1.3.1-aarch64
+fi
+
+if [ "$(whoami)" = "smatreno" ]; then
+  export PYCHARM_IDE_AT=8164c9235a2e1_pycharm-2025.3.3-aarch64
 fi
 # export VSCODE_SERVER_AT=$SCRATCH/vscode-server
 mkdir -p $JETBRAINS_SERVER_AT

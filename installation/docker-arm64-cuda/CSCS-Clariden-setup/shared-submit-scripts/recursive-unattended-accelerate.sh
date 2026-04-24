@@ -1,9 +1,10 @@
 #!/bin/bash
 
-#SBATCH -J post-trainingun-accelerate
+#SBATCH -J post-training-unattended
 #SBATCH -t 12:00:00
 #SBATCH -A infra01
-#SBATCH --reservation=PA-2338-RL
+##SBATCH --reservation=PA-2338-RL
+#SBATCH --reservation=SD-69241-apertus-1-5
 #SBATCH --nodes 1
 #SBATCH --ntasks-per-node 1
 # these nodes are large512 partition nodes, comment them out if using a different partition
