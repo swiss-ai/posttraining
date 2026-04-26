@@ -1,0 +1,4 @@
+name: minmax_rewards
+
+require_two_if_available: true
+deduplicate_if_same_index: true

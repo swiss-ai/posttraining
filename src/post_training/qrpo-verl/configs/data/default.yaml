@@ -1,0 +1,14 @@
+path: null
+split: train
+
+prompt_id_key: prompt_id
+prompt_messages_key: prompt_messages
+
+ref_rewards_key: ref_rewards
+num_ref_rewards: 8
+
+offline_trajectories_key: offline_trajectories
+offline_rewards_key: offline_rewards
+
+tools_key: tools
+metadata_keys: []
