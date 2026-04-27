@@ -12,38 +12,38 @@ def compute_sequence_log_ratio(
     *,
     log_probs: torch.Tensor,
     ref_log_probs: torch.Tensor,
-    loss_mask: torch.Tensor,
+    response_mask: torch.Tensor,
 ) -> torch.Tensor:
     """Compute sequence-level log πθ/πref over trainable tokens.
 
     Shapes:
-      log_probs:      [B, T]
-      ref_log_probs:  [B, T]
-      loss_mask:      [B, T]
+      log_probs:      [B, response_len]
+      ref_log_probs:  [B, response_len]
+      response_mask:  [B, response_len]
 
-    The mask must mark exactly the model-output tokens included in the QRPO
-    objective. Prompt tokens, tool outputs, environment messages, and padding
-    should be zero.
+    response_mask semantics:
+      1 = model-generated response token
+      0 = tool/env/user/padding token
     """
 
-    if log_probs.shape != ref_log_probs.shape:
+    if ref_log_probs.shape != log_probs.shape:
         raise ValueError(
             f"log_probs shape {tuple(log_probs.shape)} does not match "
             f"ref_log_probs shape {tuple(ref_log_probs.shape)}."
         )
 
-    if loss_mask.shape != log_probs.shape:
+    if response_mask.shape != log_probs.shape:
         raise ValueError(
-            f"loss_mask shape {tuple(loss_mask.shape)} does not match "
+            f"response_mask shape {tuple(response_mask.shape)} does not match "
             f"log_probs shape {tuple(log_probs.shape)}."
         )
 
     if log_probs.ndim != 2:
         raise ValueError(f"log_probs must have shape [B, T], got {tuple(log_probs.shape)}.")
 
-    mask = loss_mask.bool()
+    mask = response_mask.bool()
     if not torch.all(mask.any(dim=-1)):
-        raise ValueError("Every sample must have at least one trainable token.")
+        raise ValueError("Every sample must have at least one trainable response token.")
 
     return ((log_probs.float() - ref_log_probs.float()) * mask.float()).sum(dim=-1)
 
@@ -58,6 +58,12 @@ def compute_qrpo_residual(
     """Compute stable QRPO residual.
 
     residual = R_q - beta_eff * log Z - beta_eff * log(pi / pi_ref)
+
+    Shapes:
+      transformed_reward:    [B]
+      beta_log_partition:    [B]
+      effective_beta:        [B]
+      sequence_log_ratio:    [B]
     """
 
     expected_shape = transformed_reward.shape
@@ -89,18 +95,18 @@ def compute_qrpo_loss_from_fields(
     *,
     log_probs: torch.Tensor,
     ref_log_probs: torch.Tensor,
-    loss_mask: torch.Tensor,
+    response_mask: torch.Tensor,
     transformed_reward: torch.Tensor,
     beta_log_partition: torch.Tensor,
     effective_beta: torch.Tensor,
     reduction: str = "mean",
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-    """Compute scalar QRPO loss from tensors already attached to a batch."""
+    """Compute QRPO loss from response-aligned log-probs and QRPO fields."""
 
     sequence_log_ratio = compute_sequence_log_ratio(
         log_probs=log_probs,
         ref_log_probs=ref_log_probs,
-        loss_mask=loss_mask,
+        response_mask=response_mask,
     )
 
     residual = compute_qrpo_residual(
@@ -151,7 +157,7 @@ def add_qrpo_loss_fields(
     required = [
         K.LOG_PROBS,
         K.REF_LOG_PROBS,
-        K.LOSS_MASK,
+        K.RESPONSE_MASK,
         K.TRANSFORMED_REWARD,
         K.BETA_LOG_PARTITION,
         K.EFFECTIVE_BETA,
@@ -164,7 +170,7 @@ def add_qrpo_loss_fields(
     loss, metrics = compute_qrpo_loss_from_fields(
         log_probs=data.batch[K.LOG_PROBS],
         ref_log_probs=data.batch[K.REF_LOG_PROBS],
-        loss_mask=data.batch[K.LOSS_MASK],
+        response_mask=data.batch[K.RESPONSE_MASK],
         transformed_reward=data.batch[K.TRANSFORMED_REWARD],
         beta_log_partition=data.batch[K.BETA_LOG_PARTITION],
         effective_beta=data.batch[K.EFFECTIVE_BETA],

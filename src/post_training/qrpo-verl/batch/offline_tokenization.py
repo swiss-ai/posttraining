@@ -4,7 +4,6 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 import torch
-
 from verl.protocol import DataProto
 from verl.utils.model import compute_position_id_with_mask
 
@@ -19,20 +18,29 @@ def offline_candidates_to_dataproto(
     config: Mapping[str, Any] | None = None,
     meta_info: dict[str, Any] | None = None,
 ) -> DataProto:
-    """Tokenize offline candidates and return a VERL DataProto directly.
+    """Tokenize offline candidates into a VERL-compatible training DataProto.
 
-    Output tensors:
-      input_ids
-      attention_mask
-      position_ids
-      loss_mask
-      trajectory_reward
-      ref_rewards
+    Layout follows VERL AgentLoop conventions:
 
-    Non-tensor metadata:
-      prompt_id
-      trajectory_id
-      source
+      prompts:
+        left-padded prompt token block, shape [B, prompt_len]
+
+      responses:
+        right-padded trajectory token block, shape [B, response_len]
+
+      response_mask:
+        right-padded trainable-token mask over responses, shape [B, response_len]
+        1 = assistant/model-generated token
+        0 = tool/environment/padding token
+
+      input_ids:
+        concat(prompts, responses)
+
+      attention_mask:
+        concat(prompt_attention_mask, response_attention_mask)
+
+      position_ids:
+        computed from full attention_mask with VERL utility
     """
 
     cfg = config or {}
@@ -60,8 +68,8 @@ def offline_candidates_to_dataproto(
 
     common_kwargs: dict[str, Any] = {
         "tokenize": True,
-        "padding": cfg.get("padding", True),
-        "truncation": cfg.get("truncation", False),
+        "padding": True,
+        "truncation": bool(cfg.get("truncation", False)),
         "return_tensors": "pt",
         "return_dict": True,
     }
@@ -91,18 +99,24 @@ def offline_candidates_to_dataproto(
     finally:
         tokenizer.padding_side = old_padding_side
 
-    input_ids = full["input_ids"]
-    attention_mask = full["attention_mask"].bool()
+    full_input_ids = full["input_ids"]
+    full_attention_mask = full["attention_mask"].bool()
 
     prompt_input_ids = prompt["input_ids"]
-    prompt_attention_mask = prompt["attention_mask"].bool()
+    prompt_attention_mask_for_lengths = prompt["attention_mask"].bool()
 
-    assistant_mask = full["assistant_masks"].bool() if require_assistant_mask else attention_mask
-    loss_mask = torch.zeros_like(attention_mask, dtype=torch.bool)
+    if require_assistant_mask:
+        full_assistant_mask = full["assistant_masks"].bool()
+    else:
+        full_assistant_mask = full_attention_mask
+
+    prompt_rows: list[torch.Tensor] = []
+    response_rows: list[torch.Tensor] = []
+    response_mask_rows: list[torch.Tensor] = []
 
     for i, candidate in enumerate(candidates):
-        prompt_len = int(prompt_attention_mask[i].sum().item())
-        full_len = int(attention_mask[i].sum().item())
+        prompt_len = int(prompt_attention_mask_for_lengths[i].sum().item())
+        full_len = int(full_attention_mask[i].sum().item())
 
         if prompt_len > full_len:
             raise ValueError(
@@ -110,37 +124,89 @@ def offline_candidates_to_dataproto(
                 "than the full conversation."
             )
 
-        if verify_prompt_prefix and not torch.equal(
-            prompt_input_ids[i, :prompt_len],
-            input_ids[i, :prompt_len],
-        ):
+        prompt_ids = prompt_input_ids[i, :prompt_len]
+        full_prefix = full_input_ids[i, :prompt_len]
+
+        if verify_prompt_prefix and not torch.equal(prompt_ids, full_prefix):
             raise ValueError(
                 f"Prompt prefix tokens are not a prefix of the full conversation for "
                 f"trajectory {candidate.trajectory_id!r}."
             )
 
-        if prompt_len == full_len:
+        response_ids = full_input_ids[i, prompt_len:full_len]
+        response_mask = full_assistant_mask[i, prompt_len:full_len]
+
+        if response_ids.numel() == 0:
             raise ValueError(
-                f"Offline trajectory {candidate.trajectory_id!r} tokenized to empty suffix."
+                f"Offline trajectory {candidate.trajectory_id!r} tokenized to empty response."
             )
 
-        candidate_loss_mask = assistant_mask[i, prompt_len:full_len]
-
-        if require_assistant_mask and not candidate_loss_mask.any():
+        if require_assistant_mask and not response_mask.any():
             raise ValueError(
                 f"Offline trajectory {candidate.trajectory_id!r} has no trainable "
                 "assistant/model tokens according to the chat template mask."
             )
 
-        loss_mask[i, prompt_len:full_len] = candidate_loss_mask
+        prompt_rows.append(prompt_ids)
+        response_rows.append(response_ids)
+        response_mask_rows.append(response_mask)
 
-    attention_mask_long = attention_mask.long()
+    pad_token_id = tokenizer.pad_token_id
+    if pad_token_id is None:
+        pad_token_id = tokenizer.eos_token_id
+    if pad_token_id is None:
+        raise ValueError("Tokenizer has neither pad_token_id nor eos_token_id.")
+
+    old_padding_side = getattr(tokenizer, "padding_side", "right")
+
+    try:
+        tokenizer.padding_side = "left"
+        prompt_output = tokenizer.pad(
+            {"input_ids": prompt_rows},
+            padding=True,
+            return_tensors="pt",
+            return_attention_mask=True,
+        )
+
+        tokenizer.padding_side = "right"
+        response_output = tokenizer.pad(
+            {"input_ids": response_rows},
+            padding=True,
+            return_tensors="pt",
+            return_attention_mask=True,
+        )
+    finally:
+        tokenizer.padding_side = old_padding_side
+
+    prompts = prompt_output["input_ids"]
+    prompt_attention_mask = prompt_output["attention_mask"].long()
+
+    responses = response_output["input_ids"]
+    response_attention_mask = response_output["attention_mask"].long()
+
+    response_mask = torch.nn.utils.rnn.pad_sequence(
+        [row.bool() for row in response_mask_rows],
+        batch_first=True,
+        padding_value=False,
+    )
+
+    if response_mask.shape != responses.shape:
+        raise ValueError(
+            "Padded response_mask shape does not match responses shape: "
+            f"{tuple(response_mask.shape)} vs {tuple(responses.shape)}."
+        )
+
+    input_ids = torch.cat([prompts, responses], dim=-1)
+    attention_mask = torch.cat([prompt_attention_mask, response_attention_mask], dim=-1)
+    position_ids = compute_position_id_with_mask(attention_mask)
 
     tensors = {
+        K.PROMPTS: prompts,
+        K.RESPONSES: responses,
+        K.RESPONSE_MASK: response_mask,
         K.INPUT_IDS: input_ids,
-        K.ATTENTION_MASK: attention_mask_long,
-        K.POSITION_IDS: compute_position_id_with_mask(attention_mask_long),
-        K.LOSS_MASK: loss_mask,
+        K.ATTENTION_MASK: attention_mask,
+        K.POSITION_IDS: position_ids,
         K.TRAJECTORY_REWARD: torch.tensor(
             [float(candidate.reward) for candidate in candidates],
             dtype=torch.float32,
@@ -161,7 +227,7 @@ def offline_candidates_to_dataproto(
     }
 
     merged_meta_info = {
-        "qrpo_batch_format": "full_sequence_with_loss_mask",
+        "qrpo_batch_format": "verl_prompt_response",
         "source": K.SOURCE_OFFLINE,
     }
     if meta_info is not None:

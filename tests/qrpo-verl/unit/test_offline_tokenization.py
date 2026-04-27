@@ -90,10 +90,12 @@ class FakeChatTokenizer:
                 input_ids.append(ids + [self.pad_token_id] * pad_len)
                 attention_mask.append([1] * len(ids) + [0] * pad_len)
                 assistant_masks.append(assistant + [0] * pad_len)
-            else:
+            elif self.padding_side == "left":
                 input_ids.append([self.pad_token_id] * pad_len + ids)
                 attention_mask.append([0] * pad_len + [1] * len(ids))
                 assistant_masks.append([0] * pad_len + assistant)
+            else:
+                raise ValueError(f"Unsupported padding_side={self.padding_side!r}")
 
         out = {
             "input_ids": torch.tensor(input_ids, dtype=torch.long),
@@ -104,6 +106,69 @@ class FakeChatTokenizer:
             out["assistant_masks"] = torch.tensor(assistant_masks, dtype=torch.long)
 
         return out
+
+    def pad(
+        self,
+        encoded_inputs,
+        *,
+        padding=True,
+        return_tensors=None,
+        return_attention_mask=True,
+        **kwargs,
+    ):
+        assert padding is True
+        assert return_tensors == "pt"
+
+        input_rows = encoded_inputs["input_ids"]
+
+        rows = []
+        for row in input_rows:
+            if isinstance(row, torch.Tensor):
+                rows.append(row.to(dtype=torch.long).tolist())
+            else:
+                rows.append(list(row))
+
+        max_len = max(len(row) for row in rows)
+
+        padded_input_ids = []
+        attention_masks = []
+
+        provided_attention = encoded_inputs.get("attention_mask", None)
+        provided_attention_rows = None
+
+        if provided_attention is not None:
+            provided_attention_rows = []
+            for row in provided_attention:
+                if isinstance(row, torch.Tensor):
+                    provided_attention_rows.append(row.to(dtype=torch.long).tolist())
+                else:
+                    provided_attention_rows.append(list(row))
+
+        for i, row in enumerate(rows):
+            pad_len = max_len - len(row)
+
+            if provided_attention_rows is None:
+                mask = [1] * len(row)
+            else:
+                mask = provided_attention_rows[i]
+
+            if self.padding_side == "right":
+                padded_input_ids.append(row + [self.pad_token_id] * pad_len)
+                attention_masks.append(mask + [0] * pad_len)
+            elif self.padding_side == "left":
+                padded_input_ids.append([self.pad_token_id] * pad_len + row)
+                attention_masks.append([0] * pad_len + mask)
+            else:
+                raise ValueError(f"Unsupported padding_side={self.padding_side!r}")
+
+        output = {
+            "input_ids": torch.tensor(padded_input_ids, dtype=torch.long),
+        }
+
+        if return_attention_mask:
+            output["attention_mask"] = torch.tensor(attention_masks, dtype=torch.long)
+
+        return output
 
 
 class NoAssistantMaskTokenizer(FakeChatTokenizer):
@@ -120,10 +185,10 @@ class BadPrefixTokenizer(FakeChatTokenizer):
         return out
 
 
-def prompt_messages():
+def prompt_messages(system: str = "S", user: str = "Q"):
     return (
-        {"role": "system", "content": "S"},
-        {"role": "user", "content": "Q"},
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
     )
 
 
@@ -139,11 +204,18 @@ def tool_trajectory():
     )
 
 
-def candidate(trajectory_id: str, trajectory_messages, *, reward: float = 1.0, tools=None):
+def candidate(
+    trajectory_id: str,
+    trajectory_messages,
+    *,
+    reward: float = 1.0,
+    tools=None,
+    prompt=None,
+):
     return OfflineTrajectoryCandidate(
         prompt_id="p0",
         trajectory_id=trajectory_id,
-        prompt_messages=prompt_messages(),
+        prompt_messages=prompt if prompt is not None else prompt_messages(),
         trajectory_messages=trajectory_messages,
         reward=reward,
         ref_rewards=(0.1, 0.2, 0.3),
@@ -151,7 +223,7 @@ def candidate(trajectory_id: str, trajectory_messages, *, reward: float = 1.0, t
     )
 
 
-def test_offline_candidates_to_dataproto_returns_verl_dataproto() -> None:
+def test_offline_candidates_to_dataproto_returns_verl_prompt_response_batch() -> None:
     data = offline_candidates_to_dataproto(
         candidates=[
             candidate("p0::offline::0", assistant_trajectory("A"), reward=1.0),
@@ -162,18 +234,34 @@ def test_offline_candidates_to_dataproto_returns_verl_dataproto() -> None:
 
     assert len(data) == 2
 
+    assert K.PROMPTS in data.batch
+    assert K.RESPONSES in data.batch
+    assert K.RESPONSE_MASK in data.batch
     assert K.INPUT_IDS in data.batch
     assert K.ATTENTION_MASK in data.batch
     assert K.POSITION_IDS in data.batch
-    assert K.LOSS_MASK in data.batch
     assert K.TRAJECTORY_REWARD in data.batch
     assert K.REF_REWARDS in data.batch
 
+    assert data.batch[K.PROMPTS].dtype == torch.long
+    assert data.batch[K.RESPONSES].dtype == torch.long
     assert data.batch[K.INPUT_IDS].dtype == torch.long
     assert data.batch[K.ATTENTION_MASK].dtype == torch.long
-    assert data.batch[K.LOSS_MASK].dtype == torch.bool
 
-    assert data.batch[K.INPUT_IDS].shape == data.batch[K.LOSS_MASK].shape
+    assert data.batch[K.PROMPTS].shape[0] == 2
+    assert data.batch[K.RESPONSES].shape[0] == 2
+    assert data.batch[K.RESPONSE_MASK].shape == data.batch[K.RESPONSES].shape
+
+    expected_seq_len = data.batch[K.PROMPTS].shape[1] + data.batch[K.RESPONSES].shape[1]
+    assert data.batch[K.INPUT_IDS].shape[1] == expected_seq_len
+    assert data.batch[K.ATTENTION_MASK].shape == data.batch[K.INPUT_IDS].shape
+    assert data.batch[K.POSITION_IDS].shape == data.batch[K.INPUT_IDS].shape
+
+    assert torch.equal(
+        data.batch[K.INPUT_IDS],
+        torch.cat([data.batch[K.PROMPTS], data.batch[K.RESPONSES]], dim=-1),
+    )
+
     assert data.batch[K.TRAJECTORY_REWARD].tolist() == [1.0, 2.0]
     assert data.batch[K.REF_REWARDS].shape == (2, 3)
 
@@ -184,20 +272,56 @@ def test_offline_candidates_to_dataproto_returns_verl_dataproto() -> None:
     ]
     assert data.non_tensor_batch[K.SOURCE].tolist() == ["offline", "offline"]
 
+    assert data.meta_info["qrpo_batch_format"] == "verl_prompt_response"
+    assert data.meta_info["source"] == "offline"
 
-def test_loss_mask_excludes_prompt_tokens() -> None:
+
+def test_prompts_are_left_padded_and_responses_are_right_padded() -> None:
+    tokenizer = FakeChatTokenizer()
+
     data = offline_candidates_to_dataproto(
-        candidates=[candidate("p0::offline::0", assistant_trajectory("A"))],
-        tokenizer=FakeChatTokenizer(),
+        candidates=[
+            candidate(
+                "p0::offline::0",
+                assistant_trajectory("A"),
+                prompt=prompt_messages(system="S", user="Q"),
+            ),
+            candidate(
+                "p0::offline::1",
+                assistant_trajectory("ABC"),
+                prompt=prompt_messages(system="SS", user="Q"),
+            ),
+        ],
+        tokenizer=tokenizer,
     )
 
-    prompt_len = 5
+    prompts = data.batch[K.PROMPTS]
+    responses = data.batch[K.RESPONSES]
 
-    assert not data.batch[K.LOSS_MASK][0, :prompt_len].any()
-    assert data.batch[K.LOSS_MASK][0, prompt_len:].any()
+    # First prompt is shorter and should be left-padded.
+    assert prompts[0, 0].item() == tokenizer.pad_token_id
+    assert prompts[0, -1].item() == tokenizer.generation_prompt
+
+    # First response is shorter and should be right-padded.
+    assert responses[0, 0].item() == 1000 + ord("A")
+    assert responses[0, -1].item() == tokenizer.pad_token_id
 
 
-def test_tool_outputs_are_not_trainable() -> None:
+def test_response_mask_excludes_prompt_tokens_by_construction() -> None:
+    tokenizer = FakeChatTokenizer()
+
+    data = offline_candidates_to_dataproto(
+        candidates=[candidate("p0::offline::0", assistant_trajectory("A"))],
+        tokenizer=tokenizer,
+    )
+
+    # Prompt tokens live in prompts, response_mask is response-only.
+    assert data.batch[K.PROMPTS].shape[1] == 5
+    assert data.batch[K.RESPONSE_MASK].shape == data.batch[K.RESPONSES].shape
+    assert data.batch[K.RESPONSE_MASK].sum().item() == 1
+
+
+def test_tool_outputs_are_not_trainable_response_tokens() -> None:
     tokenizer = FakeChatTokenizer()
 
     data = offline_candidates_to_dataproto(
@@ -205,15 +329,18 @@ def test_tool_outputs_are_not_trainable() -> None:
         tokenizer=tokenizer,
     )
 
-    input_ids = data.batch[K.INPUT_IDS][0]
-    loss_mask = data.batch[K.LOSS_MASK][0]
-    attention_mask = data.batch[K.ATTENTION_MASK][0].bool()
+    responses = data.batch[K.RESPONSES][0]
+    response_mask = data.batch[K.RESPONSE_MASK][0].bool()
 
-    tool_pos = int((input_ids == tokenizer.tool_header).nonzero(as_tuple=True)[0].item())
+    tool_pos = int((responses == tokenizer.tool_header).nonzero(as_tuple=True)[0].item())
 
-    assert attention_mask[tool_pos].item() is True
-    assert loss_mask[tool_pos].item() is False
-    assert loss_mask.any().item() is True
+    assert response_mask[tool_pos].item() is False
+    assert response_mask.any().item() is True
+
+    # The assistant tool-call token and final assistant content should be trainable.
+    assert (responses == 1500).any()
+    tool_call_pos = int((responses == 1500).nonzero(as_tuple=True)[0].item())
+    assert response_mask[tool_call_pos].item() is True
 
 
 def test_requires_assistant_mask_by_default() -> None:
@@ -231,10 +358,7 @@ def test_can_disable_assistant_mask_requirement() -> None:
         config={"require_assistant_mask": False},
     )
 
-    prompt_len = 5
-
-    assert not data.batch[K.LOSS_MASK][0, :prompt_len].any()
-    assert data.batch[K.LOSS_MASK][0, prompt_len:].all()
+    assert data.batch[K.RESPONSE_MASK].sum().item() == data.batch[K.RESPONSES].numel()
 
 
 def test_verifies_prompt_prefix() -> None:
@@ -255,11 +379,11 @@ def test_can_disable_prompt_prefix_verification() -> None:
     assert len(data) == 1
 
 
-def test_temporarily_forces_right_padding_and_restores_padding_side() -> None:
+def test_restores_tokenizer_padding_side() -> None:
     tokenizer = FakeChatTokenizer()
     tokenizer.padding_side = "left"
 
-    data = offline_candidates_to_dataproto(
+    offline_candidates_to_dataproto(
         candidates=[
             candidate("p0::offline::0", assistant_trajectory("A")),
             candidate("p0::offline::1", assistant_trajectory("ABC")),
@@ -268,7 +392,6 @@ def test_temporarily_forces_right_padding_and_restores_padding_side() -> None:
     )
 
     assert tokenizer.padding_side == "left"
-    assert data.batch[K.INPUT_IDS][0, 0].item() == tokenizer.system_header
 
 
 def test_rejects_empty_candidate_list() -> None:

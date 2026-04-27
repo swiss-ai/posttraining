@@ -14,7 +14,6 @@ RESPONSES = "responses"
 RESPONSE_MASK = "response_mask"
 
 # QRPO tensor keys
-LOSS_MASK = "loss_mask"
 TRAJECTORY_REWARD = "trajectory_reward"
 REF_REWARDS = "ref_rewards"
 

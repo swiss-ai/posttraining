@@ -48,22 +48,26 @@ def compute_ref_quantiles(
     return (ref_rewards <= trajectory_rewards[:, None]).float().mean(dim=-1)
 
 
-def compute_trainable_lengths(loss_mask: torch.Tensor) -> torch.Tensor:
-    """Count trainable model-output tokens.
+def compute_response_lengths(response_mask: torch.Tensor) -> torch.Tensor:
+    """Count trainable model-output tokens in the VERL response block.
 
     For tool-call and multi-turn trajectories:
 
       assistant/model tokens: 1
-      prompt/user/tool/env/pad tokens: 0
+      tool/env/user/pad tokens: 0
+
+    Shapes:
+      response_mask: [B, response_len]
+      output:        [B]
     """
 
-    if loss_mask.ndim != 2:
-        raise ValueError(f"loss_mask must have shape [B, T], got {tuple(loss_mask.shape)}.")
+    if response_mask.ndim != 2:
+        raise ValueError(f"response_mask must have shape [B, T], got {tuple(response_mask.shape)}.")
 
-    lengths = loss_mask.bool().sum(dim=-1).float()
+    lengths = response_mask.bool().sum(dim=-1).float()
 
     if not torch.all(lengths > 0):
-        raise ValueError("All trajectories must have at least one trainable token.")
+        raise ValueError("All trajectories must have at least one trainable response token.")
 
     return lengths
 
@@ -194,7 +198,7 @@ def add_qrpo_fields(
       ref_rewards:       [B, M]
 
     Additionally required if length_normalization=true:
-      loss_mask:         [B, T]
+      response_mask:     [B, response_len]
 
     Added tensor keys:
       ref_quantile:        [B]
@@ -213,7 +217,7 @@ def add_qrpo_fields(
         effective_beta = beta
 
       true:
-        effective_beta = beta / loss_mask.sum(-1)
+        effective_beta = beta / response_mask.sum(-1)
 
     Stable actor-loss residual:
 
@@ -268,20 +272,20 @@ def add_qrpo_fields(
     transformed_reward = ref_quantile
 
     if length_normalization:
-        if K.LOSS_MASK not in data.batch:
+        if K.RESPONSE_MASK not in data.batch:
             raise KeyError(
-                f"Length-normalized QRPO requires DataProto.batch[{K.LOSS_MASK!r}]."
+                f"Length-normalized QRPO requires DataProto.batch[{K.RESPONSE_MASK!r}]."
             )
 
-        trajectory_length = compute_trainable_lengths(data.batch[K.LOSS_MASK]).to(
+        trajectory_length = compute_response_lengths(data.batch[K.RESPONSE_MASK]).to(
             device=trajectory_rewards.device
         )
         effective_beta = torch.full_like(trajectory_length, beta) / trajectory_length
     else:
         # We still expose trajectory_length for logging/debugging when available,
         # but it does not affect effective_beta.
-        if K.LOSS_MASK in data.batch:
-            trajectory_length = compute_trainable_lengths(data.batch[K.LOSS_MASK]).to(
+        if K.RESPONSE_MASK in data.batch:
+            trajectory_length = compute_response_lengths(data.batch[K.RESPONSE_MASK]).to(
                 device=trajectory_rewards.device
             )
         else:

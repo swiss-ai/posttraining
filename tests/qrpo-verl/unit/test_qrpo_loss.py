@@ -11,7 +11,7 @@ from algorithm.qrpo_loss import (
 from batch import keys as K
 
 
-def test_compute_sequence_log_ratio_masks_prompt_tool_and_padding_tokens() -> None:
+def test_compute_sequence_log_ratio_masks_tool_and_padding_response_tokens() -> None:
     log_probs = torch.tensor(
         [
             [-1.0, -2.0, -3.0, -4.0],
@@ -26,7 +26,7 @@ def test_compute_sequence_log_ratio_masks_prompt_tool_and_padding_tokens() -> No
         ],
         dtype=torch.float32,
     )
-    loss_mask = torch.tensor(
+    response_mask = torch.tensor(
         [
             [0, 1, 1, 0],
             [1, 0, 1, 1],
@@ -37,7 +37,7 @@ def test_compute_sequence_log_ratio_masks_prompt_tool_and_padding_tokens() -> No
     log_ratio = compute_sequence_log_ratio(
         log_probs=log_probs,
         ref_log_probs=ref_log_probs,
-        loss_mask=loss_mask,
+        response_mask=response_mask,
     )
 
     expected = torch.tensor(
@@ -56,14 +56,14 @@ def test_compute_sequence_log_ratio_rejects_shape_mismatch() -> None:
         compute_sequence_log_ratio(
             log_probs=torch.zeros(2, 3),
             ref_log_probs=torch.zeros(2, 4),
-            loss_mask=torch.ones(2, 3),
+            response_mask=torch.ones(2, 3),
         )
 
-    with pytest.raises(ValueError, match="loss_mask"):
+    with pytest.raises(ValueError, match="response_mask"):
         compute_sequence_log_ratio(
             log_probs=torch.zeros(2, 3),
             ref_log_probs=torch.zeros(2, 3),
-            loss_mask=torch.ones(2, 4),
+            response_mask=torch.ones(2, 4),
         )
 
 
@@ -72,7 +72,7 @@ def test_compute_sequence_log_ratio_rejects_empty_trainable_tokens() -> None:
         compute_sequence_log_ratio(
             log_probs=torch.zeros(2, 3),
             ref_log_probs=torch.zeros(2, 3),
-            loss_mask=torch.tensor(
+            response_mask=torch.tensor(
                 [
                     [1, 0, 0],
                     [0, 0, 0],
@@ -124,7 +124,7 @@ def test_compute_qrpo_loss_from_fields_mean_reduction() -> None:
         ],
         dtype=torch.float32,
     )
-    loss_mask = torch.tensor(
+    response_mask = torch.tensor(
         [
             [1, 0],
             [1, 1],
@@ -139,7 +139,7 @@ def test_compute_qrpo_loss_from_fields_mean_reduction() -> None:
     loss, metrics = compute_qrpo_loss_from_fields(
         log_probs=log_probs,
         ref_log_probs=ref_log_probs,
-        loss_mask=loss_mask,
+        response_mask=response_mask,
         transformed_reward=transformed_reward,
         beta_log_partition=beta_log_partition,
         effective_beta=effective_beta,
@@ -166,7 +166,7 @@ def test_compute_qrpo_loss_from_fields_none_reduction() -> None:
     loss, _ = compute_qrpo_loss_from_fields(
         log_probs=torch.zeros(2, 3),
         ref_log_probs=torch.zeros(2, 3),
-        loss_mask=torch.ones(2, 3, dtype=torch.bool),
+        response_mask=torch.ones(2, 3, dtype=torch.bool),
         transformed_reward=torch.tensor([1.0, 2.0]),
         beta_log_partition=torch.tensor([0.1, 0.2]),
         effective_beta=torch.tensor([1.0, 1.0]),
@@ -181,7 +181,7 @@ def test_compute_qrpo_loss_from_fields_rejects_unknown_reduction() -> None:
         compute_qrpo_loss_from_fields(
             log_probs=torch.zeros(1, 2),
             ref_log_probs=torch.zeros(1, 2),
-            loss_mask=torch.ones(1, 2, dtype=torch.bool),
+            response_mask=torch.ones(1, 2, dtype=torch.bool),
             transformed_reward=torch.ones(1),
             beta_log_partition=torch.zeros(1),
             effective_beta=torch.ones(1),
@@ -194,7 +194,7 @@ def test_add_qrpo_loss_fields_attaches_diagnostics() -> None:
         tensors={
             K.LOG_PROBS: torch.tensor([[-1.0, -2.0]], dtype=torch.float32),
             K.REF_LOG_PROBS: torch.tensor([[-1.5, -2.5]], dtype=torch.float32),
-            K.LOSS_MASK: torch.tensor([[1, 0]], dtype=torch.bool),
+            K.RESPONSE_MASK: torch.tensor([[1, 0]], dtype=torch.bool),
             K.TRANSFORMED_REWARD: torch.tensor([0.5], dtype=torch.float32),
             K.BETA_LOG_PARTITION: torch.tensor([0.1], dtype=torch.float32),
             K.EFFECTIVE_BETA: torch.tensor([2.0], dtype=torch.float32),
@@ -210,7 +210,11 @@ def test_add_qrpo_loss_fields_attaches_diagnostics() -> None:
     assert "qrpo_loss" in data.meta_info
 
     expected_log_ratio = torch.tensor([0.5])
-    expected_residual = torch.tensor([0.5]) - torch.tensor([0.1]) - torch.tensor([2.0]) * expected_log_ratio
+    expected_residual = (
+        torch.tensor([0.5])
+        - torch.tensor([0.1])
+        - torch.tensor([2.0]) * expected_log_ratio
+    )
     expected_loss = expected_residual.square()
 
     assert torch.allclose(data.batch[K.SEQUENCE_LOG_RATIO], expected_log_ratio)

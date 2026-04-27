@@ -26,7 +26,7 @@ def online_rollout_requests_to_dataproto(
       agent_name: name of the registered VERL agent loop to use
 
     Optional config:
-      data_source: string stored in non_tensor_batch
+      data_source: string stored in non_tensor_batch if not None
       reward_model: object/dict stored per sample if your reward loop needs it
       validate: bool stored in meta_info
     """
@@ -88,7 +88,7 @@ def online_rollout_output_to_train_dataproto(
 ) -> DataProto:
     """Convert VERL AgentLoop output to QRPO online training DataProto.
 
-    Expected VERL AgentLoop batch keys:
+    Expected VERL AgentLoop tensor keys:
       prompts
       responses
       response_mask
@@ -96,19 +96,19 @@ def online_rollout_output_to_train_dataproto(
       attention_mask
       position_ids
 
-    Output QRPO training keys:
+    Output QRPO training tensor keys:
+      prompts
+      responses
+      response_mask
       input_ids
       attention_mask
       position_ids
-      loss_mask
       trajectory_reward
       ref_rewards
 
-    The loss_mask is the response_mask placed into the full input sequence:
-      prompt tokens: 0
-      LLM-generated response tokens: 1
-      tool/environment response tokens: 0
-      padding: 0
+    The response_mask is kept in VERL's native response-aligned layout:
+      1 for LLM-generated response tokens
+      0 for tool/environment response tokens and padding
     """
 
     if rollout_output.batch is None:
@@ -127,37 +127,38 @@ def online_rollout_output_to_train_dataproto(
         if key not in batch:
             raise KeyError(f"rollout_output.batch is missing required key {key!r}.")
 
-    if K.REF_REWARDS not in rollout_output.non_tensor_batch:
-        raise KeyError(f"rollout_output.non_tensor_batch is missing {K.REF_REWARDS!r}.")
-    if K.PROMPT_ID not in rollout_output.non_tensor_batch:
-        raise KeyError(f"rollout_output.non_tensor_batch is missing {K.PROMPT_ID!r}.")
-    if K.TRAJECTORY_ID not in rollout_output.non_tensor_batch:
-        raise KeyError(f"rollout_output.non_tensor_batch is missing {K.TRAJECTORY_ID!r}.")
+    required_non_tensor_keys = [
+        K.REF_REWARDS,
+        K.PROMPT_ID,
+        K.TRAJECTORY_ID,
+    ]
+    for key in required_non_tensor_keys:
+        if key not in rollout_output.non_tensor_batch:
+            raise KeyError(f"rollout_output.non_tensor_batch is missing {key!r}.")
 
+    prompts = batch[K.PROMPTS]
+    responses = batch[K.RESPONSES]
+    response_mask = batch[K.RESPONSE_MASK].bool()
     input_ids = batch[K.INPUT_IDS]
     attention_mask = batch[K.ATTENTION_MASK]
     position_ids = batch[K.POSITION_IDS]
-    prompts = batch[K.PROMPTS]
-    response_mask = batch[K.RESPONSE_MASK]
 
     if rewards.ndim != 1 or rewards.shape[0] != len(rollout_output):
         raise ValueError(
             f"rewards must have shape ({len(rollout_output)},), got {tuple(rewards.shape)}."
         )
 
-    prompt_len = prompts.shape[1]
-    response_len = response_mask.shape[1]
-
-    if response_mask.shape != batch[K.RESPONSES].shape:
+    if response_mask.shape != responses.shape:
         raise ValueError(
             f"response_mask shape {tuple(response_mask.shape)} does not match "
-            f"responses shape {tuple(batch[K.RESPONSES].shape)}."
+            f"responses shape {tuple(responses.shape)}."
         )
 
-    if input_ids.shape[1] != prompt_len + response_len:
+    expected_seq_len = prompts.shape[1] + responses.shape[1]
+    if input_ids.shape[1] != expected_seq_len:
         raise ValueError(
             "input_ids sequence length must equal prompt_len + response_len: "
-            f"{input_ids.shape[1]} != {prompt_len} + {response_len}."
+            f"{input_ids.shape[1]} != {prompts.shape[1]} + {responses.shape[1]}."
         )
 
     if attention_mask.shape != input_ids.shape:
@@ -172,19 +173,18 @@ def online_rollout_output_to_train_dataproto(
             f"input_ids shape {tuple(input_ids.shape)}."
         )
 
-    loss_mask = torch.zeros_like(attention_mask, dtype=torch.bool)
-    loss_mask[:, prompt_len : prompt_len + response_len] = response_mask.bool()
-
     ref_rewards = torch.tensor(
         [tuple(x) for x in rollout_output.non_tensor_batch[K.REF_REWARDS]],
         dtype=torch.float32,
     )
 
     tensors = {
+        K.PROMPTS: prompts,
+        K.RESPONSES: responses,
+        K.RESPONSE_MASK: response_mask,
         K.INPUT_IDS: input_ids,
         K.ATTENTION_MASK: attention_mask,
         K.POSITION_IDS: position_ids,
-        K.LOSS_MASK: loss_mask,
         K.TRAJECTORY_REWARD: rewards.float(),
         K.REF_REWARDS: ref_rewards,
     }
@@ -196,7 +196,7 @@ def online_rollout_output_to_train_dataproto(
     }
 
     merged_meta_info = {
-        "qrpo_batch_format": "full_sequence_with_loss_mask",
+        "qrpo_batch_format": "verl_prompt_response",
         "source": K.SOURCE_ONLINE,
     }
     if meta_info is not None:

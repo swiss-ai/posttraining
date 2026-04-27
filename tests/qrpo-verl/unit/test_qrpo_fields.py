@@ -7,7 +7,7 @@ from verl.protocol import DataProto
 from algorithm.qrpo_fields import (
     add_qrpo_fields,
     compute_ref_quantiles,
-    compute_trainable_lengths,
+    compute_response_lengths,
     identity_quantile_beta_log_partition,
     identity_quantile_log_partition,
 )
@@ -77,8 +77,8 @@ def test_compute_ref_quantiles_rejects_bad_shapes() -> None:
         )
 
 
-def test_compute_trainable_lengths_counts_loss_mask_tokens() -> None:
-    loss_mask = torch.tensor(
+def test_compute_response_lengths_counts_response_mask_tokens() -> None:
+    response_mask = torch.tensor(
         [
             [0, 1, 1, 0],
             [1, 0, 1, 1],
@@ -86,13 +86,13 @@ def test_compute_trainable_lengths_counts_loss_mask_tokens() -> None:
         dtype=torch.bool,
     )
 
-    lengths = compute_trainable_lengths(loss_mask)
+    lengths = compute_response_lengths(response_mask)
 
     assert torch.equal(lengths, torch.tensor([2.0, 3.0], dtype=torch.float32))
 
 
-def test_compute_trainable_lengths_rejects_zero_trainable_tokens() -> None:
-    loss_mask = torch.tensor(
+def test_compute_response_lengths_rejects_zero_trainable_tokens() -> None:
+    response_mask = torch.tensor(
         [
             [0, 0],
             [1, 0],
@@ -101,12 +101,12 @@ def test_compute_trainable_lengths_rejects_zero_trainable_tokens() -> None:
     )
 
     with pytest.raises(ValueError, match="at least one trainable"):
-        compute_trainable_lengths(loss_mask)
+        compute_response_lengths(response_mask)
 
 
-def test_compute_trainable_lengths_rejects_bad_shape() -> None:
-    with pytest.raises(ValueError, match="loss_mask"):
-        compute_trainable_lengths(torch.ones(2))
+def test_compute_response_lengths_rejects_bad_shape() -> None:
+    with pytest.raises(ValueError, match="response_mask"):
+        compute_response_lengths(torch.ones(2))
 
 
 def test_identity_quantile_log_partition_matches_closed_form_scalar() -> None:
@@ -162,7 +162,6 @@ def test_identity_quantile_partitions_handle_small_beta_stably() -> None:
     assert torch.isfinite(log_z).all()
     assert torch.isfinite(beta_log_z).all()
 
-    # For very small beta, beta * log Z approaches 1 + beta * log(beta).
     expected_small = 1.0 + 0.01 * math.log(0.01)
     assert torch.allclose(
         beta_log_z[-1],
@@ -198,7 +197,7 @@ def make_qrpo_data() -> DataProto:
                 ],
                 dtype=torch.float32,
             ),
-            K.LOSS_MASK: torch.tensor(
+            K.RESPONSE_MASK: torch.tensor(
                 [
                     [1, 0, 0],
                     [1, 1, 0],
@@ -238,13 +237,6 @@ def test_add_qrpo_fields_defaults_to_length_normalized_identity_transform() -> N
     assert torch.allclose(data.batch[K.LOG_PARTITION], expected_log_z)
     assert torch.allclose(data.batch[K.BETA_LOG_PARTITION], expected_beta_log_z)
 
-    assert K.REF_QUANTILE in data.batch
-    assert K.TRANSFORMED_REWARD in data.batch
-    assert K.TRAJECTORY_LENGTH in data.batch
-    assert K.EFFECTIVE_BETA in data.batch
-    assert K.LOG_PARTITION in data.batch
-    assert K.BETA_LOG_PARTITION in data.batch
-
 
 def test_add_qrpo_fields_supports_non_length_normalized_identity_transform() -> None:
     data = make_qrpo_data()
@@ -272,13 +264,6 @@ def test_add_qrpo_fields_supports_non_length_normalized_identity_transform() -> 
 
     assert torch.allclose(data.batch[K.LOG_PARTITION], expected_log_z)
     assert torch.allclose(data.batch[K.BETA_LOG_PARTITION], expected_beta_log_z)
-
-    assert K.REF_QUANTILE in data.batch
-    assert K.TRANSFORMED_REWARD in data.batch
-    assert K.TRAJECTORY_LENGTH in data.batch
-    assert K.EFFECTIVE_BETA in data.batch
-    assert K.LOG_PARTITION in data.batch
-    assert K.BETA_LOG_PARTITION in data.batch
 
 
 def test_add_qrpo_fields_boolean_length_normalization_config() -> None:
@@ -324,7 +309,6 @@ def test_add_qrpo_fields_stores_terms_for_stable_residual() -> None:
         },
     )
 
-    # Fake summed sequence log-ratios.
     log_ratio = torch.tensor([0.1, -0.2, 0.3], dtype=torch.float32)
 
     residual = (
@@ -341,7 +325,7 @@ def test_add_qrpo_fields_stores_terms_for_stable_residual() -> None:
     assert torch.allclose(residual, expected_residual)
 
 
-def test_add_qrpo_fields_requires_loss_mask_for_length_normalization() -> None:
+def test_add_qrpo_fields_requires_response_mask_for_length_normalization() -> None:
     data = DataProto.from_dict(
         tensors={
             K.TRAJECTORY_REWARD: torch.tensor([1.0], dtype=torch.float32),
@@ -349,7 +333,7 @@ def test_add_qrpo_fields_requires_loss_mask_for_length_normalization() -> None:
         }
     )
 
-    with pytest.raises(KeyError, match=K.LOSS_MASK):
+    with pytest.raises(KeyError, match=K.RESPONSE_MASK):
         add_qrpo_fields(
             data,
             config={
@@ -359,7 +343,7 @@ def test_add_qrpo_fields_requires_loss_mask_for_length_normalization() -> None:
         )
 
 
-def test_add_qrpo_fields_does_not_require_loss_mask_without_length_normalization() -> None:
+def test_add_qrpo_fields_does_not_require_response_mask_without_length_normalization() -> None:
     data = DataProto.from_dict(
         tensors={
             K.TRAJECTORY_REWARD: torch.tensor([1.0], dtype=torch.float32),
