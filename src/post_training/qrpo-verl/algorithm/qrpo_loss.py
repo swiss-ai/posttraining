@@ -185,3 +185,54 @@ def add_qrpo_loss_fields(
         data.meta_info["qrpo_loss"] = float(loss.detach().cpu().item())
 
     return data
+
+
+def compute_qrpo_actor_loss(
+    *,
+    data: DataProto,
+    log_probs: torch.Tensor,
+    reduction: str = "mean",
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """Compute QRPO actor loss from differentiable current actor log-probs.
+
+    Args:
+        data:
+            QRPO training DataProto containing response_mask, ref_log_prob,
+            transformed_reward, beta_log_partition, effective_beta.
+        log_probs:
+            Differentiable current-policy log-probs from the actor forward pass,
+            shape [B, response_len].
+        reduction:
+            "mean", "sum", or "none".
+
+    Returns:
+        loss:
+            Differentiable QRPO loss.
+        metrics:
+            Detached diagnostic tensors.
+    """
+
+    if data.batch is None:
+        raise ValueError("DataProto.batch is required.")
+
+    required_keys = [
+        K.REF_LOG_PROBS,
+        K.RESPONSE_MASK,
+        K.TRANSFORMED_REWARD,
+        K.BETA_LOG_PARTITION,
+        K.EFFECTIVE_BETA,
+    ]
+
+    for key in required_keys:
+        if key not in data.batch:
+            raise KeyError(f"DataProto.batch is missing {key!r}.")
+
+    return compute_qrpo_loss_from_fields(
+        log_probs=log_probs,
+        ref_log_probs=data.batch[K.REF_LOG_PROBS],
+        response_mask=data.batch[K.RESPONSE_MASK],
+        transformed_reward=data.batch[K.TRANSFORMED_REWARD],
+        beta_log_partition=data.batch[K.BETA_LOG_PARTITION],
+        effective_beta=data.batch[K.EFFECTIVE_BETA],
+        reduction=reduction,
+    )
