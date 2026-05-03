@@ -257,9 +257,12 @@ class QRPOTrainer(RayPPOTrainer):
         self.global_steps = getattr(self, "global_steps", 0)
 
         self._load_checkpoint()
-        self.checkpoint_manager.update_weights(self.global_steps)
+        # self.checkpoint_manager.update_weights(self.global_steps)
 
         if self.config.trainer.get("val_before_train", True):
+            # Validation uses rollout generation, so rollout weights must be synced.
+            self.checkpoint_manager.update_weights(self.global_steps)
+
             val_metrics = self._validate()
             assert val_metrics, f"{val_metrics=}"
             pprint(f"Initial validation metrics: {val_metrics}")
@@ -336,13 +339,20 @@ class QRPOTrainer(RayPPOTrainer):
                 ):
                     self._save_checkpoint()
 
-                # Keep rollout weights synchronized with the actor after every QRPO update.
-                self.checkpoint_manager.update_weights(self.global_steps)
+                will_validate = self.config.trainer.test_freq > 0 and (
+                        is_last_step or self.global_steps % self.config.trainer.test_freq == 0
+                )
 
-                if self.config.trainer.test_freq > 0 and (
-                    is_last_step
-                    or self.global_steps % self.config.trainer.test_freq == 0
-                ):
+                needs_rollout_sync = (
+                        any(counts.n_online > 0 for counts in source_counts)
+                        or will_validate
+                )
+
+                if needs_rollout_sync:
+                    # Needed for online rollout and validation, but skipped for pure offline training.
+                    self.checkpoint_manager.update_weights(self.global_steps)
+
+                if will_validate:
                     val_metrics = self._validate()
                     if is_last_step:
                         last_val_metrics = val_metrics

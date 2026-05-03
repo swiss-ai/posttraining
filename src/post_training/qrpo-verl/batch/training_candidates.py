@@ -1,14 +1,25 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from typing import Any, Protocol
 
 from batch import keys as K
 from batch.candidate_plan import OnlineRolloutRequest
 from batch.source_schedule import SourceCounts
-from data.schemas import OfflineTrajectoryCandidate, PromptRecord
+from data.schemas import OfflineSelection, OfflineTrajectoryCandidate, PromptRecord
 
 
-OfflineSelector = Callable[[PromptRecord, int], Sequence[OfflineTrajectoryCandidate]]
+class OfflineSelectorProtocol(Protocol):
+    def select(
+        self,
+        prompt: PromptRecord,
+        *,
+        n_offline: int | None = None,
+    ) -> Sequence[OfflineSelection]:
+        ...
+
+
+OfflineSelector = Callable[[PromptRecord, int], Sequence[OfflineSelection]] | OfflineSelectorProtocol
 
 
 def build_training_candidates(
@@ -28,31 +39,9 @@ def build_training_candidates(
 
     It intentionally does not tokenize, generate, score, concatenate, or train.
 
-    Args:
-        prompt_records:
-            Prompt-level dataset records.
-
-        source_counts:
-            One SourceCounts object per prompt, usually produced by
-            FixedCountsSourceScheduler.plan(...).
-
-        offline_selector:
-            Function selecting offline candidates for one prompt.
-
-            Contract:
-                offline_selector(prompt_record, n_offline)
-                -> Sequence[OfflineTrajectoryCandidate]
-
-        actor_version:
-            Used only for deterministic online trajectory ids.
-
-    Returns:
-        offline_candidates:
-            Selected offline trajectories.
-
-        online_requests:
-            Online rollout requests to pass into
-            online_rollout_requests_to_dataproto(...).
+    The offline selector returns OfflineSelection objects. This function turns
+    them into OfflineTrajectoryCandidate objects by reading the selected
+    trajectory/reward from the corresponding PromptRecord.
     """
 
     prompt_records = tuple(prompt_records)
@@ -71,15 +60,26 @@ def build_training_candidates(
         _validate_counts_match_prompt(prompt_record, counts)
 
         if counts.n_offline:
-            selected_offline = list(offline_selector(prompt_record, counts.n_offline))
+            selections = _select_offline(
+                offline_selector=offline_selector,
+                prompt=prompt_record,
+                n_offline=counts.n_offline,
+            )
 
-            if len(selected_offline) != counts.n_offline:
+            if len(selections) != counts.n_offline:
                 raise ValueError(
-                    f"offline_selector returned {len(selected_offline)} candidates for "
+                    f"offline_selector returned {len(selections)} selections for "
                     f"prompt_id={prompt_record.prompt_id!r}, expected {counts.n_offline}."
                 )
 
-            offline_candidates.extend(selected_offline)
+            for offline_slot, selection in enumerate(selections):
+                offline_candidates.append(
+                    _offline_selection_to_candidate(
+                        prompt=prompt_record,
+                        selection=selection,
+                        offline_slot=offline_slot,
+                    )
+                )
 
         for online_index in range(counts.n_online):
             online_requests.append(
@@ -94,11 +94,61 @@ def build_training_candidates(
                         actor_version=actor_version,
                         online_index=online_index,
                     ),
-                    tools=getattr(prompt_record, "tools", None),
+                    tools=prompt_record.tools,
                 )
             )
 
     return offline_candidates, online_requests
+
+
+def _select_offline(
+    *,
+    offline_selector: OfflineSelector,
+    prompt: PromptRecord,
+    n_offline: int,
+) -> list[OfflineSelection]:
+    if hasattr(offline_selector, "select"):
+        return list(offline_selector.select(prompt, n_offline=n_offline))
+
+    return list(offline_selector(prompt, n_offline))
+
+
+def _offline_selection_to_candidate(
+    *,
+    prompt: PromptRecord,
+    selection: OfflineSelection,
+    offline_slot: int,
+) -> OfflineTrajectoryCandidate:
+    offline_index = int(selection.offline_index)
+
+    if offline_index < 0 or offline_index >= len(prompt.offline_trajectories):
+        raise IndexError(
+            f"Offline selection index {offline_index} is out of range for "
+            f"prompt_id={prompt.prompt_id!r} with {len(prompt.offline_trajectories)} "
+            "offline trajectories."
+        )
+
+    if offline_index >= len(prompt.offline_rewards):
+        raise IndexError(
+            f"Offline selection index {offline_index} has no reward for "
+            f"prompt_id={prompt.prompt_id!r}; only {len(prompt.offline_rewards)} "
+            "offline rewards are available."
+        )
+
+    return OfflineTrajectoryCandidate(
+        prompt_id=prompt.prompt_id,
+        trajectory_id=_offline_trajectory_id(
+            prompt_id=prompt.prompt_id,
+            offline_slot=offline_slot,
+            offline_index=offline_index,
+            selection_reason=selection.selection_reason,
+        ),
+        prompt_messages=prompt.prompt_messages,
+        trajectory_messages=prompt.offline_trajectories[offline_index],
+        reward=float(prompt.offline_rewards[offline_index]),
+        ref_rewards=prompt.ref_rewards,
+        tools=prompt.tools,
+    )
 
 
 def _validate_counts_match_prompt(
@@ -136,3 +186,16 @@ def _online_trajectory_id(
     online_index: int,
 ) -> str:
     return f"{prompt_id}::{K.SOURCE_ONLINE}::actor_{actor_version}::{online_index}"
+
+
+def _offline_trajectory_id(
+    *,
+    prompt_id: str,
+    offline_slot: int,
+    offline_index: int,
+    selection_reason: str,
+) -> str:
+    return (
+        f"{prompt_id}::{K.SOURCE_OFFLINE}::slot_{offline_slot}"
+        f"::idx_{offline_index}::{selection_reason}"
+    )

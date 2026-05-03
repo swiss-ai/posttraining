@@ -228,7 +228,9 @@ def offline_candidates_to_dataproto(
 
     merged_meta_info = {
         "qrpo_batch_format": "verl_prompt_response",
-        "source": K.SOURCE_OFFLINE,
+        # Required by VERL's model-engine log-prob path.
+        # Offline trajectories are fixed data, not sampled from a temperature-scaled rollout.
+        "temperature": float(cfg.get("temperature", 1.0)),
     }
     if meta_info is not None:
         merged_meta_info.update(meta_info)

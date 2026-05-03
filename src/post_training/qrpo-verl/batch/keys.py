@@ -6,7 +6,7 @@ ATTENTION_MASK = "attention_mask"
 POSITION_IDS = "position_ids"
 
 LOG_PROBS = "log_probs"
-REF_LOG_PROBS = "ref_log_probs"
+REF_LOG_PROBS = "ref_log_prob"
 
 # VERL rollout tensor keys
 PROMPTS = "prompts"

@@ -76,7 +76,6 @@ def concat_qrpo_training_dataprotos(
     result.meta_info.update(
         {
             "qrpo_batch_format": "verl_prompt_response",
-            "source": "mixed",
         }
     )
 

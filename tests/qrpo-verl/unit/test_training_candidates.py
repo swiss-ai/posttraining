@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from batch.training_candidates import build_training_candidates
 from batch.source_schedule import SourceCounts
-from data.schemas import OfflineTrajectoryCandidate, PromptRecord
+from batch.training_candidates import build_training_candidates
+from data.offline_selector import MinMaxRewardSelector
+from data.schemas import OfflineSelection, PromptRecord
 
 
 def make_prompt_record(prompt_id: str) -> PromptRecord:
@@ -15,8 +16,12 @@ def make_prompt_record(prompt_id: str) -> PromptRecord:
             {"role": "user", "content": f"Prompt {prompt_id}"},
         ),
         ref_rewards=(0.1, 0.2, 0.3),
-        offline_trajectories=(),
-        offline_rewards=(),
+        offline_trajectories=(
+            ({"role": "assistant", "content": "low"},),
+            ({"role": "assistant", "content": "mid"},),
+            ({"role": "assistant", "content": "high"},),
+        ),
+        offline_rewards=(0.0, 0.5, 1.0),
         tools=None,
     )
 
@@ -36,21 +41,7 @@ def make_counts(
     )
 
 
-def make_offline_candidate(prompt: PromptRecord, index: int) -> OfflineTrajectoryCandidate:
-    return OfflineTrajectoryCandidate(
-        prompt_id=prompt.prompt_id,
-        trajectory_id=f"{prompt.prompt_id}::offline::{index}",
-        prompt_messages=prompt.prompt_messages,
-        trajectory_messages=(
-            {"role": "assistant", "content": f"Offline answer {index}"},
-        ),
-        reward=float(index),
-        ref_rewards=prompt.ref_rewards,
-        tools=prompt.tools,
-    )
-
-
-def test_build_training_candidates_from_source_counts() -> None:
+def test_build_training_candidates_from_source_counts_with_selector_object() -> None:
     prompts = [
         make_prompt_record("p0"),
         make_prompt_record("p1"),
@@ -60,28 +51,31 @@ def test_build_training_candidates_from_source_counts() -> None:
         make_counts(prompt_index=1, prompt_id="p1", n_online=1, n_offline=1),
     ]
 
-    calls = []
-
-    def offline_selector(prompt: PromptRecord, n: int):
-        calls.append((prompt.prompt_id, n))
-        return [make_offline_candidate(prompt, i) for i in range(n)]
+    selector = MinMaxRewardSelector()
 
     offline_candidates, online_requests = build_training_candidates(
         prompt_records=prompts,
         source_counts=source_counts,
-        offline_selector=offline_selector,
+        offline_selector=selector,
         actor_version=10,
     )
 
-    assert calls == [
-        ("p0", 2),
-        ("p1", 1),
+    assert [candidate.trajectory_id for candidate in offline_candidates] == [
+        "p0::offline::slot_0::idx_2::max_reward",
+        "p0::offline::slot_1::idx_0::min_reward",
+        "p1::offline::slot_0::idx_2::max_reward",
     ]
 
-    assert [candidate.trajectory_id for candidate in offline_candidates] == [
-        "p0::offline::0",
-        "p0::offline::1",
-        "p1::offline::0",
+    assert [candidate.reward for candidate in offline_candidates] == [
+        1.0,
+        0.0,
+        1.0,
+    ]
+
+    assert [candidate.trajectory_messages for candidate in offline_candidates] == [
+        ({"role": "assistant", "content": "high"},),
+        ({"role": "assistant", "content": "low"},),
+        ({"role": "assistant", "content": "high"},),
     ]
 
     assert [request.trajectory_id for request in online_requests] == [
@@ -98,16 +92,19 @@ def test_build_training_candidates_from_source_counts() -> None:
     assert online_requests[0].tools is None
 
 
-def test_build_training_candidates_preserves_offline_selector_order() -> None:
+def test_build_training_candidates_supports_callable_offline_selector() -> None:
     prompt = make_prompt_record("p0")
     source_counts = [
-        make_counts(prompt_index=0, prompt_id="p0", n_online=2, n_offline=2),
+        make_counts(prompt_index=0, prompt_id="p0", n_online=0, n_offline=2),
     ]
 
-    def offline_selector(prompt: PromptRecord, n: int):
+    calls = []
+
+    def offline_selector(prompt_record: PromptRecord, n_offline: int):
+        calls.append((prompt_record.prompt_id, n_offline))
         return [
-            make_offline_candidate(prompt, 100),
-            make_offline_candidate(prompt, 200),
+            OfflineSelection(offline_index=1, selection_reason="custom_mid"),
+            OfflineSelection(offline_index=0, selection_reason="custom_low"),
         ]
 
     offline_candidates, online_requests = build_training_candidates(
@@ -117,18 +114,15 @@ def test_build_training_candidates_preserves_offline_selector_order() -> None:
         actor_version="abc",
     )
 
+    assert calls == [("p0", 2)]
+
     assert [candidate.trajectory_id for candidate in offline_candidates] == [
-        "p0::offline::100",
-        "p0::offline::200",
+        "p0::offline::slot_0::idx_1::custom_mid",
+        "p0::offline::slot_1::idx_0::custom_low",
     ]
 
-    assert [request.trajectory_id for request in online_requests] == [
-        "p0::online::actor_abc::0",
-        "p0::online::actor_abc::1",
-    ]
-
-    assert [request.prompt_index for request in online_requests] == [0, 0]
-    assert [request.online_index for request in online_requests] == [0, 1]
+    assert [candidate.reward for candidate in offline_candidates] == [0.5, 0.0]
+    assert online_requests == []
 
 
 def test_build_training_candidates_skips_offline_selector_when_no_offline() -> None:
@@ -137,7 +131,7 @@ def test_build_training_candidates_skips_offline_selector_when_no_offline() -> N
         make_counts(prompt_index=0, prompt_id="p0", n_online=2, n_offline=0),
     ]
 
-    def offline_selector(prompt: PromptRecord, n: int):
+    def offline_selector(prompt: PromptRecord, n_offline: int):
         raise AssertionError("offline_selector should not be called")
 
     offline_candidates, online_requests = build_training_candidates(
@@ -162,22 +156,18 @@ def test_build_training_candidates_skips_online_when_no_online() -> None:
         make_counts(prompt_index=0, prompt_id="p0", n_online=0, n_offline=2),
     ]
 
-    def offline_selector(prompt: PromptRecord, n: int):
-        return [
-            make_offline_candidate(prompt, 0),
-            make_offline_candidate(prompt, 1),
-        ]
+    selector = MinMaxRewardSelector()
 
     offline_candidates, online_requests = build_training_candidates(
         prompt_records=[prompt],
         source_counts=source_counts,
-        offline_selector=offline_selector,
+        offline_selector=selector,
         actor_version=3,
     )
 
     assert [candidate.trajectory_id for candidate in offline_candidates] == [
-        "p0::offline::0",
-        "p0::offline::1",
+        "p0::offline::slot_0::idx_2::max_reward",
+        "p0::offline::slot_1::idx_0::min_reward",
     ]
     assert online_requests == []
 
@@ -208,7 +198,7 @@ def test_build_training_candidates_propagates_tools_to_online_requests() -> None
         source_counts=[
             make_counts(prompt_index=0, prompt_id="p0", n_online=1, n_offline=0),
         ],
-        offline_selector=lambda prompt, n: [],
+        offline_selector=lambda prompt, n_offline: [],
         actor_version=1,
     )
 
@@ -229,7 +219,7 @@ def test_build_training_candidates_rejects_length_mismatch() -> None:
             source_counts=[
                 make_counts(prompt_index=0, prompt_id="p0", n_online=1, n_offline=0),
             ],
-            offline_selector=lambda prompt, n: [],
+            offline_selector=lambda prompt, n_offline: [],
             actor_version=1,
         )
 
@@ -243,7 +233,7 @@ def test_build_training_candidates_rejects_prompt_id_mismatch() -> None:
             source_counts=[
                 make_counts(prompt_index=0, prompt_id="wrong", n_online=1, n_offline=0),
             ],
-            offline_selector=lambda prompt, n: [],
+            offline_selector=lambda prompt, n_offline: [],
             actor_version=1,
         )
 
@@ -257,7 +247,7 @@ def test_build_training_candidates_rejects_negative_online_count() -> None:
             source_counts=[
                 make_counts(prompt_index=0, prompt_id="p0", n_online=-1, n_offline=1),
             ],
-            offline_selector=lambda prompt, n: [],
+            offline_selector=lambda prompt, n_offline: [],
             actor_version=1,
         )
 
@@ -271,7 +261,7 @@ def test_build_training_candidates_rejects_negative_offline_count() -> None:
             source_counts=[
                 make_counts(prompt_index=0, prompt_id="p0", n_online=1, n_offline=-1),
             ],
-            offline_selector=lambda prompt, n: [],
+            offline_selector=lambda prompt, n_offline: [],
             actor_version=1,
         )
 
@@ -285,12 +275,12 @@ def test_build_training_candidates_rejects_empty_counts() -> None:
             source_counts=[
                 make_counts(prompt_index=0, prompt_id="p0", n_online=0, n_offline=0),
             ],
-            offline_selector=lambda prompt, n: [],
+            offline_selector=lambda prompt, n_offline: [],
             actor_version=1,
         )
 
 
-def test_build_training_candidates_rejects_wrong_number_of_offline_candidates() -> None:
+def test_build_training_candidates_rejects_wrong_number_of_offline_selections() -> None:
     prompt = make_prompt_record("p0")
 
     with pytest.raises(ValueError, match="expected 2"):
@@ -299,6 +289,51 @@ def test_build_training_candidates_rejects_wrong_number_of_offline_candidates() 
             source_counts=[
                 make_counts(prompt_index=0, prompt_id="p0", n_online=0, n_offline=2),
             ],
-            offline_selector=lambda prompt, n: [make_offline_candidate(prompt, 0)],
+            offline_selector=lambda prompt, n_offline: [
+                OfflineSelection(offline_index=0, selection_reason="only_one"),
+            ],
+            actor_version=1,
+        )
+
+
+def test_build_training_candidates_rejects_offline_selection_out_of_range() -> None:
+    prompt = make_prompt_record("p0")
+
+    with pytest.raises(IndexError, match="out of range"):
+        build_training_candidates(
+            prompt_records=[prompt],
+            source_counts=[
+                make_counts(prompt_index=0, prompt_id="p0", n_online=0, n_offline=1),
+            ],
+            offline_selector=lambda prompt, n_offline: [
+                OfflineSelection(offline_index=99, selection_reason="bad"),
+            ],
+            actor_version=1,
+        )
+
+
+def test_build_training_candidates_rejects_missing_offline_reward() -> None:
+    prompt = PromptRecord(
+        prompt_id="p0",
+        prompt_messages=(
+            {"role": "user", "content": "Prompt"},
+        ),
+        ref_rewards=(0.1, 0.2),
+        offline_trajectories=(
+            ({"role": "assistant", "content": "A"},),
+        ),
+        offline_rewards=(),
+        tools=None,
+    )
+
+    with pytest.raises(IndexError, match="no reward"):
+        build_training_candidates(
+            prompt_records=[prompt],
+            source_counts=[
+                make_counts(prompt_index=0, prompt_id="p0", n_online=0, n_offline=1),
+            ],
+            offline_selector=lambda prompt, n_offline: [
+                OfflineSelection(offline_index=0, selection_reason="bad"),
+            ],
             actor_version=1,
         )

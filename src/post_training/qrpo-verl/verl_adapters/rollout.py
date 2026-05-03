@@ -68,7 +68,6 @@ def online_rollout_requests_to_dataproto(
 
     merged_meta_info = {
         "qrpo_batch_format": "online_rollout_requests",
-        "source": K.SOURCE_ONLINE,
         "validate": bool(config.get("validate", False)),
     }
     if meta_info is not None:
@@ -197,8 +196,12 @@ def online_rollout_output_to_train_dataproto(
 
     merged_meta_info = {
         "qrpo_batch_format": "verl_prompt_response",
-        "source": K.SOURCE_ONLINE,
     }
+
+    # Prefer explicit meta_info passed by the trainer, then rollout_output.meta_info
+    if rollout_output.meta_info is not None and "temperature" in rollout_output.meta_info:
+        merged_meta_info["temperature"] = float(rollout_output.meta_info["temperature"])
+
     if meta_info is not None:
         merged_meta_info.update(meta_info)
 

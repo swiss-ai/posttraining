@@ -1,0 +1,12 @@
+name: random
+
+# Deterministic random selection on the driver.
+seed: 1
+
+# false = sample distinct offline trajectories per prompt.
+# true = allow the same trajectory to be selected multiple times.
+replacement: false
+
+# Only used if selector.select(..., n_offline=None).
+# In QRPOTrainer, n_offline normally comes from source_schedule.
+default_n_offline: 1

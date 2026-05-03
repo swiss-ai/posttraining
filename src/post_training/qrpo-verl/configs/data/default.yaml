@@ -1,14 +1,32 @@
 path: null
-split: train
+split: train_split
 
 prompt_id_key: prompt_id
 prompt_messages_key: prompt_messages
 
 ref_rewards_key: ref_rewards
-num_ref_rewards: 8
+num_ref_rewards: 30
 
 offline_trajectories_key: offline_trajectories
 offline_rewards_key: offline_rewards
 
 tools_key: tools
 metadata_keys: []
+
+validate_records: false
+deep_validate_messages: true
+
+train_batch_size: 4
+val_batch_size: 4
+dataloader_num_workers: 0
+max_prompt_length: 4096
+max_response_length: 4096
+
+shuffle: false
+validation_shuffle: false
+sampler: null
+seed: 1
+
+val_subset_size: 4
+
+trust_remote_code: false
