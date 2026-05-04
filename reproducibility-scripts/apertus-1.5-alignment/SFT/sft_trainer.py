@@ -7,15 +7,22 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTTrainer, SFTConfig
 
 os.environ.setdefault("WANDB_ENTITY", "apertus")
-os.environ.setdefault("WANDB_PROJECT", "apertus-sft")
+os.environ.setdefault("WANDB_PROJECT", "apertus-1.5-post-training-dpo")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CHAT_TEMPLATE = SCRIPT_DIR / "chat_template.jinja"
 
 
+VALID_ROLES = {"system", "user", "assistant", "tool"}
+
+
 def normalize_messages(example):
     normalized = []
     for msg in example["messages"]:
+        role = msg["role"]
+        if role not in VALID_ROLES:
+            example["messages"] = None
+            return example
         c = msg.get("content")
         if c is None:
             c = ""
@@ -26,7 +33,7 @@ def normalize_messages(example):
             )
         elif not isinstance(c, str):
             c = str(c)
-        normalized.append({"role": msg["role"], "content": c})
+        normalized.append({"role": role, "content": c})
     example["messages"] = normalized
     return example
 
@@ -72,6 +79,9 @@ def main():
     ds = load_dataset(args.dataset_name, split=args.dataset_split)
     datasets.disable_caching()
     ds = ds.map(normalize_messages, num_proc=128)
+    pre_filter = len(ds)
+    ds = ds.filter(lambda x: x["messages"] is not None, num_proc=128)
+    print(f"Filtered {pre_filter - len(ds)} examples with invalid roles ({len(ds)} remaining)")
     if args.subset_frac < 1.0:
         n = int(len(ds) * args.subset_frac)
         ds = ds.shuffle(seed=42).select(range(n))

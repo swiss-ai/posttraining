@@ -4,29 +4,33 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=4
 #SBATCH --time=12:00:00
-#SBATCH --output=./logs/slurm-%j.out
-#SBATCH --error=./logs/slurm-%j.err
+#SBATCH --output=/iopsstor/scratch/cscs/dmelikidze/online-dpo/logs/training/%j-%x.out
+#SBATCH --error=/iopsstor/scratch/cscs/dmelikidze/online-dpo/logs/training/%j-%x.err
 #SBATCH --account=infra01
 #SBATCH --reservation=SD-69241-apertus-1-5
 #SBATCH --partition=normal
 
-# ── Explanation ──────────────────────────────────────────────────────────
-#
-# SLURM header:
-#   --nodes=N              : allocate N nodes
-#   --ntasks-per-node=1    : one srun task per node (Ray manages GPU workers internally)
-#   --gpus-per-node=4      : 4 GPUs on each node
-#
-# How it works:
-#   1. We resolve the IP of the first node (head node)
-#   2. Start a Ray head process on node 0 — this is the cluster coordinator
-#   3. Start Ray worker processes on all other nodes, connecting to the head
-#   4. Run the training script on the head node — verl discovers all GPUs via Ray
-#   5. Ray handles cross-node communication (NCCL for GPU tensors, gRPC for control)
-#
-# The "block" flag keeps Ray processes alive for the duration of the job.
-# The "overlap" flag on the final srun lets the training script coexist
-# with the Ray head process on the same node.
+# ── Run configuration ───────────────────────────────────────────────────
+# Change these for each run. Everything else stays the same.
+
+export JUDGE_BASE_URL="${JUDGE_BASE_URL:-http://172.28.38.28:30000/v1}"
+export JUDGE_API_KEY="${JUDGE_API_KEY:-sk-rc-MH1IEiFLN35rXSJq5pWECQ}"
+export JUDGE_MODEL="${JUDGE_MODEL:-Qwen/Qwen3.6-27B-dmelikidze}"
+
+export MODEL_PATH="${MODEL_PATH:-/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--swiss-ai--Apertus-8B-Instruct-2509-SFT/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364}"
+export OUTPUT_DIR="${OUTPUT_DIR:-/iopsstor/scratch/cscs/dmelikidze/verl-training/online-dpo-run-from-SFT/}"
+export OUTPUT_DIR="${OUTPUT_DIR%/}-${SLURM_JOB_ID}"
+export EXPERIMENT_NAME="${EXPERIMENT_NAME:-$(basename "${OUTPUT_DIR}")}"
+
+# Optional overrides (uncomment or pass as env vars)
+# export TRAIN_DATA=...
+# export VAL_DATA=...
+# export PROJECT_NAME=apertus-1.5-online-dpo
+# export LEARNING_RATE=1e-6
+# export DPO_BETA=0.1
+# export SAVE_FREQ=50
+# export LENGTH_NORMALIZE=false
+
 # ─────────────────────────────────────────────────────────────────────────
 
 set -x
@@ -66,58 +70,120 @@ export RAY_TMPDIR
 # Unset AMD ROCm variable that conflicts with CUDA_VISIBLE_DEVICES in verl workers
 unset ROCR_VISIBLE_DEVICES
 
-# ── Step 2: pip install verl + start Ray on all nodes ───────────────────
-# Each srun --environment=verl spawns a fresh container. We must pip install
-# the local verl fork AND start Ray in the same bash session so that Ray's
-# worker processes (which it forks internally) inherit the installed package.
-#
-# --temp-dir: tells Ray to store session files (sockets, logs) on the shared
-# filesystem instead of /tmp. This is critical because --overlap creates a
-# separate container that doesn't share /tmp with the Ray head container.
-#
-# Head node: install verl, then start Ray as the cluster coordinator.
-echo "Starting Ray HEAD at $head_node ($head_node_ip)"
-srun --nodes=1 --ntasks=1 -w "$head_node" --environment=verl \
-    bash -c "
-        unset ROCR_VISIBLE_DEVICES && \
-        export WANDB_ENTITY=apertus && \
-        cd ${SCRIPT_DIR}/verl && pip install -e . --quiet && cd ${SCRIPT_DIR} && \
-        ray start --head --node-ip-address=${head_node_ip} --port=${port} \
-            --num-gpus ${SLURM_GPUS_PER_NODE} --temp-dir=${RAY_TMPDIR} --block
-    " &
-
-# Wait for the head node's Ray GCS to be ready before workers try to connect.
-sleep 30
-
-# Worker nodes: same pattern — install verl, then connect to the head.
-worker_num=$((SLURM_JOB_NUM_NODES - 1))
-for ((i = 1; i <= worker_num; i++)); do
-    node_i=${nodes_array[$i]}
-    echo "Starting Ray WORKER $i at $node_i"
-    srun --nodes=1 --ntasks=1 -w "$node_i" --environment=verl \
+# ── Helper: start Ray cluster on all nodes ──────────────────────────────
+start_ray_cluster() {
+    echo "Starting Ray HEAD at $head_node ($head_node_ip)"
+    srun --nodes=1 --ntasks=1 -w "$head_node" --environment=verl \
         bash -c "
             unset ROCR_VISIBLE_DEVICES && \
             export WANDB_ENTITY=apertus && \
             cd ${SCRIPT_DIR}/verl && pip install -e . --quiet && cd ${SCRIPT_DIR} && \
-            ray start --address ${ip_head} \
+            ray start --head --node-ip-address=${head_node_ip} --port=${port} \
                 --num-gpus ${SLURM_GPUS_PER_NODE} --temp-dir=${RAY_TMPDIR} --block
         " &
-    sleep 5
-done
 
-# ── Step 3: Launch training ─────────────────────────────────────────────
-# --overlap: allows this srun to share node 0 with the Ray head process.
-# pip install verl again in this session (same container, different process).
-# RAY_ADDRESS tells ray.init() to connect to the existing cluster.
-# RAY_TMPDIR ensures it finds the session sockets on the shared filesystem.
-# train_spin.sh forwards "$@" so nnodes/n_gpus_per_node override the defaults.
-PYTHONUNBUFFERED=1 srun --overlap --nodes=1 --ntasks=1 -w "$head_node" --environment=verl \
-    bash -c "
-        unset ROCR_VISIBLE_DEVICES && \
-        cd ${SCRIPT_DIR}/verl && pip install -e . --quiet && cd ${SCRIPT_DIR} && \
-        export RAY_ADDRESS=${ip_head} && \
-        export RAY_TMPDIR=${RAY_TMPDIR} && \
-        bash ${SCRIPT_DIR}/train_spin.sh \
-            trainer.nnodes=${SLURM_NNODES} \
-            trainer.n_gpus_per_node=${SLURM_GPUS_PER_NODE}
-    "
+    sleep 12
+
+    worker_num=$((SLURM_JOB_NUM_NODES - 1))
+    for ((i = 1; i <= worker_num; i++)); do
+        node_i=${nodes_array[$i]}
+        echo "Starting Ray WORKER $i at $node_i"
+        srun --nodes=1 --ntasks=1 -w "$node_i" --environment=verl \
+            bash -c "
+                unset ROCR_VISIBLE_DEVICES && \
+                export WANDB_ENTITY=apertus && \
+                cd ${SCRIPT_DIR}/verl && pip install -e . --quiet && cd ${SCRIPT_DIR} && \
+                ray start --address ${ip_head} \
+                    --num-gpus ${SLURM_GPUS_PER_NODE} --temp-dir=${RAY_TMPDIR} --block
+            " &
+        sleep 1
+    done
+}
+
+# ── Helper: stop Ray on all nodes ───────────────────────────────────────
+stop_ray_cluster() {
+    echo "Stopping Ray cluster on all nodes..."
+    for node in "${nodes_array[@]}"; do
+        srun --nodes=1 --ntasks=1 -w "$node" --environment=verl \
+            bash -c "ray stop --force 2>/dev/null; true" &
+    done
+    wait
+    sleep 10
+}
+
+# ── Step 2+3: Start Ray cluster and launch training with auto-retry ─────
+# On transient CUDA/NCCL errors the entire Ray cluster is corrupted, so we
+# tear it down, restart, and resume from the latest checkpoint.
+# trainer.resume_mode=auto tells verl to find the latest checkpoint.
+# trainer.save_freq should be low (e.g. 50) to minimise lost work.
+
+MAX_RETRIES=5
+
+start_ray_cluster
+
+for attempt in $(seq 1 $MAX_RETRIES); do
+    echo ""
+    echo "===== Training attempt ${attempt}/${MAX_RETRIES} ====="
+    echo ""
+
+    PYTHONUNBUFFERED=1 srun --overlap --nodes=1 --ntasks=1 -w "$head_node" --environment=verl \
+        bash -c "
+            unset ROCR_VISIBLE_DEVICES && \
+            export JUDGE_BASE_URL='${JUDGE_BASE_URL}' && \
+            export JUDGE_API_KEY='${JUDGE_API_KEY}' && \
+            export JUDGE_MODEL='${JUDGE_MODEL}' && \
+            export MODEL_PATH='${MODEL_PATH}' && \
+            export EXPERIMENT_NAME='${EXPERIMENT_NAME}' && \
+            export OUTPUT_DIR='${OUTPUT_DIR}' && \
+            export PROJECT_NAME='${PROJECT_NAME:-}' && \
+            export TRAIN_DATA='${TRAIN_DATA:-}' && \
+            export VAL_DATA='${VAL_DATA:-}' && \
+            export LEARNING_RATE='${LEARNING_RATE:-}' && \
+            export LR_WARMUP_STEPS='${LR_WARMUP_STEPS:-}' && \
+            export LR_WARMUP_STEPS_RATIO='${LR_WARMUP_STEPS_RATIO:-}' && \
+            export LR_SCHEDULER_TYPE='${LR_SCHEDULER_TYPE:-}' && \
+            export MIN_LR_RATIO='${MIN_LR_RATIO:-}' && \
+            export DPO_BETA='${DPO_BETA:-}' && \
+            export GRAD_CLIP='${GRAD_CLIP:-}' && \
+            export TRAIN_BATCH_SIZE='${TRAIN_BATCH_SIZE:-}' && \
+            export MAX_PROMPT_LENGTH='${MAX_PROMPT_LENGTH:-}' && \
+            export MAX_RESPONSE_LENGTH='${MAX_RESPONSE_LENGTH:-}' && \
+            export ROLLOUT_N='${ROLLOUT_N:-}' && \
+            export TP_SIZE='${TP_SIZE:-}' && \
+            export FSDP_SIZE='${FSDP_SIZE:-}' && \
+            export SAVE_FREQ='${SAVE_FREQ:-}' && \
+            export LENGTH_NORMALIZE='${LENGTH_NORMALIZE:-}' && \
+            export TOTAL_EPOCHS='${TOTAL_EPOCHS:-}' && \
+            export GPU_MEM_UTIL='${GPU_MEM_UTIL:-}' && \
+            export ACTOR_MICRO_BS='${ACTOR_MICRO_BS:-}' && \
+            export ROLLOUT_N='${ROLLOUT_N:-}' && \
+            export LOGPROB_MICRO_BS='${LOGPROB_MICRO_BS:-}' && \
+            export REF_LOGPROB_MICRO_BS='${REF_LOGPROB_MICRO_BS:-}' && \
+            export ENFORCE_EAGER='${ENFORCE_EAGER:-}' && \
+            export MAX_NUM_BATCHED_TOKENS='${MAX_NUM_BATCHED_TOKENS:-}' && \
+            cd ${SCRIPT_DIR}/verl && pip install -e . --quiet && cd ${SCRIPT_DIR} && \
+            export RAY_ADDRESS=${ip_head} && \
+            export RAY_TMPDIR=${RAY_TMPDIR} && \
+            bash ${SCRIPT_DIR}/train_spin.sh \
+                trainer.nnodes=${SLURM_NNODES} \
+                trainer.n_gpus_per_node=${SLURM_GPUS_PER_NODE} \
+                trainer.resume_mode=auto
+        "
+    exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        echo "Training completed successfully on attempt ${attempt}."
+        break
+    fi
+
+    echo "Training failed with exit code ${exit_code} on attempt ${attempt}/${MAX_RETRIES}."
+
+    if [ $attempt -lt $MAX_RETRIES ]; then
+        echo "Restarting Ray cluster and resuming from latest checkpoint..."
+        stop_ray_cluster
+        start_ray_cluster
+    else
+        echo "All ${MAX_RETRIES} attempts exhausted. Exiting."
+        exit $exit_code
+    fi
+done

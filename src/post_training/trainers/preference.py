@@ -1251,6 +1251,12 @@ class PreferenceTrainer(Trainer):
         g_rejected_lens = self.accelerator.gather_for_metrics(
             model_output["rejected_lens"].detach()
         )
+        g_ref_chosen_logps = self.accelerator.gather_for_metrics(
+            ref_chosen_logps.detach()
+        )
+        g_ref_rejected_logps = self.accelerator.gather_for_metrics(
+            ref_rejected_logps.detach()
+        )
         g_beta_chosen = self.accelerator.gather_for_metrics(
             extra_logs["beta_chosen"].detach()
         )
@@ -1352,6 +1358,20 @@ class PreferenceTrainer(Trainer):
         )
         metrics[f"{prefix}logps/chosen"] = g_chosen_logps.mean().item()
         metrics[f"{prefix}logps/rejected"] = g_rejected_logps.mean().item()
+
+        kl_chosen_raw = g_chosen_logps - g_ref_chosen_logps
+        kl_rejected_raw = g_rejected_logps - g_ref_rejected_logps
+        kl_all_raw = torch.cat([kl_chosen_raw, kl_rejected_raw], dim=0)
+        metrics[f"{prefix}kl/policy_vs_ref_raw/chosen"] = kl_chosen_raw.mean().item()
+        metrics[f"{prefix}kl/policy_vs_ref_raw/rejected"] = kl_rejected_raw.mean().item()
+        metrics[f"{prefix}kl/policy_vs_ref_raw/mean"] = kl_all_raw.mean().item()
+
+        kl_chosen = kl_chosen_raw / g_chosen_lens
+        kl_rejected = kl_rejected_raw / g_rejected_lens
+        kl_all = torch.cat([kl_chosen, kl_rejected], dim=0)
+        metrics[f"{prefix}kl/policy_vs_ref/chosen"] = kl_chosen.mean().item()
+        metrics[f"{prefix}kl/policy_vs_ref/rejected"] = kl_rejected.mean().item()
+        metrics[f"{prefix}kl/policy_vs_ref/mean"] = kl_all.mean().item()
 
         metrics[f"{prefix}mean-logits/chosen"] = g_mean_chosen_logits.mean().item()
         metrics[f"{prefix}mean-logits/rejected"] = g_mean_rejected_logits.mean().item()

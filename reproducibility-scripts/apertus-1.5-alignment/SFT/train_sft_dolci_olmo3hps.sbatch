@@ -6,19 +6,19 @@
 #SBATCH -t 12:00:00
 #SBATCH -A infra01
 #SBATCH -p normal
-##SBATCH --reservation=SD-69241-apertus-1-5
-#SBATCH --nodes 16
+#SBATCH --reservation=SD-69241-apertus-1-5
+#SBATCH --nodes 32
 #SBATCH --ntasks-per-node 1
 #SBATCH --gpus-per-node=4
 #SBATCH --cpus-per-task=288
-#SBATCH --output=logs/%j.out
-#SBATCH --error=logs/%j.err
+#SBATCH --output=reproducibility-scripts/apertus-1.5-alignment/SFT/logs/%j.out
+#SBATCH --error=reproducibility-scripts/apertus-1.5-alignment/SFT/logs/%j.err
 
 # --- OLMo-3 HP overrides ---
-export RUN_NAME=${RUN_NAME:-"apertus-8b-sft-dolci-olmo3hps"}
+export RUN_NAME=${RUN_NAME:-"apertus-8b-sft-dolci-olmo3hps-ep1"}
 export LEARNING_RATE=${LEARNING_RATE:-8e-5}
 export LR_SCHEDULER_TYPE=${LR_SCHEDULER_TYPE:-"linear"}
-export NUM_TRAIN_EPOCHS=${NUM_TRAIN_EPOCHS:-3}
+export NUM_TRAIN_EPOCHS=${NUM_TRAIN_EPOCHS:-1}
 
 # --- Run the same logic as train_sft_dolci.sbatch ---
 set -euo pipefail
@@ -33,10 +33,10 @@ ACCELERATE_CONFIG="src/post_training/configs/accelerate/ds-zero2.yaml"
 MODEL_NAME_OR_PATH=${MODEL_NAME_OR_PATH:-"swiss-ai/Apertus-8B-2509"}
 DATASET_NAME=${DATASET_NAME:-"allenai/Dolci-Instruct-SFT"}
 DATASET_SPLIT=${DATASET_SPLIT:-"train"}
-MAX_SEQ_LENGTH=${MAX_SEQ_LENGTH:-8192}
+MAX_SEQ_LENGTH=${MAX_SEQ_LENGTH:-4096}
 WEIGHT_DECAY=${WEIGHT_DECAY:-0.0}
 WARMUP_RATIO=${WARMUP_RATIO:-0.03}
-PER_DEVICE_TRAIN_BATCH_SIZE=${PER_DEVICE_TRAIN_BATCH_SIZE:-2}
+PER_DEVICE_TRAIN_BATCH_SIZE=${PER_DEVICE_TRAIN_BATCH_SIZE:-4}
 GRADIENT_ACCUMULATION_STEPS=${GRADIENT_ACCUMULATION_STEPS:-1}
 MAX_GRAD_NORM=${MAX_GRAD_NORM:-1.0}
 SAVE_STEPS=${SAVE_STEPS:-2000}
