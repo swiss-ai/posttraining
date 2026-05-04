@@ -32,7 +32,7 @@ TRAIN_NODES=8
 MODEL_PATH="/capstor/store/cscs/swissai/infra01/models/apertus-8b-sft-1.5--lr8e-5"
 OUTPUT_BASE_DIR="/iopsstor/scratch/cscs/dmelikidze/verl-training"
 JUDGE_MODEL="Qwen/Qwen3.6-27B-dmelikidze"
-JUDGE_API_KEY="sk-rc-MH1IEiFLN35rXSJq5pWECQ"
+JUDGE_API_KEY="<YOUR_KEY>"
 
 # Fixed training params (override per-run via grid arrays below)
 GPU_MEM_UTIL=0.35
