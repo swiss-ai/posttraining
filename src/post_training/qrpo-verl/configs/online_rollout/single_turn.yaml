@@ -1,0 +1,7 @@
+# Data source label passed to reward compute_score(data_source=...).
+data_source: activeultrafeedback
+
+# Null means: let VERL use actor_rollout_ref.rollout.agent.default_agent_loop.
+agent_name: null
+
+validate: false

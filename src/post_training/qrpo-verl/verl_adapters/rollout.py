@@ -16,32 +16,17 @@ def online_rollout_requests_to_dataproto(
     config: Mapping[str, Any],
     meta_info: dict[str, Any] | None = None,
 ) -> DataProto:
-    """Convert online rollout requests to VERL AgentLoop input DataProto.
-
-    This adapter intentionally does not tokenize prompts. VERL AgentLoop handles
-    chat-template application, rollout execution, tool calls, and trajectory
-    postprocessing.
-
-    Required config:
-      agent_name: name of the registered VERL agent loop to use
-
-    Optional config:
-      data_source: string stored in non_tensor_batch if not None
-      reward_model: object/dict stored per sample if your reward loop needs it
-      validate: bool stored in meta_info
-    """
-
     requests = tuple(requests)
 
     if not requests:
         raise ValueError("Cannot build rollout DataProto from an empty request list.")
 
-    agent_name = config.get("agent_name")
-    if not agent_name:
-        raise ValueError("rollout config must contain a non-empty 'agent_name'.")
-
-    data_source = config.get("data_source", None)
-    reward_model = config.get("reward_model", None)
+    agent_name = config.get("agent_name", None)
+    data_source = config.get("data_source")
+    if not data_source:
+        raise ValueError(
+            "online_rollout.data_source is required for VERL RewardLoop rewards."
+        )
 
     raw_prompt = np.empty(len(requests), dtype=object)
     raw_prompt[:] = [tuple(request.prompt_messages) for request in requests]
@@ -49,22 +34,44 @@ def online_rollout_requests_to_dataproto(
     ref_rewards = np.empty(len(requests), dtype=object)
     ref_rewards[:] = [tuple(request.ref_rewards) for request in requests]
 
+    reward_models = np.empty(len(requests), dtype=object)
+    extra_infos = np.empty(len(requests), dtype=object)
+
+    for i, request in enumerate(requests):
+        prompt_messages = tuple(request.prompt_messages)
+
+        # VERL's naive reward-manager adapter requires reward_model["ground_truth"].
+        # Our active UltraFeedback reward will mostly use extra_info["prompt"],
+        # but we keep ground_truth populated for compatibility and validation.
+        reward_models[i] = {
+            "ground_truth": {
+                "prompt": prompt_messages,
+                "prompt_id": request.prompt_id,
+                "trajectory_id": request.trajectory_id,
+            }
+        }
+
+        extra_infos[i] = {
+            "prompt": prompt_messages,
+            "prompt_id": request.prompt_id,
+            "trajectory_id": request.trajectory_id,
+            "online_index": request.online_index,
+            "ref_rewards": tuple(request.ref_rewards),
+        }
+
     non_tensor_batch: dict[str, np.ndarray] = {
         K.RAW_PROMPT: raw_prompt,
-        K.AGENT_NAME: np.asarray([agent_name] * len(requests), dtype=object),
         K.PROMPT_ID: np.asarray([request.prompt_id for request in requests], dtype=object),
         K.TRAJECTORY_ID: np.asarray([request.trajectory_id for request in requests], dtype=object),
         K.SOURCE: np.asarray([K.SOURCE_ONLINE] * len(requests), dtype=object),
+        K.DATA_SOURCE: np.asarray([data_source] * len(requests), dtype=object),
+        K.REWARD_MODEL: reward_models,
+        K.EXTRA_INFO: extra_infos,
         K.REF_REWARDS: ref_rewards,
     }
 
-    if data_source is not None:
-        non_tensor_batch[K.DATA_SOURCE] = np.asarray([data_source] * len(requests), dtype=object)
-
-    if reward_model is not None:
-        reward_models = np.empty(len(requests), dtype=object)
-        reward_models[:] = [reward_model] * len(requests)
-        non_tensor_batch[K.REWARD_MODEL] = reward_models
+    if agent_name is not None:
+        non_tensor_batch[K.AGENT_NAME] = np.asarray([agent_name] * len(requests), dtype=object)
 
     merged_meta_info = {
         "qrpo_batch_format": "online_rollout_requests",

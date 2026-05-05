@@ -106,8 +106,6 @@ def run_qrpo(config: DictConfig) -> None:
         OmegaConf.to_container(config.offline_selector, resolve=True)
     )
 
-    online_reward_fn = _build_online_reward_fn(config)
-
     trainer = QRPOTrainer(
         config=config,
         tokenizer=tokenizer,
@@ -121,7 +119,6 @@ def run_qrpo(config: DictConfig) -> None:
         train_sampler=train_sampler,
         source_scheduler=source_scheduler,
         offline_selector=offline_selector,
-        online_reward_fn=online_reward_fn,
     )
 
     trainer.init_workers()
@@ -217,18 +214,6 @@ def _build_resource_pool_manager(
     return ResourcePoolManager(
         resource_pool_spec=resource_pool_spec,
         mapping=resource_pool_mapping,
-    )
-
-
-def _build_online_reward_fn(config: DictConfig):
-    n_online = int(config.source_schedule.get("n_online", 0))
-
-    if n_online == 0:
-        return None
-
-    raise NotImplementedError(
-        "Online QRPO reward integration is not implemented yet. "
-        "For offline-only training, set source_schedule.n_online=0."
     )
 
 

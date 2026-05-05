@@ -121,8 +121,6 @@ def test_concat_qrpo_training_dataprotos_pads_and_concats() -> None:
     ]
 
     assert mixed.meta_info["qrpo_batch_format"] == "verl_prompt_response"
-    assert mixed.meta_info["source"] == "mixed"
-
 
 def test_concat_qrpo_training_dataprotos_left_pads_prompts_and_right_pads_responses() -> None:
     offline = make_dataproto(

@@ -27,7 +27,6 @@ from verl_adapters.train_batch import concat_qrpo_training_dataprotos
 
 
 GLOBAL_POOL_ID = "global_pool"
-OnlineRewardFn = Callable[[DataProto], torch.Tensor]
 
 
 class QRPOTrainer(RayPPOTrainer):
@@ -54,7 +53,6 @@ class QRPOTrainer(RayPPOTrainer):
         *args,
         source_scheduler: Any | None = None,
         offline_selector: OfflineSelector | None = None,
-        online_reward_fn: OnlineRewardFn | None = None,
         **kwargs,
     ):
         config = kwargs.get("config")
@@ -65,7 +63,6 @@ class QRPOTrainer(RayPPOTrainer):
 
         self.source_scheduler = source_scheduler
         self.offline_selector = offline_selector
-        self.online_reward_fn = online_reward_fn
 
         super().__init__(*args, **kwargs)
 
@@ -134,7 +131,6 @@ class QRPOTrainer(RayPPOTrainer):
         actor_version: str | int | None = None,
         offline_tokenization_config: Mapping[str, Any] | None = None,
         online_rollout_config: Mapping[str, Any] | None = None,
-        online_reward_fn: OnlineRewardFn | None = None,
         pad_token_id: int | None = None,
         meta_info: dict[str, Any] | None = None,
     ) -> DataProto:
@@ -153,6 +149,7 @@ class QRPOTrainer(RayPPOTrainer):
         This method does not do logging, checkpointing, validation, or ref-model
         updates. Those belong to fit().
         """
+        online_reward_metrics: dict[str, float] = {}
 
         if actor_version is None:
             actor_version = getattr(self, "global_steps", 0)
@@ -198,14 +195,6 @@ class QRPOTrainer(RayPPOTrainer):
                     "online_rollout_config is required when online requests are present."
                 )
 
-            if online_reward_fn is None:
-                online_reward_fn = self._resolve_online_reward_fn()
-
-            if online_reward_fn is None:
-                raise ValueError(
-                    "online_reward_fn is required when online requests are present."
-                )
-
             online_rollout_input = online_rollout_requests_to_dataproto(
                 requests=online_requests,
                 config=online_rollout_config,
@@ -216,7 +205,9 @@ class QRPOTrainer(RayPPOTrainer):
                 online_rollout_input
             )
 
-            online_rewards = online_reward_fn(rollout_output)
+            online_rewards, online_reward_metrics = (
+                self._compute_online_rewards_with_reward_loop(rollout_output)
+            )
 
             online_train_batch = online_rollout_output_to_train_dataproto(
                 rollout_output=rollout_output,
@@ -228,11 +219,16 @@ class QRPOTrainer(RayPPOTrainer):
         if not train_batches:
             raise RuntimeError("No QRPO train batches were produced.")
 
-        return self.qrpo_update_step(
+        actor_output = self.qrpo_update_step(
             train_batches,
             pad_token_id=pad_token_id,
             meta_info=meta_info,
         )
+
+        if online_reward_metrics:
+            actor_output.meta_info.setdefault("metrics", {}).update(online_reward_metrics)
+
+        return actor_output
 
     def fit(self):
         """Run QRPO training.
@@ -257,11 +253,15 @@ class QRPOTrainer(RayPPOTrainer):
         self.global_steps = getattr(self, "global_steps", 0)
 
         self._load_checkpoint()
-        # self.checkpoint_manager.update_weights(self.global_steps)
+
+        # True iff rollout/vLLM weights are known to match the current actor.
+        # Offline-only training should avoid rollout sync entirely.
+        rollout_weights_synced = False
 
         if self.config.trainer.get("val_before_train", True):
-            # Validation uses rollout generation, so rollout weights must be synced.
+            # Validation uses rollout generation, so sync immediately before validation.
             self.checkpoint_manager.update_weights(self.global_steps)
+            rollout_weights_synced = True
 
             val_metrics = self._validate()
             assert val_metrics, f"{val_metrics=}"
@@ -273,8 +273,7 @@ class QRPOTrainer(RayPPOTrainer):
 
         source_scheduler = self._resolve_source_scheduler()
 
-        # Fail early for offline selection. Do not require online_reward_fn here:
-        # offline-only training should work without it.
+        # Fail early for offline selection.
         self._resolve_offline_selector()
 
         current_epoch = self.global_steps // len(self.train_dataloader)
@@ -299,6 +298,14 @@ class QRPOTrainer(RayPPOTrainer):
                 prompt_records = self._batch_to_prompt_records(batch_payload)
                 source_counts = source_scheduler.plan(prompt_records)
 
+                has_online = any(counts.n_online > 0 for counts in source_counts)
+
+                # Online rollout generation uses the rollout/vLLM engine, so sync
+                # immediately before generation if the rollout weights are stale.
+                if has_online and not rollout_weights_synced:
+                    self.checkpoint_manager.update_weights(self.global_steps)
+                    rollout_weights_synced = True
+
                 self.global_steps += 1
                 is_last_step = self.global_steps >= self.total_training_steps
 
@@ -313,6 +320,10 @@ class QRPOTrainer(RayPPOTrainer):
                     actor_version=self.global_steps,
                     meta_info=meta_info,
                 )
+
+                # run_qrpo_iteration(...) ends with _update_actor(...), so actor
+                # weights changed and rollout/vLLM weights are stale again.
+                rollout_weights_synced = False
 
                 metrics = {}
 
@@ -334,25 +345,21 @@ class QRPOTrainer(RayPPOTrainer):
                 )
 
                 if self.config.trainer.save_freq > 0 and (
-                    is_last_step
-                    or self.global_steps % self.config.trainer.save_freq == 0
+                        is_last_step
+                        or self.global_steps % self.config.trainer.save_freq == 0
                 ):
                     self._save_checkpoint()
 
                 will_validate = self.config.trainer.test_freq > 0 and (
-                        is_last_step or self.global_steps % self.config.trainer.test_freq == 0
+                        is_last_step
+                        or self.global_steps % self.config.trainer.test_freq == 0
                 )
-
-                needs_rollout_sync = (
-                        any(counts.n_online > 0 for counts in source_counts)
-                        or will_validate
-                )
-
-                if needs_rollout_sync:
-                    # Needed for online rollout and validation, but skipped for pure offline training.
-                    self.checkpoint_manager.update_weights(self.global_steps)
 
                 if will_validate:
+                    # Validation uses rollout generation, so sync immediately before it.
+                    self.checkpoint_manager.update_weights(self.global_steps)
+                    rollout_weights_synced = True
+
                     val_metrics = self._validate()
                     if is_last_step:
                         last_val_metrics = val_metrics
@@ -367,6 +374,71 @@ class QRPOTrainer(RayPPOTrainer):
                     pprint(f"Final validation metrics: {last_val_metrics}")
                     progress_bar.close()
                     return
+
+    def _compute_online_rewards_with_reward_loop(
+            self,
+            rollout_output: DataProto,
+    ) -> tuple[torch.Tensor, dict[str, float]]:
+        """Compute sequence-level online rewards using VERL RewardLoop."""
+
+        if rollout_output.batch is None:
+            raise ValueError("rollout_output.batch is required.")
+
+        reward_loop_manager = getattr(self, "reward_loop_manager", None)
+        if reward_loop_manager is None:
+            raise RuntimeError(
+                "QRPO online training requires self.reward_loop_manager. "
+                "Make sure trainer.init_workers() was called before trainer.fit()."
+            )
+
+        reward_output = reward_loop_manager.compute_rm_score(rollout_output)
+
+        if reward_output.batch is None or "rm_scores" not in reward_output.batch:
+            raise KeyError(
+                "VERL RewardLoopManager.compute_rm_score(...) did not return "
+                "batch['rm_scores']."
+            )
+
+        rm_scores = reward_output.batch["rm_scores"].float()
+
+        responses = rollout_output.batch[K.RESPONSES]
+        if rm_scores.shape != responses.shape:
+            raise ValueError(
+                f"RewardLoop rm_scores shape {tuple(rm_scores.shape)} does not match "
+                f"responses shape {tuple(responses.shape)}."
+            )
+
+        rewards = rm_scores.sum(dim=-1).float()
+
+        if rewards.ndim != 1 or rewards.shape[0] != len(rollout_output):
+            raise ValueError(
+                f"Online rewards must have shape ({len(rollout_output)},), "
+                f"got {tuple(rewards.shape)}."
+            )
+
+        metrics: dict[str, float] = {
+            "reward/online_mean": float(rewards.mean().item()),
+            "reward/online_min": float(rewards.min().item()),
+            "reward/online_max": float(rewards.max().item()),
+        }
+
+        reward_extra_keys = reward_output.meta_info.get("reward_extra_keys", [])
+        for key in reward_extra_keys:
+            if key not in reward_output.non_tensor_batch:
+                continue
+
+            values = reward_output.non_tensor_batch[key]
+            try:
+                numeric_values = torch.tensor(
+                    [float(x) for x in values],
+                    dtype=torch.float32,
+                )
+            except Exception:
+                continue
+
+            metrics[f"{key}/mean"] = float(numeric_values.mean().item())
+
+        return rewards, metrics
 
     def _resolve_tokenizer(self, tokenizer: Any | None):
         if tokenizer is not None:
@@ -467,9 +539,6 @@ class QRPOTrainer(RayPPOTrainer):
             raise ValueError("QRPOTrainer requires offline_selector.")
         return self.offline_selector
 
-    def _resolve_online_reward_fn(self) -> OnlineRewardFn | None:
-        return self.online_reward_fn
-
     @staticmethod
     def _batch_to_prompt_records(batch_payload: Any) -> list[PromptRecord]:
         if isinstance(batch_payload, PromptRecord):
@@ -563,6 +632,31 @@ def validate_qrpo_trainer_config(config: Any) -> None:
     transform = _select(config, "qrpo.transform", default="identity")
     if transform != "identity":
         raise ValueError("Only qrpo.transform='identity' is implemented for now.")
+
+    n_online = int(
+        _select(config, "source_schedule.n_online", default=0)
+        or _select(config, "qrpo.source_schedule.n_online", default=0)
+        or 0
+    )
+
+    if n_online > 0:
+        reward_num_workers = int(_select(config, "reward.num_workers", default=0))
+        if reward_num_workers <= 0:
+            raise ValueError(
+                "Online QRPO requires reward.num_workers > 0 for VERL RewardLoop."
+            )
+
+        reward_path = _select(config, "reward.custom_reward_function.path", default=None)
+        if reward_path is None:
+            raise ValueError(
+                "Online QRPO requires reward.custom_reward_function.path."
+            )
+
+        reward_name = _select(config, "reward.custom_reward_function.name", default=None)
+        if not reward_name:
+            raise ValueError(
+                "Online QRPO requires reward.custom_reward_function.name."
+            )
 
 
 def build_qrpo_role_worker_mapping(*, use_ray_remote: bool = True):

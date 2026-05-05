@@ -124,7 +124,8 @@ def test_online_rollout_output_to_train_dataproto_builds_qrpo_training_batch() -
     assert data.non_tensor_batch[K.SOURCE].tolist() == ["online", "online"]
 
     assert data.meta_info["qrpo_batch_format"] == "verl_prompt_response"
-    assert data.meta_info["source"] == "online"
+    assert "source" not in data.meta_info
+    assert data.non_tensor_batch[K.SOURCE].tolist() == [K.SOURCE_ONLINE] * len(data)
 
 
 def test_online_rollout_output_to_train_dataproto_preserves_response_mask() -> None:
@@ -176,7 +177,8 @@ def test_online_rollout_output_to_train_dataproto_merges_meta_info() -> None:
     )
 
     assert data.meta_info["global_steps"] == 9
-    assert data.meta_info["source"] == "online"
+    assert "source" not in data.meta_info
+    assert data.non_tensor_batch[K.SOURCE].tolist() == [K.SOURCE_ONLINE] * len(data)
 
 
 def test_online_rollout_output_to_train_dataproto_rejects_wrong_reward_shape() -> None:

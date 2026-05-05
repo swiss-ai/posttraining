@@ -2,6 +2,7 @@ defaults:
   - data: default
   - source_schedule: fixed_counts
   - offline_selector: minmax_rewards
+  - online_rollout: single_turn
   - _self_
 
 qrpo:
