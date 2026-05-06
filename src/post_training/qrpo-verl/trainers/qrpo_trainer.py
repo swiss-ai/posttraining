@@ -19,6 +19,11 @@ from batch.source_schedule import FixedCountsSourceScheduler, SourceCounts
 from batch.training_candidates import OfflineSelector, build_training_candidates
 from data.schemas import PromptRecord
 from verl_adapters.engine_worker import QRPOEngineActorRolloutRefWorker
+from verl_adapters.online_completion_logging import (
+    build_online_completion_log_rows,
+    enrich_online_completion_log_rows,
+    log_online_completion_rows,
+)
 from verl_adapters.rollout import (
     attach_online_rollout_train_metadata,
     extract_online_rollout_train_metadata,
@@ -78,6 +83,7 @@ class QRPOTrainer(RayPPOTrainer):
         *,
         pad_token_id: int | None = None,
         meta_info: dict[str, Any] | None = None,
+        online_completion_log_rows: Sequence[Mapping[str, Any]] | None = None,
     ) -> DataProto:
         """Run one QRPO actor update from one or more train batches.
 
@@ -116,6 +122,10 @@ class QRPOTrainer(RayPPOTrainer):
             config=self.config.qrpo,
         )
         qrpo_batch_metrics = self._compute_qrpo_batch_metrics(train_batch)
+        enriched_completion_log_rows = enrich_online_completion_log_rows(
+            train_batch=train_batch,
+            rows=online_completion_log_rows,
+        )
 
         if getattr(self, "ref_in_actor", False):
             self._ensure_actor_model_on_device()
@@ -129,6 +139,10 @@ class QRPOTrainer(RayPPOTrainer):
         actor_output = self._update_actor(train_batch)
         if qrpo_batch_metrics:
             actor_output.meta_info.setdefault("metrics", {}).update(qrpo_batch_metrics)
+        if enriched_completion_log_rows:
+            actor_output.meta_info[K.ONLINE_COMPLETION_LOG_ROWS] = (
+                enriched_completion_log_rows
+            )
         return actor_output
 
     def run_qrpo_iteration(
@@ -160,6 +174,7 @@ class QRPOTrainer(RayPPOTrainer):
         updates. Those belong to fit().
         """
         online_reward_metrics: dict[str, float] = {}
+        online_completion_log_rows: list[dict[str, Any]] = []
         rollout_temperature = self._resolve_rollout_temperature()
 
         if actor_version is None:
@@ -229,6 +244,19 @@ class QRPOTrainer(RayPPOTrainer):
             online_rewards, online_reward_metrics = (
                 self._compute_online_rewards_from_rollout_output(rollout_output)
             )
+            online_completion_log_rows = build_online_completion_log_rows(
+                config=self.config,
+                online_requests=online_requests,
+                rollout_output=rollout_output,
+                rewards=online_rewards,
+                online_rollout_config=online_rollout_config,
+                tokenizer=(
+                    tokenizer
+                    if tokenizer is not None
+                    else getattr(self, "tokenizer", None)
+                ),
+                meta_info=meta_info,
+            )
 
             online_train_batch = online_rollout_output_to_train_dataproto(
                 rollout_output=rollout_output,
@@ -241,10 +269,16 @@ class QRPOTrainer(RayPPOTrainer):
         if not train_batches:
             raise RuntimeError("No QRPO train batches were produced.")
 
+        qrpo_update_kwargs = {
+            "pad_token_id": pad_token_id,
+            "meta_info": meta_info,
+        }
+        if online_completion_log_rows:
+            qrpo_update_kwargs["online_completion_log_rows"] = online_completion_log_rows
+
         actor_output = self.qrpo_update_step(
             train_batches,
-            pad_token_id=pad_token_id,
-            meta_info=meta_info,
+            **qrpo_update_kwargs,
         )
 
         if online_reward_metrics:
@@ -364,6 +398,11 @@ class QRPOTrainer(RayPPOTrainer):
                             counts.n_offline for counts in source_counts
                         ),
                     }
+                )
+                log_online_completion_rows(
+                    config=self.config,
+                    rows=actor_output.meta_info.get(K.ONLINE_COMPLETION_LOG_ROWS, []),
+                    step=self.global_steps,
                 )
 
                 if self.config.trainer.save_freq > 0 and (
@@ -802,6 +841,7 @@ def _select(config: Any, path: str, *, default: Any) -> Any:
             return default
 
     return cur
+
 
 def _to_plain_container(value: Any) -> Any:
     if isinstance(value, DictConfig):

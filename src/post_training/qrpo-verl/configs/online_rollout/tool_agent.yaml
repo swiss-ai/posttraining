@@ -1,3 +1,11 @@
 data_source: tool_task
 agent_name: tool_agent
 validate: false
+
+completion_logging:
+  enabled: false
+  outputs: ["wandb"]
+  selection: random  # all | first | random | top_reward | bottom_reward
+  n: 8
+  seed: 0
+  max_chars: 2000

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from types import MethodType
+from types import MethodType, SimpleNamespace
 
 import numpy as np
 import pytest
@@ -19,10 +19,14 @@ from trainers.qrpo_trainer import (
     validate_qrpo_trainer_config,
 )
 from verl_adapters.engine_worker import QRPOEngineActorRolloutRefWorker
+from verl_adapters.online_completion_logging import build_online_completion_log_rows
 
 
 class FakeTokenizer:
     pad_token_id = 7
+
+    def decode(self, token_ids, skip_special_tokens=True):
+        return " ".join(str(token_id) for token_id in token_ids if token_id != 0)
 
 
 class NoPadTokenizer:
@@ -1216,6 +1220,114 @@ def test_compute_online_rewards_from_rollout_output_rejects_bad_rm_score_shape()
 
     with pytest.raises(ValueError, match="rm_scores shape"):
         trainer._compute_online_rewards_from_rollout_output(rollout_output)
+
+
+def test_build_online_completion_log_rows_selects_top_reward_and_decodes():
+    trainer = make_trainer_for_unit_test(
+        config=make_config(
+            **{
+                "online_rollout.completion_logging.enabled": True,
+                "online_rollout.completion_logging.selection": "top_reward",
+                "online_rollout.completion_logging.n": 1,
+                "online_rollout.completion_logging.max_chars": 100,
+            }
+        )
+    )
+    rollout_output = _rollout_output_for_reward_loop()
+    rollout_output.non_tensor_batch[K.RAW_PROMPT] = np.asarray(
+        [
+            ({"role": "user", "content": "prompt zero"},),
+            ({"role": "user", "content": "prompt one"},),
+        ],
+        dtype=object,
+    )
+    rollout_output.non_tensor_batch["reward/helpfulness_score"] = np.asarray(
+        [1.0, 4.0],
+        dtype=object,
+    )
+    rollout_output.meta_info["reward_extra_keys"] = ["reward/helpfulness_score"]
+
+    requests = [
+        SimpleNamespace(
+            prompt_id="prompt-0",
+            trajectory_id="traj-0",
+            prompt_messages=({"role": "user", "content": "fallback zero"},),
+            ref_rewards=(0.1, 0.2),
+        ),
+        SimpleNamespace(
+            prompt_id="prompt-1",
+            trajectory_id="traj-1",
+            prompt_messages=({"role": "user", "content": "fallback one"},),
+            ref_rewards=(0.3, 0.4),
+        ),
+    ]
+
+    rows = build_online_completion_log_rows(
+        config=trainer.config,
+        online_requests=requests,
+        rollout_output=rollout_output,
+        rewards=torch.tensor([1.0, 4.0], dtype=torch.float32),
+        online_rollout_config=trainer.config.online_rollout,
+        tokenizer=trainer.tokenizer,
+        meta_info={"global_steps": 7, "epoch": 1},
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["sample_index"] == 1
+    assert rows[0][K.PROMPT_ID] == "prompt-1"
+    assert rows[0][K.TRAJECTORY_ID] == "traj-1"
+    assert rows[0][K.TRAJECTORY_REWARD] == pytest.approx(4.0)
+    assert rows[0][K.REF_REWARDS] == [0.3, 0.4]
+    assert rows[0]["prompt"] == "user: prompt one"
+    assert rows[0]["completion"] == "21"
+    assert rows[0]["reward/helpfulness_score"] == pytest.approx(4.0)
+
+
+def test_qrpo_update_step_enriches_online_completion_log_rows() -> None:
+    trainer = make_trainer_for_unit_test()
+    batch = make_qrpo_batch(source=K.SOURCE_ONLINE)
+
+    def fake_compute_ref_log_prob(self, train_batch):
+        return DataProto.from_dict(
+            tensors={
+                K.REF_LOG_PROBS: torch.zeros_like(
+                    train_batch.batch[K.RESPONSES],
+                    dtype=torch.float32,
+                )
+            }
+        )
+
+    def fake_update_actor(self, train_batch):
+        return DataProto.from_single_dict(
+            data={},
+            meta_info={"metrics": {}},
+        )
+
+    trainer._compute_ref_log_prob = MethodType(fake_compute_ref_log_prob, trainer)
+    trainer._update_actor = MethodType(fake_update_actor, trainer)
+
+    output = trainer.qrpo_update_step(
+        [batch],
+        online_completion_log_rows=[
+            {
+                K.TRAJECTORY_ID: "t0_1",
+                K.PROMPT_ID: "p0_1",
+                "prompt": "prompt",
+                "completion": "completion",
+            }
+        ],
+    )
+
+    rows = output.meta_info[K.ONLINE_COMPLETION_LOG_ROWS]
+    assert len(rows) == 1
+    assert rows[0][K.TRAJECTORY_ID] == "t0_1"
+    assert rows[0][K.TRAJECTORY_REWARD] == pytest.approx(4.0)
+    assert rows[0][K.REF_REWARDS] == [1.0, 2.0, 3.0, 4.0]
+    assert rows[0][K.REF_QUANTILE] == pytest.approx(1.0)
+    assert K.TRANSFORMED_REWARD in rows[0]
+    assert K.TRAJECTORY_LENGTH in rows[0]
+    assert K.EFFECTIVE_BETA in rows[0]
+    assert K.BETA_LOG_PARTITION in rows[0]
 
 
 def test_run_qrpo_iteration_uses_agent_loop_rewards_for_online_rewards():

@@ -5,3 +5,11 @@ data_source: activeultrafeedback
 agent_name: null
 
 validate: false
+
+completion_logging:
+  enabled: false
+  outputs: ["wandb"]  # console | wandb
+  selection: random  # all | first | random | top_reward | bottom_reward
+  n: 8
+  seed: 0
+  max_chars: 2000

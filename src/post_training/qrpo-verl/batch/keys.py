@@ -59,3 +59,6 @@ AGENT_NAME = "agent_name"
 DATA_SOURCE = "data_source"
 REWARD_MODEL = "reward_model"
 EXTRA_INFO = "extra_info"
+
+# QRPO debug logging meta_info keys
+ONLINE_COMPLETION_LOG_ROWS = "online_completion_log_rows"
