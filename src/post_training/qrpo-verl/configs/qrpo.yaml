@@ -6,7 +6,7 @@ defaults:
   - _self_
 
 qrpo:
-  beta: 0.05
+  beta: 0.1
   transform: identity
   length_normalization: false
 
@@ -19,9 +19,9 @@ qrpo_runtime:
   compute_dtype: bfloat16
 
   train_mini_batch_size: ${data.train_batch_size}
-  train_micro_batch_size_per_gpu: 16
+  train_micro_batch_size_per_gpu: 32
 
-  log_prob_micro_batch_size_per_gpu: 16
+  log_prob_micro_batch_size_per_gpu: 32
   max_token_len_per_gpu: 16384
 
   lr: 1.0e-6

@@ -10,6 +10,10 @@ from verl.utils.torch_functional import pad_sequence_to_length
 
 from batch import keys as K
 
+_SHARED_BATCH_META_INFO_KEYS = (
+    K.TEMPERATURE,
+)
+
 
 def concat_qrpo_training_dataprotos(
     dataprotos: Sequence[DataProto],
@@ -72,12 +76,14 @@ def concat_qrpo_training_dataprotos(
     ]
 
     result = DataProto.concat(concat_inputs)
+    shared_meta_info = _resolve_shared_batch_meta_info(dataprotos)
 
     result.meta_info.update(
         {
             "qrpo_batch_format": "verl_prompt_response",
         }
     )
+    result.meta_info.update(shared_meta_info)
 
     if meta_info is not None:
         result.meta_info.update(meta_info)
@@ -210,6 +216,28 @@ def _check_training_schema(dataprotos: tuple[DataProto, ...]) -> None:
 
         _check_prompt_response_shapes(data, index=i)
         _check_non_tensor_batch(data, index=i)
+
+
+def _resolve_shared_batch_meta_info(dataprotos: tuple[DataProto, ...]) -> dict:
+    shared_meta_info: dict[str, object] = {}
+
+    for key in _SHARED_BATCH_META_INFO_KEYS:
+        values = [data.meta_info.get(key, None) for data in dataprotos]
+        if any(value is None for value in values):
+            raise KeyError(
+                f"All QRPO training DataProtos must define meta_info[{key!r}]."
+            )
+
+        first = values[0]
+        if any(value != first for value in values[1:]):
+            raise ValueError(
+                f"All QRPO training DataProtos must agree on meta_info[{key!r}]. "
+                f"Got {values}."
+            )
+
+        shared_meta_info[key] = first
+
+    return shared_meta_info
 
 
 def _check_prompt_response_shapes(data: DataProto, *, index: int) -> None:

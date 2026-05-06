@@ -16,6 +16,7 @@ def make_dataproto(
     prompt_len: int,
     response_len: int,
     num_ref_rewards: int = 3,
+    temperature: float = 1.0,
 ) -> DataProto:
     prompts = torch.arange(batch_size * prompt_len, dtype=torch.long).reshape(
         batch_size, prompt_len
@@ -69,6 +70,7 @@ def make_dataproto(
         meta_info={
             "qrpo_batch_format": "verl_prompt_response",
             "source": source,
+            K.TEMPERATURE: temperature,
         },
     )
 
@@ -121,6 +123,7 @@ def test_concat_qrpo_training_dataprotos_pads_and_concats() -> None:
     ]
 
     assert mixed.meta_info["qrpo_batch_format"] == "verl_prompt_response"
+    assert mixed.meta_info[K.TEMPERATURE] == pytest.approx(1.0)
 
 def test_concat_qrpo_training_dataprotos_left_pads_prompts_and_right_pads_responses() -> None:
     offline = make_dataproto(
@@ -205,6 +208,32 @@ def test_concat_qrpo_training_dataprotos_merges_custom_meta_info() -> None:
     assert mixed.meta_info["global_steps"] == 12
 
 
+def test_concat_qrpo_training_dataprotos_preserves_shared_temperature() -> None:
+    offline = make_dataproto(
+        source="offline",
+        prefix="off",
+        batch_size=1,
+        prompt_len=4,
+        response_len=4,
+        temperature=0.7,
+    )
+    online = make_dataproto(
+        source="online",
+        prefix="on",
+        batch_size=1,
+        prompt_len=4,
+        response_len=4,
+        temperature=0.7,
+    )
+
+    mixed = concat_qrpo_training_dataprotos(
+        [offline, online],
+        pad_token_id=0,
+    )
+
+    assert mixed.meta_info[K.TEMPERATURE] == pytest.approx(0.7)
+
+
 def test_concat_qrpo_training_dataprotos_rejects_empty_list() -> None:
     with pytest.raises(ValueError, match="empty"):
         concat_qrpo_training_dataprotos([], pad_token_id=0)
@@ -250,4 +279,26 @@ def test_concat_qrpo_training_dataprotos_rejects_bad_response_mask_shape() -> No
     online.batch[K.RESPONSE_MASK] = torch.ones(1, 3, dtype=torch.bool)
 
     with pytest.raises(ValueError, match="response_mask shape"):
+        concat_qrpo_training_dataprotos([offline, online], pad_token_id=0)
+
+
+def test_concat_qrpo_training_dataprotos_rejects_mismatched_temperature() -> None:
+    offline = make_dataproto(
+        source="offline",
+        prefix="off",
+        batch_size=1,
+        prompt_len=4,
+        response_len=4,
+        temperature=0.7,
+    )
+    online = make_dataproto(
+        source="online",
+        prefix="on",
+        batch_size=1,
+        prompt_len=4,
+        response_len=4,
+        temperature=1.0,
+    )
+
+    with pytest.raises(ValueError, match=K.TEMPERATURE):
         concat_qrpo_training_dataprotos([offline, online], pad_token_id=0)

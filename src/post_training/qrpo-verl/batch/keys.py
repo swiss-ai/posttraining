@@ -35,6 +35,7 @@ REWARD_EXTRA_INFO = "reward_extra_info"
 # Metadata keys
 PROMPT_ID = "prompt_id"
 TRAJECTORY_ID = "trajectory_id"
+TEMPERATURE = "temperature"
 
 PROMPT_MESSAGES = "prompt_messages"
 TRAJECTORY_MESSAGES = "trajectory_messages"

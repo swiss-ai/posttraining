@@ -20,6 +20,8 @@ from batch.training_candidates import OfflineSelector, build_training_candidates
 from data.schemas import PromptRecord
 from verl_adapters.engine_worker import QRPOEngineActorRolloutRefWorker
 from verl_adapters.rollout import (
+    attach_online_rollout_train_metadata,
+    extract_online_rollout_train_metadata,
     online_rollout_output_to_train_dataproto,
     online_rollout_requests_to_dataproto,
 )
@@ -113,13 +115,21 @@ class QRPOTrainer(RayPPOTrainer):
             train_batch,
             config=self.config.qrpo,
         )
+        qrpo_batch_metrics = self._compute_qrpo_batch_metrics(train_batch)
+
+        if getattr(self, "ref_in_actor", False):
+            self._ensure_actor_model_on_device()
 
         ref_log_prob = self._compute_ref_log_prob(train_batch)
         train_batch = train_batch.union(ref_log_prob)
 
         self._check_ref_log_prob_shape(train_batch)
 
-        return self._update_actor(train_batch)
+        self._ensure_actor_model_on_device()
+        actor_output = self._update_actor(train_batch)
+        if qrpo_batch_metrics:
+            actor_output.meta_info.setdefault("metrics", {}).update(qrpo_batch_metrics)
+        return actor_output
 
     def run_qrpo_iteration(
         self,
@@ -150,6 +160,7 @@ class QRPOTrainer(RayPPOTrainer):
         updates. Those belong to fit().
         """
         online_reward_metrics: dict[str, float] = {}
+        rollout_temperature = self._resolve_rollout_temperature()
 
         if actor_version is None:
             actor_version = getattr(self, "global_steps", 0)
@@ -173,6 +184,8 @@ class QRPOTrainer(RayPPOTrainer):
                 offline_tokenization_config = (
                     _select(self.config, "offline_tokenization", default={}) or {}
                 )
+            offline_tokenization_config = dict(offline_tokenization_config)
+            offline_tokenization_config.setdefault(K.TEMPERATURE, rollout_temperature)
 
             offline_train_batch = offline_candidates_to_dataproto(
                 candidates=offline_candidates,
@@ -200,18 +213,27 @@ class QRPOTrainer(RayPPOTrainer):
                 config=online_rollout_config,
                 meta_info=meta_info,
             )
+            online_train_metadata = extract_online_rollout_train_metadata(
+                online_rollout_input
+            )
 
             rollout_output = self.async_rollout_manager.generate_sequences(
                 online_rollout_input
             )
+            self._sleep_rollout_replicas_after_generation()
+            attach_online_rollout_train_metadata(
+                rollout_output=rollout_output,
+                metadata=online_train_metadata,
+            )
 
             online_rewards, online_reward_metrics = (
-                self._compute_online_rewards_with_reward_loop(rollout_output)
+                self._compute_online_rewards_from_rollout_output(rollout_output)
             )
 
             online_train_batch = online_rollout_output_to_train_dataproto(
                 rollout_output=rollout_output,
                 rewards=online_rewards,
+                temperature=rollout_temperature,
                 meta_info=meta_info,
             )
             train_batches.append(online_train_batch)
@@ -375,36 +397,29 @@ class QRPOTrainer(RayPPOTrainer):
                     progress_bar.close()
                     return
 
-    def _compute_online_rewards_with_reward_loop(
+    def _compute_online_rewards_from_rollout_output(
             self,
             rollout_output: DataProto,
     ) -> tuple[torch.Tensor, dict[str, float]]:
-        """Compute sequence-level online rewards using VERL RewardLoop."""
+        """Compute sequence-level online rewards from AgentLoop rollout output."""
 
         if rollout_output.batch is None:
             raise ValueError("rollout_output.batch is required.")
 
-        reward_loop_manager = getattr(self, "reward_loop_manager", None)
-        if reward_loop_manager is None:
-            raise RuntimeError(
-                "QRPO online training requires self.reward_loop_manager. "
-                "Make sure trainer.init_workers() was called before trainer.fit()."
-            )
-
-        reward_output = reward_loop_manager.compute_rm_score(rollout_output)
-
-        if reward_output.batch is None or "rm_scores" not in reward_output.batch:
+        if "rm_scores" not in rollout_output.batch:
             raise KeyError(
-                "VERL RewardLoopManager.compute_rm_score(...) did not return "
-                "batch['rm_scores']."
+                "QRPO online training requires rollout_output.batch['rm_scores'] "
+                "from AgentLoop reward computation. Make sure reward is computed "
+                "during rollout, e.g. by configuring reward.num_workers > 0 and "
+                "reward.custom_reward_function."
             )
 
-        rm_scores = reward_output.batch["rm_scores"].float()
+        rm_scores = rollout_output.batch["rm_scores"].float()
 
         responses = rollout_output.batch[K.RESPONSES]
         if rm_scores.shape != responses.shape:
             raise ValueError(
-                f"RewardLoop rm_scores shape {tuple(rm_scores.shape)} does not match "
+                f"AgentLoop rm_scores shape {tuple(rm_scores.shape)} does not match "
                 f"responses shape {tuple(responses.shape)}."
             )
 
@@ -422,12 +437,12 @@ class QRPOTrainer(RayPPOTrainer):
             "reward/online_max": float(rewards.max().item()),
         }
 
-        reward_extra_keys = reward_output.meta_info.get("reward_extra_keys", [])
+        reward_extra_keys = (rollout_output.meta_info or {}).get("reward_extra_keys", [])
         for key in reward_extra_keys:
-            if key not in reward_output.non_tensor_batch:
+            if key not in rollout_output.non_tensor_batch:
                 continue
 
-            values = reward_output.non_tensor_batch[key]
+            values = rollout_output.non_tensor_batch[key]
             try:
                 numeric_values = torch.tensor(
                     [float(x) for x in values],
@@ -469,6 +484,98 @@ class QRPOTrainer(RayPPOTrainer):
             )
 
         return int(tokenizer_pad_token_id)
+
+    def _resolve_rollout_temperature(self) -> float:
+        value = _select(
+            self.config,
+            "actor_rollout_ref.rollout.temperature",
+            default=1.0,
+        )
+        return float(value)
+
+    def _sleep_rollout_replicas_after_generation(self) -> None:
+        checkpoint_manager = getattr(self, "checkpoint_manager", None)
+        if checkpoint_manager is None:
+            return
+
+        sleep_replicas = getattr(checkpoint_manager, "sleep_replicas", None)
+        if sleep_replicas is None:
+            return
+
+        sleep_replicas()
+
+    def _ensure_actor_model_on_device(self) -> None:
+        actor_rollout_wg = getattr(self, "actor_rollout_wg", None)
+        if actor_rollout_wg is None:
+            return
+
+        to_device = getattr(actor_rollout_wg, "to", None)
+        if to_device is None:
+            return
+
+        # VERL 0.7.1's naive rollout weight sync offloads the actor model to
+        # CPU even when actor.fsdp_config.param_offload=false. The engine context
+        # only auto-loads it back when param offload is enabled, so QRPO must
+        # restore the model before entering the actor update.
+        to_device("device", model=True, optimizer=False, grad=False)
+
+    @staticmethod
+    def _compute_qrpo_batch_metrics(batch: DataProto) -> dict[str, float]:
+        if batch.batch is None:
+            return {}
+
+        metrics: dict[str, float] = {}
+        metric_keys = (
+            (K.TRAJECTORY_REWARD, "trajectory_reward"),
+            (K.REF_QUANTILE, "ref_quantile"),
+            (K.TRANSFORMED_REWARD, "transformed_reward"),
+            (K.TRAJECTORY_LENGTH, "trajectory_length"),
+            (K.EFFECTIVE_BETA, "effective_beta"),
+            (K.BETA_LOG_PARTITION, "beta_log_partition"),
+        )
+
+        groups: list[tuple[str, list[int] | None]] = [("all", None)]
+        sources = batch.non_tensor_batch.get(K.SOURCE)
+        if sources is not None:
+            for source in (K.SOURCE_ONLINE, K.SOURCE_OFFLINE):
+                indices = [
+                    i
+                    for i, value in enumerate(sources)
+                    if str(value) == source
+                ]
+                if indices:
+                    groups.append((source, indices))
+
+        for group_name, indices in groups:
+            for key, metric_name in metric_keys:
+                if key not in batch.batch:
+                    continue
+
+                values = batch.batch[key].detach().float()
+                if values.ndim != 1:
+                    continue
+
+                if indices is not None:
+                    index = torch.tensor(indices, device=values.device)
+                    values = values.index_select(0, index)
+
+                if values.numel() == 0:
+                    continue
+
+                prefix = f"qrpo/{group_name}/{metric_name}"
+                metrics[f"{prefix}_mean"] = float(values.mean().item())
+                metrics[f"{prefix}_min"] = float(values.min().item())
+                metrics[f"{prefix}_max"] = float(values.max().item())
+
+                if key == K.REF_QUANTILE:
+                    metrics[f"{prefix}_at_zero_frac"] = float(
+                        (values <= 0.0).float().mean().item()
+                    )
+                    metrics[f"{prefix}_at_one_frac"] = float(
+                        (values >= 1.0).float().mean().item()
+                    )
+
+        return metrics
 
     @staticmethod
     def _check_qrpo_train_batch_has_required_keys(batch: DataProto) -> None:
@@ -643,7 +750,8 @@ def validate_qrpo_trainer_config(config: Any) -> None:
         reward_num_workers = int(_select(config, "reward.num_workers", default=0))
         if reward_num_workers <= 0:
             raise ValueError(
-                "Online QRPO requires reward.num_workers > 0 for VERL RewardLoop."
+                "Online QRPO requires reward.num_workers > 0 so AgentLoop "
+                "computes reward during rollout."
             )
 
         reward_path = _select(config, "reward.custom_reward_function.path", default=None)
@@ -694,7 +802,6 @@ def _select(config: Any, path: str, *, default: Any) -> Any:
             return default
 
     return cur
-
 
 def _to_plain_container(value: Any) -> Any:
     if isinstance(value, DictConfig):

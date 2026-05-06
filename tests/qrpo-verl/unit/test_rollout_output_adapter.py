@@ -90,6 +90,7 @@ def test_online_rollout_output_to_train_dataproto_builds_qrpo_training_batch() -
     data = online_rollout_output_to_train_dataproto(
         rollout_output=rollout,
         rewards=rewards,
+        temperature=0.7,
     )
 
     assert len(data) == 2
@@ -124,6 +125,7 @@ def test_online_rollout_output_to_train_dataproto_builds_qrpo_training_batch() -
     assert data.non_tensor_batch[K.SOURCE].tolist() == ["online", "online"]
 
     assert data.meta_info["qrpo_batch_format"] == "verl_prompt_response"
+    assert data.meta_info[K.TEMPERATURE] == pytest.approx(0.7)
     assert "source" not in data.meta_info
     assert data.non_tensor_batch[K.SOURCE].tolist() == [K.SOURCE_ONLINE] * len(data)
 
@@ -173,12 +175,26 @@ def test_online_rollout_output_to_train_dataproto_merges_meta_info() -> None:
     data = online_rollout_output_to_train_dataproto(
         rollout_output=rollout,
         rewards=rewards,
+        temperature=0.7,
         meta_info={"global_steps": 9},
     )
 
     assert data.meta_info["global_steps"] == 9
+    assert data.meta_info[K.TEMPERATURE] == pytest.approx(0.7)
     assert "source" not in data.meta_info
     assert data.non_tensor_batch[K.SOURCE].tolist() == [K.SOURCE_ONLINE] * len(data)
+
+
+def test_online_rollout_output_to_train_dataproto_falls_back_to_rollout_temperature() -> None:
+    rollout = make_rollout_output()
+    rollout.meta_info["temperature"] = 0.3
+
+    data = online_rollout_output_to_train_dataproto(
+        rollout_output=rollout,
+        rewards=torch.tensor([1.0, 2.0], dtype=torch.float32),
+    )
+
+    assert data.meta_info[K.TEMPERATURE] == pytest.approx(0.3)
 
 
 def test_online_rollout_output_to_train_dataproto_rejects_wrong_reward_shape() -> None:

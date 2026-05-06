@@ -9,6 +9,12 @@ from verl.protocol import DataProto
 from batch import keys as K
 from batch.candidate_plan import OnlineRolloutRequest
 
+_ONLINE_ROLLOUT_TRAIN_METADATA_KEYS = (
+    K.PROMPT_ID,
+    K.TRAJECTORY_ID,
+    K.REF_REWARDS,
+)
+
 
 def online_rollout_requests_to_dataproto(
     *,
@@ -25,7 +31,7 @@ def online_rollout_requests_to_dataproto(
     data_source = config.get("data_source")
     if not data_source:
         raise ValueError(
-            "online_rollout.data_source is required for VERL RewardLoop rewards."
+            "online_rollout.data_source is required for online reward computation."
         )
 
     raw_prompt = np.empty(len(requests), dtype=object)
@@ -86,10 +92,87 @@ def online_rollout_requests_to_dataproto(
     )
 
 
+def extract_online_rollout_train_metadata(
+    request_batch: DataProto,
+) -> dict[str, np.ndarray]:
+    """Extract request metadata that must survive into QRPO training.
+
+    When VERL AgentLoop computes reward during rollout, it does not preserve the
+    original request non-tensor batch on its output. QRPO still needs a narrow
+    set of per-sample identifiers to build the online train batch.
+    """
+
+    missing_keys = [
+        key for key in _ONLINE_ROLLOUT_TRAIN_METADATA_KEYS
+        if key not in request_batch.non_tensor_batch
+    ]
+    if missing_keys:
+        raise KeyError(
+            "online rollout request batch is missing required QRPO training "
+            f"metadata keys: {missing_keys}."
+        )
+
+    return {
+        key: request_batch.non_tensor_batch[key]
+        for key in _ONLINE_ROLLOUT_TRAIN_METADATA_KEYS
+    }
+
+
+def attach_online_rollout_train_metadata(
+    *,
+    rollout_output: DataProto,
+    metadata: Mapping[str, np.ndarray],
+) -> DataProto:
+    """Attach QRPO training metadata to rollout output in-place."""
+
+    if rollout_output.batch is None:
+        raise ValueError("rollout_output.batch is required.")
+
+    batch_size = len(rollout_output)
+    output_non_tensors = rollout_output.non_tensor_batch
+
+    missing_keys = [
+        key for key in _ONLINE_ROLLOUT_TRAIN_METADATA_KEYS
+        if key not in metadata
+    ]
+    if missing_keys:
+        raise KeyError(
+            "online rollout training metadata is missing required keys: "
+            f"{missing_keys}."
+        )
+
+    for key in _ONLINE_ROLLOUT_TRAIN_METADATA_KEYS:
+        values = metadata[key]
+        if len(values) != batch_size:
+            raise ValueError(
+                f"online rollout training metadata[{key!r}] has length "
+                f"{len(values)}, expected {batch_size}."
+            )
+
+        if key not in output_non_tensors:
+            output_non_tensors[key] = values
+            continue
+
+        existing = output_non_tensors[key]
+        if len(existing) != batch_size:
+            raise ValueError(
+                f"rollout_output.non_tensor_batch[{key!r}] has length "
+                f"{len(existing)}, expected {batch_size}."
+            )
+        if existing.tolist() != values.tolist():
+            raise ValueError(
+                f"rollout_output.non_tensor_batch[{key!r}] does not match the "
+                "corresponding online rollout request metadata."
+            )
+
+    return rollout_output
+
+
 def online_rollout_output_to_train_dataproto(
     *,
     rollout_output: DataProto,
     rewards: torch.Tensor,
+    temperature: float | None = None,
     meta_info: dict[str, Any] | None = None,
 ) -> DataProto:
     """Convert VERL AgentLoop output to QRPO online training DataProto.
@@ -205,9 +288,15 @@ def online_rollout_output_to_train_dataproto(
         "qrpo_batch_format": "verl_prompt_response",
     }
 
-    # Prefer explicit meta_info passed by the trainer, then rollout_output.meta_info
-    if rollout_output.meta_info is not None and "temperature" in rollout_output.meta_info:
-        merged_meta_info["temperature"] = float(rollout_output.meta_info["temperature"])
+    if temperature is not None:
+        merged_meta_info[K.TEMPERATURE] = float(temperature)
+    elif (
+        rollout_output.meta_info is not None
+        and K.TEMPERATURE in rollout_output.meta_info
+    ):
+        merged_meta_info[K.TEMPERATURE] = float(
+            rollout_output.meta_info[K.TEMPERATURE]
+        )
 
     if meta_info is not None:
         merged_meta_info.update(meta_info)

@@ -273,6 +273,7 @@ def test_offline_candidates_to_dataproto_returns_verl_prompt_response_batch() ->
     assert data.non_tensor_batch[K.SOURCE].tolist() == ["offline", "offline"]
 
     assert data.meta_info["qrpo_batch_format"] == "verl_prompt_response"
+    assert data.meta_info[K.TEMPERATURE] == pytest.approx(1.0)
     assert "source" not in data.meta_info
 
     assert data.non_tensor_batch[K.SOURCE].tolist() == [K.SOURCE_OFFLINE] * len(data)

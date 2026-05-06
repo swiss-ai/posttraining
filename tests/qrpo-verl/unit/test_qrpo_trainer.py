@@ -40,9 +40,13 @@ class FakeLogger:
 class FakeCheckpointManager:
     def __init__(self) -> None:
         self.updated_steps = []
+        self.sleep_calls = 0
 
     def update_weights(self, step):
         self.updated_steps.append(step)
+
+    def sleep_replicas(self):
+        self.sleep_calls += 1
 
 
 class FakeSourceScheduler:
@@ -56,7 +60,18 @@ class FakeSourceScheduler:
 
 
 class FakeActorRolloutWG:
-    pass
+    def __init__(self) -> None:
+        self.to_calls = []
+
+    def to(self, device, *, model=True, optimizer=True, grad=True):
+        self.to_calls.append(
+            {
+                "device": device,
+                "model": model,
+                "optimizer": optimizer,
+                "grad": grad,
+            }
+        )
 
 
 def make_config(**overrides):
@@ -123,6 +138,7 @@ def make_qrpo_batch(
     prompt_len: int = 2,
     response_len: int = 3,
     source: str = "offline",
+    temperature: float = 0.7,
 ) -> DataProto:
     prompts = (
         torch.arange(2 * prompt_len, dtype=torch.long).reshape(2, prompt_len)
@@ -179,6 +195,9 @@ def make_qrpo_batch(
                 dtype=object,
             ),
             K.SOURCE: np.asarray([source] * 2, dtype=object),
+        },
+        meta_info={
+            K.TEMPERATURE: temperature,
         },
     )
 
@@ -277,6 +296,7 @@ def test_build_qrpo_resource_pool_mapping() -> None:
 
 def test_qrpo_update_step_concatenates_adds_fields_ref_logprob_and_updates() -> None:
     trainer = make_trainer_for_unit_test()
+    trainer.actor_rollout_wg = FakeActorRolloutWG()
 
     offline = make_qrpo_batch(
         prefix=0,
@@ -343,7 +363,21 @@ def test_qrpo_update_step_concatenates_adds_fields_ref_logprob_and_updates() -> 
         "compute_ref_log_prob": 1,
         "update_actor": 1,
     }
+    assert trainer.actor_rollout_wg.to_calls == [
+        {
+            "device": "device",
+            "model": True,
+            "optimizer": False,
+            "grad": False,
+        }
+    ]
     assert out.meta_info["metrics"]["actor/qrpo_loss"] == 0.123
+    assert out.meta_info["metrics"]["qrpo/all/trajectory_reward_mean"] == pytest.approx(2.0)
+    assert out.meta_info["metrics"]["qrpo/all/ref_quantile_mean"] == pytest.approx(0.5)
+    assert out.meta_info["metrics"]["qrpo/all/ref_quantile_at_zero_frac"] == pytest.approx(0.5)
+    assert out.meta_info["metrics"]["qrpo/all/ref_quantile_at_one_frac"] == pytest.approx(0.5)
+    assert out.meta_info["metrics"]["qrpo/offline/ref_quantile_mean"] == pytest.approx(0.5)
+    assert out.meta_info["metrics"]["qrpo/online/ref_quantile_mean"] == pytest.approx(0.5)
 
 
 def test_qrpo_update_step_uses_tokenizer_pad_token_id_for_single_batch() -> None:
@@ -433,8 +467,16 @@ def test_run_qrpo_iteration_builds_mixed_batch_and_updates(monkeypatch) -> None:
     online_request = object()
 
     offline_train_batch = make_qrpo_batch(prefix=0, prompt_len=2, response_len=3)
-    online_rollout_input = DataProto(meta_info={"kind": "online_rollout_input"})
-    rollout_output = DataProto(meta_info={"kind": "rollout_output"})
+    online_rollout_input = _rollout_input_for_training_metadata()
+    rollout_output = _agent_loop_rollout_output_without_train_metadata()
+    rollout_output.batch["rm_scores"] = torch.tensor(
+        [
+            [0.0, 1.0, 0.0],
+            [0.0, 2.0, 0.0],
+        ],
+        dtype=torch.float32,
+    )
+    rollout_output.meta_info["kind"] = "rollout_output"
     online_train_batch = make_qrpo_batch(prefix=1000, prompt_len=4, response_len=5)
 
     calls = {
@@ -442,7 +484,7 @@ def test_run_qrpo_iteration_builds_mixed_batch_and_updates(monkeypatch) -> None:
         "offline_to_dataproto": 0,
         "online_requests_to_dataproto": 0,
         "generate_sequences": 0,
-        "reward_loop": 0,
+        "online_rewards": 0,
         "online_output_to_train": 0,
         "qrpo_update": 0,
     }
@@ -468,7 +510,10 @@ def test_run_qrpo_iteration_builds_mixed_batch_and_updates(monkeypatch) -> None:
         calls["offline_to_dataproto"] += 1
         assert candidates == [offline_candidate]
         assert tokenizer is trainer.tokenizer
-        assert config == {"require_assistant_mask": False}
+        assert config == {
+            "require_assistant_mask": False,
+            K.TEMPERATURE: 0.7,
+        }
         assert meta_info == {"global_steps": 12}
         return offline_train_batch
 
@@ -493,8 +538,8 @@ def test_run_qrpo_iteration_builds_mixed_batch_and_updates(monkeypatch) -> None:
             assert batch is online_rollout_input
             return rollout_output
 
-    def fake_compute_online_rewards_with_reward_loop(self, batch):
-        calls["reward_loop"] += 1
+    def fake_compute_online_rewards_from_rollout_output(self, batch):
+        calls["online_rewards"] += 1
         assert batch is rollout_output
         return (
             torch.tensor([1.0, 2.0], dtype=torch.float32),
@@ -509,11 +554,13 @@ def test_run_qrpo_iteration_builds_mixed_batch_and_updates(monkeypatch) -> None:
         *,
         rollout_output,
         rewards,
+        temperature,
         meta_info,
     ):
         calls["online_output_to_train"] += 1
         assert rollout_output.meta_info["kind"] == "rollout_output"
         assert torch.equal(rewards, torch.tensor([1.0, 2.0]))
+        assert temperature == pytest.approx(0.7)
         assert meta_info == {"global_steps": 12}
         return online_train_batch
 
@@ -550,8 +597,8 @@ def test_run_qrpo_iteration_builds_mixed_batch_and_updates(monkeypatch) -> None:
     )
 
     trainer.async_rollout_manager = FakeAsyncRolloutManager()
-    trainer._compute_online_rewards_with_reward_loop = MethodType(
-        fake_compute_online_rewards_with_reward_loop,
+    trainer._compute_online_rewards_from_rollout_output = MethodType(
+        fake_compute_online_rewards_from_rollout_output,
         trainer,
     )
     trainer.qrpo_update_step = MethodType(fake_qrpo_update_step, trainer)
@@ -573,7 +620,7 @@ def test_run_qrpo_iteration_builds_mixed_batch_and_updates(monkeypatch) -> None:
         "offline_to_dataproto": 1,
         "online_requests_to_dataproto": 1,
         "generate_sequences": 1,
-        "reward_loop": 1,
+        "online_rewards": 1,
         "online_output_to_train": 1,
         "qrpo_update": 1,
     }
@@ -644,14 +691,22 @@ def test_run_qrpo_iteration_supports_online_only(monkeypatch) -> None:
 
     trainer = make_trainer_for_unit_test()
 
-    online_rollout_input = DataProto(meta_info={"kind": "online_rollout_input"})
-    rollout_output = DataProto(meta_info={"kind": "rollout_output"})
+    online_rollout_input = _rollout_input_for_training_metadata()
+    rollout_output = _agent_loop_rollout_output_without_train_metadata()
+    rollout_output.batch["rm_scores"] = torch.tensor(
+        [
+            [0.0, 1.0, 0.0],
+            [0.0, 2.0, 0.0],
+        ],
+        dtype=torch.float32,
+    )
+    rollout_output.meta_info["kind"] = "rollout_output"
     online_train_batch = make_qrpo_batch(prefix=1000, prompt_len=4, response_len=5)
 
     calls = {
         "online_requests_to_dataproto": 0,
         "generate_sequences": 0,
-        "reward_loop": 0,
+        "online_rewards": 0,
         "online_output_to_train": 0,
         "qrpo_update": 0,
     }
@@ -681,8 +736,8 @@ def test_run_qrpo_iteration_supports_online_only(monkeypatch) -> None:
             assert batch is online_rollout_input
             return rollout_output
 
-    def fake_compute_online_rewards_with_reward_loop(self, batch):
-        calls["reward_loop"] += 1
+    def fake_compute_online_rewards_from_rollout_output(self, batch):
+        calls["online_rewards"] += 1
         assert batch is rollout_output
         return (
             torch.tensor([1.0, 2.0], dtype=torch.float32),
@@ -697,11 +752,13 @@ def test_run_qrpo_iteration_supports_online_only(monkeypatch) -> None:
         *,
         rollout_output,
         rewards,
+        temperature,
         meta_info,
     ):
         calls["online_output_to_train"] += 1
         assert rollout_output.meta_info["kind"] == "rollout_output"
         assert torch.equal(rewards, torch.tensor([1.0, 2.0]))
+        assert temperature == pytest.approx(0.7)
         return online_train_batch
 
     def fake_qrpo_update_step(self, batches, *, pad_token_id=None, meta_info=None):
@@ -724,8 +781,8 @@ def test_run_qrpo_iteration_supports_online_only(monkeypatch) -> None:
     )
 
     trainer.async_rollout_manager = FakeAsyncRolloutManager()
-    trainer._compute_online_rewards_with_reward_loop = MethodType(
-        fake_compute_online_rewards_with_reward_loop,
+    trainer._compute_online_rewards_from_rollout_output = MethodType(
+        fake_compute_online_rewards_from_rollout_output,
         trainer,
     )
     trainer.qrpo_update_step = MethodType(fake_qrpo_update_step, trainer)
@@ -743,7 +800,7 @@ def test_run_qrpo_iteration_supports_online_only(monkeypatch) -> None:
     assert calls == {
         "online_requests_to_dataproto": 1,
         "generate_sequences": 1,
-        "reward_loop": 1,
+        "online_rewards": 1,
         "online_output_to_train": 1,
         "qrpo_update": 1,
     }
@@ -769,14 +826,13 @@ def test_run_qrpo_iteration_requires_online_rollout_config_when_online_exists(mo
         )
 
 
-def test_run_qrpo_iteration_requires_reward_loop_manager_when_online_exists(monkeypatch) -> None:
+def test_run_qrpo_iteration_requires_agent_loop_rm_scores_when_online_exists(monkeypatch) -> None:
     from trainers import qrpo_trainer as qrpo_trainer_module
 
     trainer = make_trainer_for_unit_test()
-    trainer.reward_loop_manager = None
 
-    online_rollout_input = DataProto(meta_info={"kind": "online_rollout_input"})
-    rollout_output = _rollout_output_for_reward_loop()
+    online_rollout_input = _rollout_input_for_training_metadata()
+    rollout_output = _agent_loop_rollout_output_without_train_metadata()
 
     monkeypatch.setattr(
         qrpo_trainer_module,
@@ -796,7 +852,7 @@ def test_run_qrpo_iteration_requires_reward_loop_manager_when_online_exists(monk
 
     trainer.async_rollout_manager = FakeAsyncRolloutManager()
 
-    with pytest.raises(RuntimeError, match="reward_loop_manager"):
+    with pytest.raises(KeyError, match="rm_scores"):
         trainer.run_qrpo_iteration(
             prompt_records=[object()],
             source_counts=[object()],
@@ -994,40 +1050,44 @@ def _minimal_qrpo_config(
     reward_num_workers: int = 0,
     reward_path=None,
     reward_name="compute_score",
+    train_batch_size: int | None = None,
 ):
-    return OmegaConf.create(
-        {
-            "trainer": {
-                "use_legacy_worker_impl": "disable",
+    cfg = {
+        "trainer": {
+            "use_legacy_worker_impl": "disable",
+        },
+        "actor_rollout_ref": {
+            "hybrid_engine": True,
+            "actor": {
+                "strategy": "fsdp",
+                "use_kl_loss": False,
             },
-            "actor_rollout_ref": {
-                "hybrid_engine": True,
-                "actor": {
-                    "strategy": "fsdp",
-                    "use_kl_loss": False,
-                },
+        },
+        "algorithm": {
+            "use_kl_in_reward": False,
+        },
+        "source_schedule": {
+            "n_online": n_online,
+            "n_offline": 1,
+        },
+        "reward": {
+            "num_workers": reward_num_workers,
+            "custom_reward_function": {
+                "path": reward_path,
+                "name": reward_name,
             },
-            "algorithm": {
-                "use_kl_in_reward": False,
-            },
-            "source_schedule": {
-                "n_online": n_online,
-                "n_offline": 1,
-            },
-            "reward": {
-                "num_workers": reward_num_workers,
-                "custom_reward_function": {
-                    "path": reward_path,
-                    "name": reward_name,
-                },
-            },
-            "qrpo": {
-                "beta": 6.0,
-                "transform": "identity",
-                "length_normalization": True,
-            },
-        }
-    )
+        },
+        "qrpo": {
+            "beta": 6.0,
+            "transform": "identity",
+            "length_normalization": True,
+        },
+    }
+
+    if train_batch_size is not None:
+        cfg["data"] = {"train_batch_size": train_batch_size}
+
+    return OmegaConf.create(cfg)
 
 
 def _rollout_output_for_reward_loop() -> DataProto:
@@ -1083,41 +1143,56 @@ def _rollout_output_for_reward_loop() -> DataProto:
     )
 
 
-class _FakeRewardLoopManager:
-    def __init__(self, reward_output: DataProto) -> None:
-        self.reward_output = reward_output
-        self.calls = []
-
-    def compute_rm_score(self, rollout_output: DataProto) -> DataProto:
-        self.calls.append(rollout_output)
-        return self.reward_output
-
-
-def test_compute_online_rewards_with_reward_loop_sums_rm_scores():
-    rollout_output = _rollout_output_for_reward_loop()
-
-    reward_output = DataProto.from_dict(
+def _agent_loop_rollout_output_without_train_metadata() -> DataProto:
+    base = _rollout_output_for_reward_loop()
+    return DataProto.from_dict(
         tensors={
-            "rm_scores": torch.tensor(
-                [
-                    [0.0, 0.0, 3.0],
-                    [0.0, 2.0, 0.0],
-                ],
-                dtype=torch.float32,
-            )
+            K.PROMPTS: base.batch[K.PROMPTS],
+            K.RESPONSES: base.batch[K.RESPONSES],
+            K.RESPONSE_MASK: base.batch[K.RESPONSE_MASK],
+            K.INPUT_IDS: base.batch[K.INPUT_IDS],
+            K.ATTENTION_MASK: base.batch[K.ATTENTION_MASK],
+            K.POSITION_IDS: base.batch[K.POSITION_IDS],
         },
-        non_tensors={
-            "reward/helpfulness_score": np.asarray([4.0, 2.0], dtype=object),
-        },
-        meta_info={
-            "reward_extra_keys": ["reward/helpfulness_score"],
-        },
+        non_tensors={},
+        meta_info=dict(base.meta_info),
     )
 
-    trainer = QRPOTrainer.__new__(QRPOTrainer)
-    trainer.reward_loop_manager = _FakeRewardLoopManager(reward_output)
 
-    rewards, metrics = trainer._compute_online_rewards_with_reward_loop(rollout_output)
+def _rollout_input_for_training_metadata() -> DataProto:
+    ref_rewards = np.empty(2, dtype=object)
+    ref_rewards[:] = [(0.1, 0.2), (0.3, 0.4)]
+
+    return DataProto(
+        non_tensor_batch={
+            K.PROMPT_ID: np.asarray(["prompt-0", "prompt-1"], dtype=object),
+            K.TRAJECTORY_ID: np.asarray(["traj-0", "traj-1"], dtype=object),
+            K.REF_REWARDS: ref_rewards,
+        },
+        meta_info={"kind": "online_rollout_input"},
+    )
+
+
+def test_compute_online_rewards_from_rollout_output_sums_rm_scores():
+    rollout_output = _agent_loop_rollout_output_without_train_metadata()
+    rollout_output.batch["rm_scores"] = torch.tensor(
+        [
+            [0.0, 0.0, 3.0],
+            [0.0, 2.0, 0.0],
+        ],
+        dtype=torch.float32,
+    )
+    rollout_output.non_tensor_batch["reward/helpfulness_score"] = np.asarray(
+        [4.0, 2.0],
+        dtype=object,
+    )
+    rollout_output.meta_info["reward_extra_keys"] = ["reward/helpfulness_score"]
+
+    trainer = QRPOTrainer.__new__(QRPOTrainer)
+
+    rewards, metrics = trainer._compute_online_rewards_from_rollout_output(
+        rollout_output
+    )
 
     assert torch.allclose(rewards, torch.tensor([3.0, 2.0]))
     assert metrics["reward/online_mean"] == pytest.approx(2.5)
@@ -1125,61 +1200,34 @@ def test_compute_online_rewards_with_reward_loop_sums_rm_scores():
     assert metrics["reward/online_max"] == pytest.approx(3.0)
     assert metrics["reward/helpfulness_score/mean"] == pytest.approx(3.0)
 
-    assert trainer.reward_loop_manager.calls == [rollout_output]
 
-
-def test_compute_online_rewards_with_reward_loop_requires_rm_scores():
+def test_compute_online_rewards_from_rollout_output_requires_rm_scores():
     rollout_output = _rollout_output_for_reward_loop()
-
-    reward_output = DataProto.from_dict(
-        tensors={
-            "wrong_key": torch.zeros(2, 3),
-        },
-        non_tensors={},
-        meta_info={},
-    )
-
     trainer = QRPOTrainer.__new__(QRPOTrainer)
-    trainer.reward_loop_manager = _FakeRewardLoopManager(reward_output)
 
     with pytest.raises(KeyError, match="rm_scores"):
-        trainer._compute_online_rewards_with_reward_loop(rollout_output)
+        trainer._compute_online_rewards_from_rollout_output(rollout_output)
 
 
-def test_compute_online_rewards_with_reward_loop_rejects_bad_rm_score_shape():
+def test_compute_online_rewards_from_rollout_output_rejects_bad_rm_score_shape():
     rollout_output = _rollout_output_for_reward_loop()
-
-    reward_output = DataProto.from_dict(
-        tensors={
-            "rm_scores": torch.zeros(2, 2),
-        },
-        non_tensors={},
-        meta_info={},
-    )
-
+    rollout_output.batch["rm_scores"] = torch.zeros(2, 2)
     trainer = QRPOTrainer.__new__(QRPOTrainer)
-    trainer.reward_loop_manager = _FakeRewardLoopManager(reward_output)
 
     with pytest.raises(ValueError, match="rm_scores shape"):
-        trainer._compute_online_rewards_with_reward_loop(rollout_output)
+        trainer._compute_online_rewards_from_rollout_output(rollout_output)
 
 
-def test_run_qrpo_iteration_uses_reward_loop_for_online_rewards():
-    rollout_output = _rollout_output_for_reward_loop()
-
-    reward_output = DataProto.from_dict(
-        tensors={
-            "rm_scores": torch.tensor(
-                [
-                    [0.0, 0.0, 3.0],
-                    [0.0, 2.0, 0.0],
-                ],
-                dtype=torch.float32,
-            )
-        },
-        non_tensors={},
-        meta_info={},
+def test_run_qrpo_iteration_uses_agent_loop_rewards_for_online_rewards():
+    rollout_output = _agent_loop_rollout_output_without_train_metadata()
+    rollout_output.batch["rm_scores"] = torch.tensor(
+        [
+            [0.0, 0.0, 3.0],
+            [0.0, 2.0, 0.0],
+        ],
+        dtype=torch.float32,
     )
+    rollout_output.meta_info["kind"] = "rollout_output"
 
     class FakeRolloutManager:
         def __init__(self):
@@ -1204,7 +1252,7 @@ def test_run_qrpo_iteration_uses_reward_loop_for_online_rewards():
         }
     )
     trainer.async_rollout_manager = FakeRolloutManager()
-    trainer.reward_loop_manager = _FakeRewardLoopManager(reward_output)
+    trainer.checkpoint_manager = FakeCheckpointManager()
 
     captured = {}
 
@@ -1248,6 +1296,7 @@ def test_run_qrpo_iteration_uses_reward_loop_for_online_rewards():
     )
 
     assert trainer.async_rollout_manager.inputs
+    assert trainer.checkpoint_manager.sleep_calls == 1
     rollout_input = trainer.async_rollout_manager.inputs[0]
     assert rollout_input.non_tensor_batch[K.DATA_SOURCE].tolist() == [
         "activeultrafeedback",
@@ -1311,6 +1360,23 @@ def test_validate_qrpo_config_allows_online_with_reward_loop(tmp_path):
         reward_num_workers=2,
         reward_path=str(reward_path),
         reward_name="compute_score",
+    )
+
+    validate_qrpo_trainer_config(config)
+
+
+def test_validate_qrpo_config_allows_streaming_reward_workers_without_batch_divisibility(
+    tmp_path,
+):
+    reward_path = tmp_path / "reward.py"
+    reward_path.write_text("async def compute_score(*args, **kwargs): return 1.0\n")
+
+    config = _minimal_qrpo_config(
+        n_online=1,
+        reward_num_workers=4,
+        reward_path=str(reward_path),
+        reward_name="compute_score",
+        train_batch_size=2,
     )
 
     validate_qrpo_trainer_config(config)

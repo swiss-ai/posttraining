@@ -1,12 +1,18 @@
 import numpy as np
 import pytest
+import torch
+from verl.protocol import DataProto
 
 from batch import keys as K
 from batch.candidate_plan import build_candidate_plan, OnlineRolloutRequest
 from batch.source_schedule import FixedCountsSourceScheduler
 from data.offline_selector import MinMaxRewardSelector
 from data.schemas import PromptRecord
-from verl_adapters.rollout import online_rollout_requests_to_dataproto
+from verl_adapters.rollout import (
+    attach_online_rollout_train_metadata,
+    extract_online_rollout_train_metadata,
+    online_rollout_requests_to_dataproto,
+)
 
 
 def trajectory(text: str):
@@ -287,3 +293,104 @@ def test_online_rollout_requests_preserve_multiple_requests_order():
         item["online_index"]
         for item in data.non_tensor_batch[K.EXTRA_INFO].tolist()
     ] == [0, 1, 0]
+
+
+def test_extract_online_rollout_train_metadata_keeps_only_qrpo_training_fields():
+    data = online_rollout_requests_to_dataproto(
+        requests=make_online_requests(),
+        config={"data_source": "activeultrafeedback"},
+    )
+
+    metadata = extract_online_rollout_train_metadata(data)
+
+    assert set(metadata) == {
+        K.PROMPT_ID,
+        K.TRAJECTORY_ID,
+        K.REF_REWARDS,
+    }
+    assert metadata[K.PROMPT_ID].tolist() == ["p0", "p0", "p1", "p1"]
+
+
+def test_attach_online_rollout_train_metadata_restores_missing_fields():
+    metadata_source = online_rollout_requests_to_dataproto(
+        requests=make_online_requests(),
+        config={"data_source": "activeultrafeedback"},
+    )
+    metadata = extract_online_rollout_train_metadata(metadata_source)
+
+    prompts = torch.tensor([[101, 102], [201, 202], [301, 302], [401, 402]])
+    responses = torch.tensor([[11, 12], [21, 22], [31, 32], [41, 42]])
+    response_mask = torch.ones_like(responses, dtype=torch.bool)
+    input_ids = torch.cat([prompts, responses], dim=-1)
+    attention_mask = torch.ones_like(input_ids)
+    position_ids = torch.arange(input_ids.shape[1]).repeat(input_ids.shape[0], 1)
+    rm_scores = torch.tensor(
+        [
+            [0.0, 1.0],
+            [0.0, 2.0],
+            [0.0, 3.0],
+            [0.0, 4.0],
+        ],
+        dtype=torch.float32,
+    )
+
+    rollout_output = DataProto.from_dict(
+        tensors={
+            K.PROMPTS: prompts,
+            K.RESPONSES: responses,
+            K.RESPONSE_MASK: response_mask,
+            K.INPUT_IDS: input_ids,
+            K.ATTENTION_MASK: attention_mask,
+            K.POSITION_IDS: position_ids,
+            "rm_scores": rm_scores,
+        },
+        non_tensors={},
+        meta_info={},
+    )
+
+    attach_online_rollout_train_metadata(
+        rollout_output=rollout_output,
+        metadata=metadata,
+    )
+
+    assert rollout_output.non_tensor_batch[K.PROMPT_ID].tolist() == [
+        "p0",
+        "p0",
+        "p1",
+        "p1",
+    ]
+    assert rollout_output.non_tensor_batch[K.TRAJECTORY_ID].tolist() == [
+        "p0::online::actor_10::0",
+        "p0::online::actor_10::1",
+        "p1::online::actor_10::0",
+        "p1::online::actor_10::1",
+    ]
+    assert rollout_output.non_tensor_batch[K.REF_REWARDS][0] == (0.1, 0.2, 0.3)
+
+
+def test_attach_online_rollout_train_metadata_rejects_length_mismatch():
+    rollout_output = DataProto.from_dict(
+        tensors={
+            K.PROMPTS: torch.tensor([[101], [201]]),
+            K.RESPONSES: torch.tensor([[11], [21]]),
+            K.RESPONSE_MASK: torch.ones(2, 1, dtype=torch.bool),
+            K.INPUT_IDS: torch.tensor([[101, 11], [201, 21]]),
+            K.ATTENTION_MASK: torch.ones(2, 2, dtype=torch.long),
+            K.POSITION_IDS: torch.tensor([[0, 1], [0, 1]]),
+            "rm_scores": torch.tensor([[1.0], [2.0]], dtype=torch.float32),
+        },
+        non_tensors={},
+        meta_info={},
+    )
+
+    metadata = {
+        K.PROMPT_ID: np.asarray(["p0"], dtype=object),
+        K.TRAJECTORY_ID: np.asarray(["t0"], dtype=object),
+        K.REF_REWARDS: np.asarray([(0.1, 0.2)], dtype=object),
+    }
+
+    with pytest.raises(ValueError, match="expected 2"):
+        attach_online_rollout_train_metadata(
+            rollout_output=rollout_output,
+            metadata=metadata,
+        )
