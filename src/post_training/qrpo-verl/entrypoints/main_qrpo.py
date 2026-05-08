@@ -21,6 +21,7 @@ from verl.utils.fs import copy_to_local
 from batch.source_schedule import FixedCountsSourceScheduler
 from data.dataset_adapter import load_hf_dataset_from_config, rows_to_prompt_records
 from data.offline_selector import build_offline_selector
+from ref_rewards import RefRewardStore
 from trainers.qrpo_trainer import (
     GLOBAL_POOL_ID,
     QRPOTrainer,
@@ -85,7 +86,7 @@ def run_qrpo(config: DictConfig) -> None:
 
     collate_fn = partial(
         _collate_prompt_records,
-        dataset_config=OmegaConf.to_container(config.data, resolve=True),
+        dataset_config=_training_dataset_config(config),
     )
 
     train_sampler = _build_train_sampler(config, train_dataset)
@@ -106,6 +107,11 @@ def run_qrpo(config: DictConfig) -> None:
         OmegaConf.to_container(config.offline_selector, resolve=True)
     )
 
+    ref_reward_store, ref_version = _prepare_ref_reward_store(
+        config=config,
+        train_dataset=train_dataset,
+    )
+
     trainer = QRPOTrainer(
         config=config,
         tokenizer=tokenizer,
@@ -119,6 +125,8 @@ def run_qrpo(config: DictConfig) -> None:
         train_sampler=train_sampler,
         source_scheduler=source_scheduler,
         offline_selector=offline_selector,
+        ref_reward_store=ref_reward_store,
+        ref_version=ref_version,
     )
 
     trainer.init_workers()
@@ -185,6 +193,13 @@ def _collate_prompt_records(
     return rows_to_prompt_records(rows, dataset_config)
 
 
+def _training_dataset_config(config: DictConfig) -> dict[str, Any]:
+    dataset_config = OmegaConf.to_container(config.data, resolve=True)
+    if config.ref_rewards.get("initial_source", "dataset") != "dataset":
+        dataset_config["ref_rewards_key"] = None
+    return dataset_config
+
+
 def _build_train_sampler(config: DictConfig, train_dataset):
     if bool(config.data.get("shuffle", False)):
         from torchdata.stateful_dataloader.sampler import RandomSampler
@@ -200,6 +215,64 @@ def _build_train_sampler(config: DictConfig, train_dataset):
         )
 
     return SequentialSampler(train_dataset)
+
+
+def _prepare_ref_reward_store(*, config: DictConfig, train_dataset):
+    ref_config = config.get("ref_rewards", None)
+    if ref_config is None:
+        raise ValueError("QRPO requires config.ref_rewards.")
+
+    store_dir = ref_config.get("store_dir", None)
+    if store_dir is None:
+        store_dir = (
+            f"{config.trainer.default_local_dir}/ref_reward_store"
+        )
+
+    store = RefRewardStore(store_dir)
+    initial_source = str(ref_config.get("initial_source", "dataset"))
+    initial_version = ref_config.get("initial_version", None)
+
+    if initial_source == "dataset":
+        ref_version = str(initial_version or "dataset_v0")
+        if config.data.get("ref_rewards_key", "ref_rewards") is None:
+            raise ValueError(
+                "ref_rewards.initial_source='dataset' requires data.ref_rewards_key."
+            )
+        store.import_dataset_ref_rewards(
+            dataset=train_dataset,
+            dataset_config=OmegaConf.to_container(config.data, resolve=True),
+            ref_version=ref_version,
+            metadata={
+                "data_path": config.data.get("path", None),
+                "dataset_fingerprint": getattr(train_dataset, "_fingerprint", None),
+                "initial_source": "dataset",
+            },
+            overwrite=False,
+        )
+        return store, ref_version
+
+    if initial_source == "store":
+        if not initial_version:
+            raise ValueError(
+                "ref_rewards.initial_version is required when "
+                "ref_rewards.initial_source='store'."
+            )
+        ref_version = str(initial_version)
+        if not store.has_complete_version(ref_version):
+            raise FileNotFoundError(
+                f"ref_rewards.initial_version={ref_version!r} is not present "
+                f"in store_dir={store_dir!r}."
+            )
+        return store, ref_version
+
+    if initial_source == "generate":
+        ref_version = str(initial_version or "ref_step_000000")
+        return store, ref_version
+
+    raise ValueError(
+        "ref_rewards.initial_source must be one of 'dataset', 'store', or "
+        f"'generate', got {initial_source!r}."
+    )
 
 
 def _build_resource_pool_manager(

@@ -224,6 +224,29 @@ def test_row_to_prompt_record_rejects_wrong_num_ref_rewards() -> None:
         )
 
 
+def test_row_to_prompt_record_allows_missing_ref_rewards_when_disabled() -> None:
+    row = {
+        "prompt_id": "p0",
+        "prompt_messages": prompt_messages(),
+        "offline_trajectories": [
+            assistant_trajectory("a"),
+        ],
+        "offline_rewards": [0.0],
+    }
+
+    record = row_to_prompt_record(
+        row,
+        {
+            "ref_rewards_key": None,
+            "num_ref_rewards": 2,
+            "validate_records": True,
+        },
+    )
+
+    assert record.prompt_id == "p0"
+    assert record.ref_rewards == ()
+
+
 def test_row_to_prompt_record_rejects_missing_required_key() -> None:
     row = {
         "prompt_id": "p0",

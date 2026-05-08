@@ -8,7 +8,7 @@ import httpx
 from openai import OpenAI
 
 
-DEFAULT_BASE_URL = "http://172.28.16.92:30000/v1"
+DEFAULT_BASE_URL = "http://172.28.39.124:30000/v1"
 DEFAULT_MODEL = "Qwen/Qwen3.6-27B-smatrenok"
 
 

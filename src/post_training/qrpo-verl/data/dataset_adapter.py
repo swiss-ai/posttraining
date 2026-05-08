@@ -54,7 +54,10 @@ def row_to_prompt_record(
         validate=validate_records and deep_validate_messages,
     )
 
-    ref_rewards = _list_like(_require(row, ref_rewards_key, row_index=row_index))
+    if ref_rewards_key is None:
+        ref_rewards = []
+    else:
+        ref_rewards = _list_like(_require(row, ref_rewards_key, row_index=row_index))
     offline_rewards = _list_like(_require(row, offline_rewards_key, row_index=row_index))
 
     tools = None
@@ -74,8 +77,16 @@ def row_to_prompt_record(
     )
 
     if validate_records:
-        record.validate(num_ref_rewards=num_ref_rewards, deep=deep_validate_messages)
-    elif num_ref_rewards is not None and len(record.ref_rewards) != int(num_ref_rewards):
+        record.validate(
+            num_ref_rewards=num_ref_rewards,
+            deep=deep_validate_messages,
+            require_ref_rewards=ref_rewards_key is not None,
+        )
+    elif (
+        ref_rewards_key is not None
+        and num_ref_rewards is not None
+        and len(record.ref_rewards) != int(num_ref_rewards)
+    ):
         raise ValueError(
             f"Prompt {record.prompt_id!r} has {len(record.ref_rewards)} ref rewards, "
             f"expected {num_ref_rewards}."

@@ -6,9 +6,33 @@ defaults:
   - _self_
 
 qrpo:
-  beta: 0.1
+  beta: 0.05
   transform: identity
   length_normalization: false
+
+ref_rewards:
+  # QRPO always resolves reference rewards through this versioned store. The
+  # dataset ref_rewards column is only an initialization source when requested.
+  store_dir: null
+  initial_source: dataset  # dataset | store | generate
+  initial_version: null
+  num_ref_completions: ${oc.select:data.num_ref_rewards,30}
+
+  refresh_interval_epochs: null
+  refresh_scope: full_dataset
+  reuse_existing: true
+  # Optional total number of persisted ref-reward generation chunks. When set,
+  # this overrides generation_prompt_batch_size.
+  generation_num_chunks: null
+  # Number of prompts per ref-reward generation chunk. The rollout request
+  # count is generation_prompt_batch_size * num_ref_completions.
+  generation_prompt_batch_size: ${data.train_batch_size}
+  # Extra environment values to record in generated-ref manifests. Defaults
+  # match rewards/active_ultrafeedback_reward.py; override for other rewards.
+  manifest_env_keys:
+    - JUDGE_MODEL
+    - ACTIVE_UF_ASPECTS
+    - ACTIVE_UF_PROMPTS_PATH
 
 # Project-level knobs. Prefer overriding these instead of editing actor/ref
 # in multiple places.

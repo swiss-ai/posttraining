@@ -61,6 +61,7 @@ class PromptRecord:
         *,
         num_ref_rewards: int | None = None,
         deep: bool = True,
+        require_ref_rewards: bool = True,
     ) -> None:
         if not self.prompt_id:
             raise ValueError("PromptRecord.prompt_id must be non-empty.")
@@ -68,10 +69,14 @@ class PromptRecord:
         if deep:
             normalize_messages(self.prompt_messages, field_name="prompt_messages")
 
-        if len(self.ref_rewards) == 0:
+        if len(self.ref_rewards) == 0 and require_ref_rewards:
             raise ValueError(f"Prompt {self.prompt_id!r} has no reference rewards.")
 
-        if num_ref_rewards is not None and len(self.ref_rewards) != num_ref_rewards:
+        if (
+            len(self.ref_rewards) > 0
+            and num_ref_rewards is not None
+            and len(self.ref_rewards) != num_ref_rewards
+        ):
             raise ValueError(
                 f"Prompt {self.prompt_id!r} has {len(self.ref_rewards)} ref rewards, "
                 f"expected {num_ref_rewards}."

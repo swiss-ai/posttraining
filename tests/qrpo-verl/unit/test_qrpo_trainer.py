@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from types import MethodType, SimpleNamespace
 
 import numpy as np
@@ -66,6 +68,8 @@ class FakeSourceScheduler:
 class FakeActorRolloutWG:
     def __init__(self) -> None:
         self.to_calls = []
+        self.sync_ref_calls = []
+        self.load_ref_calls = []
 
     def to(self, device, *, model=True, optimizer=True, grad=True):
         self.to_calls.append(
@@ -76,6 +80,125 @@ class FakeActorRolloutWG:
                 "grad": grad,
             }
         )
+
+    def sync_ref_model_from_actor(self, *, local_path, global_step):
+        self.sync_ref_calls.append(
+            {
+                "local_path": local_path,
+                "global_step": global_step,
+            }
+        )
+
+    def load_ref_model_checkpoint(self, *, local_path, del_local_after_load=False):
+        self.load_ref_calls.append(
+            {
+                "local_path": local_path,
+                "del_local_after_load": del_local_after_load,
+            }
+        )
+
+
+class FakeRefRewardStore:
+    def __init__(self, rewards_by_prompt_id=None) -> None:
+        self.rewards_by_prompt_id = rewards_by_prompt_id or {}
+        self.calls = []
+        self.complete_versions = set()
+        self.saved_versions = []
+        self.saved_chunks = []
+        self.chunks = {}
+        self.manifests = {}
+
+    def has_complete_version(self, ref_version):
+        return ref_version in self.complete_versions
+
+    def check_complete_version_metadata(self, *, ref_version, metadata):
+        self.manifests.setdefault(ref_version, dict(metadata))
+        self.calls.append(
+            {
+                "ref_version": ref_version,
+                "metadata": dict(metadata),
+            }
+        )
+
+    def save_version_rows(self, *, ref_version, rows, manifest, overwrite=False):
+        self.saved_versions.append(
+            {
+                "ref_version": ref_version,
+                "rows": list(rows),
+                "manifest": dict(manifest),
+                "overwrite": overwrite,
+            }
+        )
+        self.complete_versions.add(ref_version)
+        self.manifests[ref_version] = dict(manifest)
+
+    def save_generation_chunk(
+        self,
+        *,
+        ref_version,
+        chunk_index,
+        dataset_indices,
+        rows,
+        manifest,
+        overwrite=False,
+    ):
+        payload = {
+            "ref_version": ref_version,
+            "chunk_index": chunk_index,
+            "dataset_indices": list(dataset_indices),
+            "rows": [dict(row) for row in rows],
+            "manifest": dict(manifest),
+            "overwrite": overwrite,
+        }
+        self.saved_chunks.append(payload)
+        self.chunks[(ref_version, chunk_index)] = payload
+
+    def load_generation_chunk(
+        self,
+        *,
+        ref_version,
+        chunk_index,
+        dataset_indices,
+        manifest,
+    ):
+        payload = self.chunks.get((ref_version, chunk_index))
+        if payload is None:
+            return None
+        assert payload["dataset_indices"] == list(dataset_indices)
+        assert payload["manifest"] == dict(manifest)
+        return [dict(row) for row in payload["rows"]]
+
+    def load_manifest(self, ref_version):
+        return self.manifests.get(ref_version, {"source": "generate"})
+
+    def model_checkpoint_path(self, ref_version):
+        return f"/tmp/ref_reward_store/model_checkpoints/{ref_version}"
+
+    def attach_ref_rewards(self, prompt_records, *, ref_version):
+        self.calls.append(
+            {
+                "prompt_ids": [prompt.prompt_id for prompt in prompt_records],
+                "ref_version": ref_version,
+            }
+        )
+        resolved = []
+        for prompt in prompt_records:
+            rewards = self.rewards_by_prompt_id.get(prompt.prompt_id, prompt.ref_rewards)
+            resolved.append(
+                PromptRecord(
+                    prompt_id=prompt.prompt_id,
+                    prompt_messages=prompt.prompt_messages,
+                    ref_rewards=tuple(rewards),
+                    offline_trajectories=prompt.offline_trajectories,
+                    offline_rewards=prompt.offline_rewards,
+                    tools=prompt.tools,
+                    metadata={
+                        **prompt.metadata,
+                        K.REF_VERSION: ref_version,
+                    },
+                )
+            )
+        return resolved
 
 
 def make_config(**overrides):
@@ -132,6 +255,8 @@ def make_trainer_for_unit_test(config=None) -> QRPOTrainer:
     trainer.source_scheduler = None
     trainer.offline_selector = None
     trainer.online_reward_fn = None
+    trainer.ref_reward_store = FakeRefRewardStore()
+    trainer.current_ref_version = "unit_ref"
 
     return trainer
 
@@ -276,6 +401,13 @@ def test_validate_qrpo_trainer_config_requires_boolean_length_normalization() ->
 def test_validate_qrpo_trainer_config_rejects_unknown_transform() -> None:
     with pytest.raises(ValueError, match="identity"):
         validate_qrpo_trainer_config(make_config(**{"qrpo.transform": "log"}))
+
+
+def test_validate_qrpo_trainer_config_requires_rollout_n_one() -> None:
+    with pytest.raises(ValueError, match="rollout.n=1"):
+        validate_qrpo_trainer_config(
+            make_config(**{"actor_rollout_ref.rollout.n": 2})
+        )
 
 
 def test_build_qrpo_role_worker_mapping_without_ray_remote() -> None:
@@ -459,6 +591,39 @@ def test_qrpo_update_step_requires_training_schema() -> None:
 
     with pytest.raises(KeyError, match=K.RESPONSE_MASK):
         trainer.qrpo_update_step([batch])
+
+
+def test_qrpo_update_step_rejects_ref_version_mismatch() -> None:
+    trainer = make_trainer_for_unit_test()
+    batch = make_qrpo_batch()
+    batch.meta_info[K.REF_VERSION] = "old_ref"
+
+    with pytest.raises(ValueError, match="ref versions"):
+        trainer.qrpo_update_step(
+            [batch],
+            meta_info={K.REF_VERSION: "new_ref"},
+        )
+
+
+def test_qrpo_update_step_rejects_missing_expected_ref_version() -> None:
+    trainer = make_trainer_for_unit_test()
+    batch = make_qrpo_batch()
+
+    with pytest.raises(ValueError, match="missing"):
+        trainer.qrpo_update_step(
+            [batch],
+            meta_info={K.REF_VERSION: "new_ref"},
+        )
+
+
+def test_qrpo_update_step_rejects_partially_versioned_batches() -> None:
+    trainer = make_trainer_for_unit_test()
+    unversioned = make_qrpo_batch(prefix=0)
+    versioned = make_qrpo_batch(prefix=1000)
+    versioned.meta_info[K.REF_VERSION] = "ref_v1"
+
+    with pytest.raises(ValueError, match="all define"):
+        trainer.qrpo_update_step([unversioned, versioned])
 
 
 def test_run_qrpo_iteration_builds_mixed_batch_and_updates(monkeypatch) -> None:
@@ -962,6 +1127,588 @@ def test_fit_runs_qrpo_iterations_and_logs() -> None:
     assert fake_logger.calls[1][0]["training/global_step"] == 2
 
 
+def test_fit_resolves_ref_rewards_from_store_before_source_planning() -> None:
+    cfg = make_config(
+        **{
+            "trainer.total_epochs": 1,
+            "trainer.val_before_train": False,
+            "trainer.save_freq": 0,
+            "trainer.test_freq": 0,
+        }
+    )
+
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.total_training_steps = 1
+    trainer.train_dataloader = [[make_fit_prompt("p0")]]
+    trainer.checkpoint_manager = FakeCheckpointManager()
+    trainer.actor_rollout_wg = FakeActorRolloutWG()
+    trainer.offline_selector = lambda prompt, n: []
+    trainer.ref_reward_store = FakeRefRewardStore({"p0": (9.0, 10.0)})
+    trainer.current_ref_version = "ref_v1"
+
+    class AssertingSourceScheduler:
+        def plan(self, prompts):
+            assert prompts[0].ref_rewards == (9.0, 10.0)
+            return [
+                SourceCounts(
+                    prompt_index=0,
+                    prompt_id="p0",
+                    n_online=0,
+                    n_offline=1,
+                )
+            ]
+
+    trainer.source_scheduler = AssertingSourceScheduler()
+    trainer._make_tracking_logger = lambda: FakeLogger()
+    trainer._load_checkpoint = lambda: None
+    trainer.run_qrpo_iteration = lambda **kwargs: DataProto.from_single_dict(
+        data={},
+        meta_info={"metrics": {}},
+    )
+
+    trainer.fit()
+
+    assert trainer.ref_reward_store.calls == [
+        {
+            "prompt_ids": ["p0"],
+            "ref_version": "ref_v1",
+        }
+    ]
+
+
+def test_prepare_initial_ref_rewards_generates_and_saves_full_dataset() -> None:
+    cfg = make_config(
+        **{
+            "data.ref_rewards_key": None,
+            "data.num_ref_rewards": 2,
+            "ref_rewards.initial_source": "generate",
+            "ref_rewards.num_ref_completions": 2,
+            "ref_rewards.generation_prompt_batch_size": 1,
+            "ref_rewards.reuse_existing": True,
+            "online_rollout.data_source": "activeultrafeedback",
+            "online_rollout.agent_name": None,
+            "online_rollout.validate": False,
+        }
+    )
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.current_ref_version = "ref_step_000000"
+    trainer.ref_reward_store = FakeRefRewardStore()
+    trainer.checkpoint_manager = FakeCheckpointManager()
+    trainer.global_steps = 0
+    trainer._qrpo_train_dataset = [
+        {
+            "prompt_id": "p0",
+            "prompt_messages": [{"role": "user", "content": "prompt 0"}],
+            "offline_trajectories": [],
+            "offline_rewards": [],
+        },
+        {
+            "prompt_id": "p1",
+            "prompt_messages": [{"role": "user", "content": "prompt 1"}],
+            "offline_trajectories": [],
+            "offline_rewards": [],
+        },
+    ]
+
+    class FakeRolloutManager:
+        def __init__(self):
+            self.inputs = []
+
+        def generate_sequences(self, rollout_input):
+            self.inputs.append(rollout_input)
+            size = len(rollout_input)
+            prompts = torch.ones(size, 2, dtype=torch.long)
+            responses = torch.arange(10, 10 + size * 2, dtype=torch.long).reshape(
+                size,
+                2,
+            )
+            input_ids = torch.cat([prompts, responses], dim=-1)
+            attention_mask = torch.ones_like(input_ids)
+            return DataProto.from_dict(
+                tensors={
+                    K.PROMPTS: prompts,
+                    K.RESPONSES: responses,
+                    K.INPUT_IDS: input_ids,
+                    K.ATTENTION_MASK: attention_mask,
+                    "rm_scores": torch.ones(size, 2, dtype=torch.float32),
+                },
+                non_tensors={},
+                meta_info={},
+            )
+
+    trainer.async_rollout_manager = FakeRolloutManager()
+
+    trainer.prepare_initial_ref_rewards()
+
+    assert trainer.checkpoint_manager.updated_steps == [0]
+    assert trainer.checkpoint_manager.sleep_calls == 1
+    assert len(trainer.async_rollout_manager.inputs) == 2
+
+    saved = trainer.ref_reward_store.saved_versions[0]
+    assert saved["ref_version"] == "ref_step_000000"
+    assert saved["manifest"]["source"] == "generate"
+    assert saved["manifest"]["prompt_count"] == 2
+    assert saved["manifest"]["num_ref_completions"] == 2
+    assert [row["prompt_id"] for row in saved["rows"]] == ["p0", "p1"]
+    assert [row[K.DATASET_INDEX] for row in saved["rows"]] == [0, 1]
+    assert saved["rows"][0]["ref_rewards"] == [2.0, 2.0]
+    assert [
+        chunk["dataset_indices"]
+        for chunk in trainer.ref_reward_store.saved_chunks
+    ] == [[0], [1]]
+
+
+def test_prepare_initial_ref_rewards_reuses_saved_generation_chunk() -> None:
+    cfg = make_config(
+        **{
+            "data.ref_rewards_key": None,
+            "data.num_ref_rewards": 2,
+            "ref_rewards.initial_source": "generate",
+            "ref_rewards.num_ref_completions": 2,
+            "ref_rewards.generation_prompt_batch_size": 1,
+            "ref_rewards.reuse_existing": True,
+            "online_rollout.data_source": "activeultrafeedback",
+            "online_rollout.agent_name": None,
+            "online_rollout.validate": False,
+        }
+    )
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.current_ref_version = "ref_step_000000"
+    trainer.ref_reward_store = FakeRefRewardStore()
+    trainer.checkpoint_manager = FakeCheckpointManager()
+    trainer.global_steps = 0
+    trainer._qrpo_train_dataset = [
+        {
+            "prompt_id": "p0",
+            "prompt_messages": [{"role": "user", "content": "prompt 0"}],
+            "offline_trajectories": [],
+            "offline_rewards": [],
+        },
+        {
+            "prompt_id": "p1",
+            "prompt_messages": [{"role": "user", "content": "prompt 1"}],
+            "offline_trajectories": [],
+            "offline_rewards": [],
+        },
+    ]
+
+    manifest = trainer._initial_ref_generation_manifest(
+        train_dataset=trainer._qrpo_train_dataset,
+        online_rollout_config={
+            "data_source": "activeultrafeedback",
+            "agent_name": None,
+            "validate": False,
+        },
+        ref_config={
+            "initial_source": "generate",
+            "num_ref_completions": 2,
+            "generation_prompt_batch_size": 1,
+            "reuse_existing": True,
+        },
+        num_ref_completions=2,
+        actor_step=0,
+    )
+    trainer.ref_reward_store.save_generation_chunk(
+        ref_version="ref_step_000000",
+        chunk_index=0,
+        dataset_indices=[0],
+        rows=[
+            {
+                "prompt_id": "p0",
+                "dataset_index": 0,
+                "ref_version": "ref_step_000000",
+                "ref_completions": ["cached 0", "cached 1"],
+                "ref_rewards": [1.0, 2.0],
+                "reward_extra_info": [None, None],
+            }
+        ],
+        manifest=manifest,
+    )
+    trainer.ref_reward_store.saved_chunks.clear()
+
+    class FakeRolloutManager:
+        def __init__(self):
+            self.inputs = []
+
+        def generate_sequences(self, rollout_input):
+            self.inputs.append(rollout_input)
+            size = len(rollout_input)
+            prompts = torch.ones(size, 2, dtype=torch.long)
+            responses = torch.arange(10, 10 + size * 2, dtype=torch.long).reshape(
+                size,
+                2,
+            )
+            input_ids = torch.cat([prompts, responses], dim=-1)
+            attention_mask = torch.ones_like(input_ids)
+            return DataProto.from_dict(
+                tensors={
+                    K.PROMPTS: prompts,
+                    K.RESPONSES: responses,
+                    K.INPUT_IDS: input_ids,
+                    K.ATTENTION_MASK: attention_mask,
+                    "rm_scores": torch.ones(size, 2, dtype=torch.float32),
+                },
+                non_tensors={},
+                meta_info={},
+            )
+
+    trainer.async_rollout_manager = FakeRolloutManager()
+
+    trainer.prepare_initial_ref_rewards()
+
+    assert len(trainer.async_rollout_manager.inputs) == 1
+    assert trainer.ref_reward_store.saved_chunks[0]["dataset_indices"] == [1]
+    saved = trainer.ref_reward_store.saved_versions[0]
+    assert [row["prompt_id"] for row in saved["rows"]] == ["p0", "p1"]
+    assert saved["rows"][0]["ref_rewards"] == [1.0, 2.0]
+
+
+def test_ref_generation_num_chunks_overrides_prompt_batch_size() -> None:
+    batch_size = QRPOTrainer._resolve_ref_generation_prompt_batch_size(
+        ref_config={
+            "generation_num_chunks": 3,
+            "generation_prompt_batch_size": 100,
+        },
+        dataset_size=10,
+    )
+
+    assert batch_size == 4
+
+
+def test_prepare_initial_ref_rewards_reuses_complete_version(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    reward_path = tmp_path / "reward.py"
+    reward_path.write_text("async def compute_score(): return 1.0\n")
+    prompts_path = tmp_path / "prompts.py"
+    prompts_path.write_text("HELPFULNESS_ANNOTATION_PROMPT = 'prompt'\n")
+
+    monkeypatch.setenv("JUDGE_MODEL", "judge-model")
+    monkeypatch.setenv("ACTIVE_UF_ASPECTS", "helpfulness")
+    monkeypatch.setenv("ACTIVE_UF_PROMPTS_PATH", str(prompts_path))
+
+    cfg = make_config(
+        **{
+            "actor_rollout_ref.model.path": "/tmp/actor",
+            "data.max_prompt_length": 128,
+            "data.max_response_length": 64,
+            "ref_rewards.initial_source": "generate",
+            "ref_rewards.num_ref_completions": 2,
+            "ref_rewards.reuse_existing": True,
+            "ref_rewards.manifest_env_keys": [
+                "JUDGE_MODEL",
+                "ACTIVE_UF_ASPECTS",
+                "ACTIVE_UF_PROMPTS_PATH",
+            ],
+            "online_rollout.data_source": "activeultrafeedback",
+            "reward.custom_reward_function.path": str(reward_path),
+            "reward.custom_reward_function.name": "compute_score",
+        }
+    )
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.current_ref_version = "ref_step_000000"
+    trainer.ref_reward_store.complete_versions.add("ref_step_000000")
+    trainer.checkpoint_manager = FakeCheckpointManager()
+    trainer._qrpo_train_dataset = [
+        {
+            "prompt_id": "p0",
+            "prompt_messages": [{"role": "user", "content": "prompt 0"}],
+            "offline_trajectories": [],
+            "offline_rewards": [],
+        },
+    ]
+
+    trainer.prepare_initial_ref_rewards()
+
+    assert trainer.checkpoint_manager.updated_steps == []
+    assert trainer.ref_reward_store.saved_versions == []
+    assert trainer.ref_reward_store.calls == [
+        {
+            "ref_version": "ref_step_000000",
+            "metadata": {
+                "source": "generate",
+                "actor_step": 0,
+                "prompt_count": 1,
+                "num_ref_completions": 2,
+                "data_path": None,
+                "dataset_fingerprint": None,
+                "data_source": "activeultrafeedback",
+                "actor_model_path": "/tmp/actor",
+                "max_prompt_length": 128,
+                "max_response_length": 64,
+                "rollout_temperature": 0.7,
+                "rollout_top_k": None,
+                "rollout_top_p": None,
+                "rollout_do_sample": None,
+                "reward_function_path": str(reward_path),
+                "reward_function_sha256": hashlib.sha256(
+                    reward_path.read_bytes()
+                ).hexdigest(),
+                "reward_function_name": "compute_score",
+                "env/JUDGE_MODEL": "judge-model",
+                "env/JUDGE_MODEL_sha256": None,
+                "env/ACTIVE_UF_ASPECTS": "helpfulness",
+                "env/ACTIVE_UF_ASPECTS_sha256": None,
+                "env/ACTIVE_UF_PROMPTS_PATH": str(prompts_path),
+                "env/ACTIVE_UF_PROMPTS_PATH_sha256": hashlib.sha256(
+                    prompts_path.read_bytes()
+                ).hexdigest(),
+            },
+        }
+    ]
+
+
+def test_prepare_initial_ref_rewards_rejects_missing_store_after_step_zero() -> None:
+    cfg = make_config(
+        **{
+            "ref_rewards.initial_source": "generate",
+            "ref_rewards.num_ref_completions": 2,
+            "online_rollout.data_source": "activeultrafeedback",
+        }
+    )
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.current_ref_version = "ref_step_000000"
+    trainer.global_steps = 3
+    trainer._qrpo_train_dataset = [
+        {
+            "prompt_id": "p0",
+            "prompt_messages": [{"role": "user", "content": "prompt 0"}],
+            "offline_trajectories": [],
+            "offline_rewards": [],
+        },
+    ]
+
+    with pytest.raises(ValueError, match="after training has advanced"):
+        trainer.prepare_initial_ref_rewards()
+
+
+def test_prepare_initial_ref_rewards_checks_complete_generated_version_after_step_zero() -> None:
+    cfg = make_config(
+        **{
+            "ref_rewards.initial_source": "generate",
+            "ref_rewards.num_ref_completions": 2,
+            "online_rollout.data_source": "activeultrafeedback",
+        }
+    )
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.current_ref_version = "ref_step_000000"
+    trainer.ref_reward_store.complete_versions.add("ref_step_000000")
+    trainer.global_steps = 3
+    trainer._qrpo_train_dataset = [
+        {
+            "prompt_id": "p0",
+            "prompt_messages": [{"role": "user", "content": "prompt 0"}],
+            "offline_trajectories": [],
+            "offline_rewards": [],
+        },
+    ]
+
+    trainer.prepare_initial_ref_rewards()
+
+    assert trainer.ref_reward_store.calls == [
+        {
+            "ref_version": "ref_step_000000",
+            "metadata": {
+                "source": "generate",
+                "actor_step": 0,
+                "prompt_count": 1,
+                "num_ref_completions": 2,
+                "data_path": None,
+                "dataset_fingerprint": None,
+                "data_source": "activeultrafeedback",
+                "actor_model_path": None,
+                "max_prompt_length": None,
+                "max_response_length": None,
+                "rollout_temperature": 0.7,
+                "rollout_top_k": None,
+                "rollout_top_p": None,
+                "rollout_do_sample": None,
+                "reward_function_path": None,
+                "reward_function_sha256": None,
+                "reward_function_name": None,
+            },
+        }
+    ]
+
+
+def test_prepare_initial_ref_rewards_rejects_refreshed_store_without_model_checkpoint() -> None:
+    cfg = make_config(
+        **{
+            "ref_rewards.initial_source": "store",
+        }
+    )
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.current_ref_version = "ref_step_000017"
+    trainer.ref_reward_store.manifests["ref_step_000017"] = {"source": "refresh"}
+
+    with pytest.raises(FileNotFoundError, match="ref model checkpoint is missing"):
+        trainer.prepare_initial_ref_rewards()
+
+
+def test_refresh_ref_rewards_generates_rows_and_syncs_ref_model() -> None:
+    cfg = make_config(
+        **{
+            "ref_rewards.num_ref_completions": 2,
+            "ref_rewards.generation_prompt_batch_size": 1,
+            "ref_rewards.reuse_existing": True,
+            "online_rollout.data_source": "activeultrafeedback",
+            "online_rollout.agent_name": None,
+            "online_rollout.validate": False,
+        }
+    )
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.current_ref_version = "old_ref"
+    trainer.ref_reward_store = FakeRefRewardStore()
+    trainer.checkpoint_manager = FakeCheckpointManager()
+    trainer.actor_rollout_wg = FakeActorRolloutWG()
+    trainer._qrpo_train_dataset = [
+        {
+            "prompt_id": "p0",
+            "prompt_messages": [{"role": "user", "content": "prompt 0"}],
+            "offline_trajectories": [],
+            "offline_rewards": [],
+        },
+    ]
+
+    class FakeRolloutManager:
+        def generate_sequences(self, rollout_input):
+            size = len(rollout_input)
+            prompts = torch.ones(size, 2, dtype=torch.long)
+            responses = torch.arange(10, 10 + size * 2, dtype=torch.long).reshape(
+                size,
+                2,
+            )
+            input_ids = torch.cat([prompts, responses], dim=-1)
+            attention_mask = torch.ones_like(input_ids)
+            return DataProto.from_dict(
+                tensors={
+                    K.PROMPTS: prompts,
+                    K.RESPONSES: responses,
+                    K.INPUT_IDS: input_ids,
+                    K.ATTENTION_MASK: attention_mask,
+                    "rm_scores": torch.ones(size, 2, dtype=torch.float32),
+                },
+                non_tensors={},
+                meta_info={},
+            )
+
+    trainer.async_rollout_manager = FakeRolloutManager()
+
+    ref_version = trainer.refresh_ref_rewards(actor_step=17)
+
+    assert ref_version == "ref_step_000017"
+    assert trainer.current_ref_version == "ref_step_000017"
+    assert trainer.checkpoint_manager.updated_steps == [17]
+    assert trainer.checkpoint_manager.sleep_calls == 1
+    assert trainer.actor_rollout_wg.sync_ref_calls == [
+        {
+            "local_path": "/tmp/ref_reward_store/model_checkpoints/ref_step_000017",
+            "global_step": 17,
+        }
+    ]
+
+    saved = trainer.ref_reward_store.saved_versions[0]
+    assert saved["ref_version"] == "ref_step_000017"
+    assert saved["manifest"]["source"] == "refresh"
+    assert saved["manifest"]["actor_step"] == 17
+    assert saved["manifest"]["ref_model_checkpoint_path"] == (
+        "/tmp/ref_reward_store/model_checkpoints/ref_step_000017"
+    )
+    assert saved["rows"][0]["prompt_id"] == "p0"
+    assert saved["rows"][0]["ref_rewards"] == [2.0, 2.0]
+
+
+def test_generated_ref_row_coverage_rejects_duplicate_dataset_index() -> None:
+    with pytest.raises(ValueError, match="duplicate dataset indices"):
+        QRPOTrainer._check_generated_ref_rows_cover_dataset(
+            rows=[
+                {K.DATASET_INDEX: 0},
+                {K.DATASET_INDEX: 0},
+            ],
+            dataset_size=2,
+        )
+
+
+def test_sync_ref_model_from_actor_uses_store_checkpoint_path() -> None:
+    trainer = make_trainer_for_unit_test()
+    trainer.actor_rollout_wg = FakeActorRolloutWG()
+
+    path = trainer._sync_ref_model_from_actor(
+        ref_version="ref_step_000017",
+        global_step=17,
+    )
+
+    assert path == "/tmp/ref_reward_store/model_checkpoints/ref_step_000017"
+    assert trainer.actor_rollout_wg.sync_ref_calls == [
+        {
+            "local_path": path,
+            "global_step": 17,
+        }
+    ]
+
+
+def test_load_ref_model_checkpoint_uses_store_checkpoint_path() -> None:
+    trainer = make_trainer_for_unit_test()
+    trainer.actor_rollout_wg = FakeActorRolloutWG()
+
+    path = trainer._load_ref_model_checkpoint(ref_version="ref_step_000017")
+
+    assert path == "/tmp/ref_reward_store/model_checkpoints/ref_step_000017"
+    assert trainer.actor_rollout_wg.load_ref_calls == [
+        {
+            "local_path": path,
+            "del_local_after_load": False,
+        }
+    ]
+
+
+def test_qrpo_checkpoint_state_roundtrip(tmp_path) -> None:
+    cfg = make_config(**{"trainer.default_local_dir": str(tmp_path)})
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.global_steps = 17
+    trainer.current_ref_version = "ref_step_000017"
+
+    trainer._save_qrpo_checkpoint_state()
+
+    state_path = tmp_path / "global_step_17" / "qrpo_state.json"
+    assert json.loads(state_path.read_text()) == {
+        K.REF_VERSION: "ref_step_000017",
+    }
+
+    resumed = make_trainer_for_unit_test(config=cfg)
+    resumed.global_steps = 17
+    resumed.current_ref_version = "old_ref"
+    resumed._load_qrpo_checkpoint_state()
+
+    assert resumed.current_ref_version == "ref_step_000017"
+
+
+def test_save_checkpoint_writes_qrpo_state_before_verl_tracker(monkeypatch, tmp_path) -> None:
+    from trainers import qrpo_trainer as qrpo_trainer_module
+
+    cfg = make_config(**{"trainer.default_local_dir": str(tmp_path)})
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.global_steps = 17
+    trainer.current_ref_version = "ref_step_000017"
+
+    observed = {}
+
+    def fake_super_save(self):
+        state_path = tmp_path / "global_step_17" / "qrpo_state.json"
+        observed["state_exists_during_super_save"] = state_path.exists()
+
+    monkeypatch.setattr(
+        qrpo_trainer_module.RayPPOTrainer,
+        "_save_checkpoint",
+        fake_super_save,
+    )
+
+    trainer._save_checkpoint()
+
+    assert observed["state_exists_during_super_save"] is True
+
+
 def test_fit_runs_validation_and_checkpoint() -> None:
     cfg = make_config(
         **{
@@ -1365,6 +2112,8 @@ def test_run_qrpo_iteration_uses_agent_loop_rewards_for_online_rewards():
     )
     trainer.async_rollout_manager = FakeRolloutManager()
     trainer.checkpoint_manager = FakeCheckpointManager()
+    trainer.ref_reward_store = FakeRefRewardStore({"prompt-0": (0.1, 0.2)})
+    trainer.current_ref_version = "unit_ref"
 
     captured = {}
 
@@ -1447,6 +2196,39 @@ def test_validate_qrpo_config_requires_reward_workers_for_online(tmp_path):
         reward_num_workers=0,
         reward_path=str(reward_path),
     )
+
+    with pytest.raises(ValueError, match="reward.num_workers"):
+        validate_qrpo_trainer_config(config)
+
+
+def test_validate_qrpo_config_requires_reward_loop_for_generated_refs(tmp_path):
+    reward_path = tmp_path / "reward.py"
+    reward_path.write_text("async def compute_score(*args, **kwargs): return 1.0\n")
+
+    config = _minimal_qrpo_config(
+        n_online=0,
+        reward_num_workers=0,
+        reward_path=str(reward_path),
+    )
+    config.ref_rewards = {"initial_source": "generate"}
+
+    with pytest.raises(ValueError, match="reward.num_workers"):
+        validate_qrpo_trainer_config(config)
+
+
+def test_validate_qrpo_config_requires_reward_loop_for_ref_refresh(tmp_path):
+    reward_path = tmp_path / "reward.py"
+    reward_path.write_text("async def compute_score(*args, **kwargs): return 1.0\n")
+
+    config = _minimal_qrpo_config(
+        n_online=0,
+        reward_num_workers=0,
+        reward_path=str(reward_path),
+    )
+    config.ref_rewards = {
+        "initial_source": "dataset",
+        "refresh_interval_epochs": 0.5,
+    }
 
     with pytest.raises(ValueError, match="reward.num_workers"):
         validate_qrpo_trainer_config(config)

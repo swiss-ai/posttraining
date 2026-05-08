@@ -33,6 +33,7 @@ REWARD_TENSOR = "reward_tensor"
 REWARD_EXTRA_INFO = "reward_extra_info"
 
 # Metadata keys
+DATASET_INDEX = "dataset_index"
 PROMPT_ID = "prompt_id"
 TRAJECTORY_ID = "trajectory_id"
 TEMPERATURE = "temperature"
@@ -50,6 +51,7 @@ SOURCE_OFFLINE = "offline"
 
 ACTOR_VERSION = "actor_version"
 REF_VERSION = "ref_version"
+REF_COMPLETION_INDEX = "ref_completion_index"
 
 GROUP_ID = "group_id"
 

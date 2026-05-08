@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import math
+import os
 from collections.abc import Callable, Mapping, Sequence
 from pprint import pprint
 from typing import Any
@@ -17,7 +21,15 @@ from batch import keys as K
 from batch.offline_tokenization import offline_candidates_to_dataproto
 from batch.source_schedule import FixedCountsSourceScheduler, SourceCounts
 from batch.training_candidates import OfflineSelector, build_training_candidates
+from data.dataset_adapter import dataset_batch_to_prompt_records
 from data.schemas import PromptRecord
+from ref_rewards import RefRewardStore
+from ref_rewards.generation import (
+    attach_ref_rollout_metadata,
+    extract_ref_rollout_metadata,
+    ref_reward_rollout_input_from_prompt_records,
+    ref_rollout_output_to_store_rows,
+)
 from verl_adapters.engine_worker import QRPOEngineActorRolloutRefWorker
 from verl_adapters.online_completion_logging import (
     build_online_completion_log_rows,
@@ -60,6 +72,8 @@ class QRPOTrainer(RayPPOTrainer):
         *args,
         source_scheduler: Any | None = None,
         offline_selector: OfflineSelector | None = None,
+        ref_reward_store: RefRewardStore | None = None,
+        ref_version: str | None = None,
         **kwargs,
     ):
         config = kwargs.get("config")
@@ -70,6 +84,9 @@ class QRPOTrainer(RayPPOTrainer):
 
         self.source_scheduler = source_scheduler
         self.offline_selector = offline_selector
+        self.ref_reward_store = ref_reward_store
+        self.current_ref_version = ref_version
+        self._qrpo_train_dataset = kwargs.get("train_dataset", None)
 
         super().__init__(*args, **kwargs)
 
@@ -108,6 +125,12 @@ class QRPOTrainer(RayPPOTrainer):
             raise ValueError("At least one QRPO training batch is required.")
 
         pad_token_id = self._resolve_pad_token_id(pad_token_id)
+        self._check_ref_version_consistency(
+            non_empty_batches,
+            expected_ref_version=(
+                None if meta_info is None else meta_info.get(K.REF_VERSION)
+            ),
+        )
 
         train_batch = concat_qrpo_training_dataprotos(
             non_empty_batches,
@@ -182,6 +205,15 @@ class QRPOTrainer(RayPPOTrainer):
 
         if offline_selector is None:
             offline_selector = self._resolve_offline_selector()
+
+        resolved_ref_rewards = all(
+            isinstance(prompt, PromptRecord)
+            for prompt in prompt_records
+        )
+        if resolved_ref_rewards:
+            prompt_records = self._attach_current_ref_rewards(prompt_records)
+            meta_info = dict(meta_info or {})
+            meta_info.setdefault(K.REF_VERSION, self.current_ref_version)
 
         offline_candidates, online_requests = build_training_candidates(
             prompt_records=prompt_records,
@@ -309,6 +341,7 @@ class QRPOTrainer(RayPPOTrainer):
         self.global_steps = getattr(self, "global_steps", 0)
 
         self._load_checkpoint()
+        self.prepare_initial_ref_rewards()
 
         # True iff rollout/vLLM weights are known to match the current actor.
         # Offline-only training should avoid rollout sync entirely.
@@ -328,6 +361,7 @@ class QRPOTrainer(RayPPOTrainer):
                 return
 
         source_scheduler = self._resolve_source_scheduler()
+        ref_refresh_interval_steps = self._resolve_ref_refresh_interval_steps()
 
         # Fail early for offline selection.
         self._resolve_offline_selector()
@@ -352,6 +386,7 @@ class QRPOTrainer(RayPPOTrainer):
                     self.actor_rollout_wg.async_calls_finalize_fn_exec(blocking=False)
 
                 prompt_records = self._batch_to_prompt_records(batch_payload)
+                prompt_records = self._attach_current_ref_rewards(prompt_records)
                 source_counts = source_scheduler.plan(prompt_records)
 
                 has_online = any(counts.n_online > 0 for counts in source_counts)
@@ -368,6 +403,7 @@ class QRPOTrainer(RayPPOTrainer):
                 meta_info = {
                     "global_steps": self.global_steps,
                     "epoch": epoch,
+                    K.REF_VERSION: self.current_ref_version,
                 }
 
                 actor_output = self.run_qrpo_iteration(
@@ -405,6 +441,15 @@ class QRPOTrainer(RayPPOTrainer):
                     step=self.global_steps,
                 )
 
+                if (
+                    ref_refresh_interval_steps is not None
+                    and not is_last_step
+                    and self.global_steps % ref_refresh_interval_steps == 0
+                ):
+                    self.refresh_ref_rewards(actor_step=self.global_steps)
+                    rollout_weights_synced = False
+                    metrics["ref_rewards/refreshed"] = 1.0
+
                 if self.config.trainer.save_freq > 0 and (
                         is_last_step
                         or self.global_steps % self.config.trainer.save_freq == 0
@@ -435,6 +480,232 @@ class QRPOTrainer(RayPPOTrainer):
                     pprint(f"Final validation metrics: {last_val_metrics}")
                     progress_bar.close()
                     return
+
+    def _save_checkpoint(self) -> None:
+        self._save_qrpo_checkpoint_state()
+        super()._save_checkpoint()
+
+    def _load_checkpoint(self):
+        result = super()._load_checkpoint()
+        self._load_qrpo_checkpoint_state()
+        return result
+
+    def prepare_initial_ref_rewards(self) -> None:
+        """Generate and persist the initial ref-reward version when requested."""
+
+        ref_config = _to_plain_container(
+            _select(self.config, "ref_rewards", default={}) or {}
+        )
+        if ref_config.get("initial_source", "dataset") != "generate":
+            self._load_current_ref_model_checkpoint_if_required()
+            return
+
+        if self.ref_reward_store is None:
+            raise ValueError("QRPOTrainer requires ref_reward_store.")
+        if not self.current_ref_version:
+            raise ValueError("QRPOTrainer requires current_ref_version.")
+
+        reuse_existing = bool(ref_config.get("reuse_existing", True))
+        actor_step = 0
+
+        train_dataset = getattr(self, "_qrpo_train_dataset", None)
+        if train_dataset is None:
+            raise ValueError(
+                "ref_rewards.initial_source='generate' requires train_dataset."
+            )
+        if len(train_dataset) == 0:
+            raise ValueError("Cannot generate ref rewards for an empty train_dataset.")
+
+        num_ref_completions = int(ref_config.get("num_ref_completions", 0))
+        if num_ref_completions <= 0:
+            raise ValueError(
+                "ref_rewards.num_ref_completions must be positive when "
+                "ref_rewards.initial_source='generate'."
+            )
+
+        generation_prompt_batch_size = self._resolve_ref_generation_prompt_batch_size(
+            ref_config=ref_config,
+            dataset_size=len(train_dataset),
+        )
+
+        online_rollout_config = _select(self.config, "online_rollout", default=None)
+        if online_rollout_config is None:
+            raise ValueError(
+                "ref_rewards.initial_source='generate' requires online_rollout config."
+            )
+        online_rollout_config = _to_plain_container(online_rollout_config)
+
+        manifest = self._initial_ref_generation_manifest(
+            train_dataset=train_dataset,
+            online_rollout_config=online_rollout_config,
+            ref_config=ref_config,
+            num_ref_completions=num_ref_completions,
+            actor_step=actor_step,
+        )
+        if int(getattr(self, "global_steps", 0)) != actor_step:
+            if not self.ref_reward_store.has_complete_version(self.current_ref_version):
+                raise ValueError(
+                    "Cannot generate initial ref rewards after training has advanced. "
+                    "Use an existing complete ref_rewards.initial_version in the "
+                    "RefRewardStore, or restart from global step 0."
+                )
+
+            stored_manifest = self.ref_reward_store.load_manifest(
+                self.current_ref_version
+            )
+            if stored_manifest.get("source") == "refresh":
+                self._load_current_ref_model_checkpoint_if_required()
+                return
+
+            self.ref_reward_store.check_complete_version_metadata(
+                ref_version=self.current_ref_version,
+                metadata=manifest,
+            )
+            self._load_current_ref_model_checkpoint_if_required()
+            return
+
+        if (
+            reuse_existing
+            and self.ref_reward_store.has_complete_version(self.current_ref_version)
+        ):
+            self.ref_reward_store.check_complete_version_metadata(
+                ref_version=self.current_ref_version,
+                metadata=manifest,
+            )
+            self._load_current_ref_model_checkpoint_if_required()
+            return
+
+        if getattr(self, "async_rollout_manager", None) is None:
+            raise ValueError(
+                "ref_rewards.initial_source='generate' requires async_rollout_manager."
+            )
+
+        tokenizer = self._resolve_tokenizer(None)
+        dataset_config = self._ref_generation_dataset_config()
+
+        checkpoint_manager = getattr(self, "checkpoint_manager", None)
+        if checkpoint_manager is not None:
+            checkpoint_manager.update_weights(actor_step)
+
+        rows = self._generate_ref_reward_rows_for_dataset(
+            train_dataset=train_dataset,
+            dataset_config=dataset_config,
+            tokenizer=tokenizer,
+            ref_version=self.current_ref_version,
+            actor_step=actor_step,
+            num_ref_completions=num_ref_completions,
+            generation_prompt_batch_size=generation_prompt_batch_size,
+            online_rollout_config=online_rollout_config,
+            manifest=manifest,
+            reuse_existing=reuse_existing,
+            description="Generating Initial Ref Rewards",
+        )
+
+        self.ref_reward_store.save_version_rows(
+            ref_version=self.current_ref_version,
+            rows=rows,
+            manifest=manifest,
+            overwrite=not reuse_existing,
+        )
+
+    def refresh_ref_rewards(self, *, actor_step: int) -> str:
+        """Refresh full-dataset ref rewards from the current actor."""
+
+        ref_config = _to_plain_container(
+            _select(self.config, "ref_rewards", default={}) or {}
+        )
+        if ref_config.get("refresh_scope", "full_dataset") != "full_dataset":
+            raise NotImplementedError(
+                "Only ref_rewards.refresh_scope='full_dataset' is implemented."
+            )
+
+        if self.ref_reward_store is None:
+            raise ValueError("QRPOTrainer requires ref_reward_store.")
+        if getattr(self, "async_rollout_manager", None) is None:
+            raise ValueError("Ref reward refresh requires async_rollout_manager.")
+
+        train_dataset = getattr(self, "_qrpo_train_dataset", None)
+        if train_dataset is None:
+            raise ValueError("Ref reward refresh requires train_dataset.")
+        if len(train_dataset) == 0:
+            raise ValueError("Cannot refresh ref rewards for an empty train_dataset.")
+
+        num_ref_completions = int(ref_config.get("num_ref_completions", 0))
+        if num_ref_completions <= 0:
+            raise ValueError("ref_rewards.num_ref_completions must be positive.")
+
+        generation_prompt_batch_size = self._resolve_ref_generation_prompt_batch_size(
+            ref_config=ref_config,
+            dataset_size=len(train_dataset),
+        )
+
+        online_rollout_config = _select(self.config, "online_rollout", default=None)
+        if online_rollout_config is None:
+            raise ValueError("Ref reward refresh requires online_rollout config.")
+        online_rollout_config = _to_plain_container(online_rollout_config)
+
+        ref_version = _ref_version_for_step(actor_step)
+        manifest = self._initial_ref_generation_manifest(
+            train_dataset=train_dataset,
+            online_rollout_config=online_rollout_config,
+            ref_config=ref_config,
+            num_ref_completions=num_ref_completions,
+            actor_step=actor_step,
+            source="refresh",
+        )
+        reuse_existing = bool(ref_config.get("reuse_existing", True))
+
+        if (
+            reuse_existing
+            and self.ref_reward_store.has_complete_version(ref_version)
+        ):
+            self.ref_reward_store.check_complete_version_metadata(
+                ref_version=ref_version,
+                metadata=manifest,
+            )
+            checkpoint_path = self.ref_reward_store.model_checkpoint_path(ref_version)
+            if os.path.exists(checkpoint_path):
+                self._load_ref_model_checkpoint(ref_version=ref_version)
+            else:
+                self._check_ref_model_checkpoint_not_required(
+                    ref_version=ref_version,
+                    checkpoint_path=checkpoint_path,
+                )
+            self.current_ref_version = ref_version
+            return ref_version
+
+        checkpoint_manager = getattr(self, "checkpoint_manager", None)
+        if checkpoint_manager is not None:
+            checkpoint_manager.update_weights(actor_step)
+
+        rows = self._generate_ref_reward_rows_for_dataset(
+            train_dataset=train_dataset,
+            dataset_config=self._ref_generation_dataset_config(),
+            tokenizer=self._resolve_tokenizer(None),
+            ref_version=ref_version,
+            actor_step=actor_step,
+            num_ref_completions=num_ref_completions,
+            generation_prompt_batch_size=generation_prompt_batch_size,
+            online_rollout_config=online_rollout_config,
+            manifest=manifest,
+            reuse_existing=reuse_existing,
+            description="Refreshing Ref Rewards",
+        )
+
+        ref_model_checkpoint_path = self._sync_ref_model_from_actor(
+            ref_version=ref_version,
+            global_step=actor_step,
+        )
+        manifest["ref_model_checkpoint_path"] = ref_model_checkpoint_path
+
+        self.ref_reward_store.save_version_rows(
+            ref_version=ref_version,
+            rows=rows,
+            manifest=manifest,
+            overwrite=not reuse_existing,
+        )
+        self.current_ref_version = ref_version
+        return ref_version
 
     def _compute_online_rewards_from_rollout_output(
             self,
@@ -532,6 +803,275 @@ class QRPOTrainer(RayPPOTrainer):
         )
         return float(value)
 
+    def _resolve_ref_refresh_interval_steps(self) -> int | None:
+        value = _select(
+            self.config,
+            "ref_rewards.refresh_interval_epochs",
+            default=None,
+        )
+        if value is None:
+            return None
+
+        interval_epochs = float(value)
+        if interval_epochs <= 0.0:
+            raise ValueError("ref_rewards.refresh_interval_epochs must be positive.")
+
+        steps_per_epoch = len(self.train_dataloader)
+        if steps_per_epoch <= 0:
+            raise ValueError("Cannot refresh ref rewards with an empty train_dataloader.")
+
+        return max(1, int(math.ceil(interval_epochs * steps_per_epoch)))
+
+    def _ref_generation_dataset_config(self) -> dict[str, Any]:
+        config = dict(
+            _to_plain_container(_select(self.config, "data", default={}) or {})
+        )
+        config["ref_rewards_key"] = None
+        return config
+
+    def _initial_ref_generation_manifest(
+        self,
+        *,
+        train_dataset: Any,
+        online_rollout_config: Mapping[str, Any],
+        ref_config: Mapping[str, Any],
+        num_ref_completions: int,
+        actor_step: int,
+        source: str = "generate",
+    ) -> dict[str, Any]:
+        reward_function_path = _select(
+            self.config,
+            "reward.custom_reward_function.path",
+            default=None,
+        )
+        manifest_env_keys = tuple(ref_config.get("manifest_env_keys", ()) or ())
+
+        manifest = {
+            "source": source,
+            "actor_step": int(actor_step),
+            "prompt_count": len(train_dataset),
+            "num_ref_completions": int(num_ref_completions),
+            "data_path": _select(self.config, "data.path", default=None),
+            "dataset_fingerprint": getattr(train_dataset, "_fingerprint", None),
+            "data_source": online_rollout_config.get("data_source"),
+            "actor_model_path": _select(
+                self.config,
+                "actor_rollout_ref.model.path",
+                default=None,
+            ),
+            "max_prompt_length": _select(
+                self.config,
+                "data.max_prompt_length",
+                default=None,
+            ),
+            "max_response_length": _select(
+                self.config,
+                "data.max_response_length",
+                default=None,
+            ),
+            "rollout_temperature": _select(
+                self.config,
+                "actor_rollout_ref.rollout.temperature",
+                default=None,
+            ),
+            "rollout_top_k": _select(
+                self.config,
+                "actor_rollout_ref.rollout.top_k",
+                default=None,
+            ),
+            "rollout_top_p": _select(
+                self.config,
+                "actor_rollout_ref.rollout.top_p",
+                default=None,
+            ),
+            "rollout_do_sample": _select(
+                self.config,
+                "actor_rollout_ref.rollout.do_sample",
+                default=None,
+            ),
+            "reward_function_path": reward_function_path,
+            "reward_function_sha256": _file_sha256(reward_function_path),
+            "reward_function_name": _select(
+                self.config,
+                "reward.custom_reward_function.name",
+                default=None,
+            ),
+        }
+        for env_key in manifest_env_keys:
+            env_key = str(env_key)
+            env_value = os.environ.get(env_key)
+            manifest[f"env/{env_key}"] = env_value
+            manifest[f"env/{env_key}_sha256"] = _file_sha256(env_value)
+
+        return manifest
+
+    def _generate_ref_reward_rows_for_dataset(
+        self,
+        *,
+        train_dataset: Any,
+        dataset_config: Mapping[str, Any],
+        tokenizer: Any,
+        ref_version: str,
+        actor_step: int,
+        num_ref_completions: int,
+        generation_prompt_batch_size: int,
+        online_rollout_config: Mapping[str, Any],
+        manifest: Mapping[str, Any],
+        reuse_existing: bool,
+        description: str,
+    ) -> list[dict[str, Any]]:
+        if self.ref_reward_store is None:
+            raise ValueError("Ref reward generation requires ref_reward_store.")
+
+        rows: list[dict[str, Any]] = []
+        starts = range(0, len(train_dataset), generation_prompt_batch_size)
+        for chunk_index, start in enumerate(
+            tqdm(
+                starts,
+                desc=description,
+            ),
+        ):
+            indices = list(
+                range(
+                    start,
+                    min(start + generation_prompt_batch_size, len(train_dataset)),
+                )
+            )
+
+            cached_rows = None
+            if reuse_existing:
+                cached_rows = self.ref_reward_store.load_generation_chunk(
+                    ref_version=ref_version,
+                    chunk_index=chunk_index,
+                    dataset_indices=indices,
+                    manifest=manifest,
+                )
+            if cached_rows is not None:
+                rows.extend(cached_rows)
+                continue
+
+            chunk_rows = self._generate_ref_reward_rows_for_indices(
+                train_dataset=train_dataset,
+                dataset_config=dataset_config,
+                tokenizer=tokenizer,
+                ref_version=ref_version,
+                actor_step=actor_step,
+                num_ref_completions=num_ref_completions,
+                online_rollout_config=online_rollout_config,
+                indices=indices,
+            )
+            self.ref_reward_store.save_generation_chunk(
+                ref_version=ref_version,
+                chunk_index=chunk_index,
+                dataset_indices=indices,
+                rows=chunk_rows,
+                manifest=manifest,
+                overwrite=not reuse_existing,
+            )
+            rows.extend(chunk_rows)
+
+        self._sleep_rollout_replicas_after_generation()
+        self._check_generated_ref_rows_cover_dataset(
+            rows=rows,
+            dataset_size=len(train_dataset),
+        )
+        return rows
+
+    def _generate_ref_reward_rows_for_indices(
+        self,
+        *,
+        train_dataset: Any,
+        dataset_config: Mapping[str, Any],
+        tokenizer: Any,
+        ref_version: str,
+        actor_step: int,
+        num_ref_completions: int,
+        online_rollout_config: Mapping[str, Any],
+        indices: Sequence[int],
+    ) -> list[dict[str, Any]]:
+        prompt_records = dataset_batch_to_prompt_records(
+            train_dataset,
+            indices=indices,
+            config=dataset_config,
+        )
+        rollout_input = ref_reward_rollout_input_from_prompt_records(
+            prompt_records=prompt_records,
+            ref_version=ref_version,
+            num_ref_completions=num_ref_completions,
+            config=online_rollout_config,
+            dataset_indices=indices,
+            meta_info={
+                "global_steps": actor_step,
+            },
+        )
+        rollout_metadata = extract_ref_rollout_metadata(rollout_input)
+        rollout_output = self.async_rollout_manager.generate_sequences(
+            rollout_input
+        )
+        attach_ref_rollout_metadata(
+            rollout_output=rollout_output,
+            metadata=rollout_metadata,
+        )
+        return ref_rollout_output_to_store_rows(
+            rollout_output=rollout_output,
+            tokenizer=tokenizer,
+            ref_version=ref_version,
+            num_ref_completions=num_ref_completions,
+        )
+
+    @staticmethod
+    def _resolve_ref_generation_prompt_batch_size(
+        *,
+        ref_config: Mapping[str, Any],
+        dataset_size: int,
+    ) -> int:
+        generation_num_chunks = ref_config.get("generation_num_chunks", None)
+        if generation_num_chunks is not None:
+            generation_num_chunks = int(generation_num_chunks)
+            if generation_num_chunks <= 0:
+                raise ValueError("ref_rewards.generation_num_chunks must be positive.")
+            return max(1, math.ceil(dataset_size / generation_num_chunks))
+
+        generation_prompt_batch_size = int(
+            ref_config.get("generation_prompt_batch_size")
+            or ref_config.get("generation_batch_size")
+            or dataset_size
+        )
+        if generation_prompt_batch_size <= 0:
+            raise ValueError(
+                "ref_rewards.generation_prompt_batch_size must be positive."
+            )
+        return generation_prompt_batch_size
+
+    @staticmethod
+    def _check_generated_ref_rows_cover_dataset(
+        *,
+        rows: Sequence[Mapping[str, Any]],
+        dataset_size: int,
+    ) -> None:
+        if len(rows) != dataset_size:
+            raise ValueError(
+                f"Generated {len(rows)} ref reward rows for dataset_size="
+                f"{dataset_size}."
+            )
+
+        observed_list = [int(row[K.DATASET_INDEX]) for row in rows]
+        if len(set(observed_list)) != len(observed_list):
+            raise ValueError(
+                "Generated ref rewards contain duplicate dataset indices: "
+                f"{observed_list}."
+            )
+
+        observed_indices = {int(row[K.DATASET_INDEX]) for row in rows}
+        expected_indices = set(range(dataset_size))
+        if observed_indices != expected_indices:
+            missing = sorted(expected_indices - observed_indices)
+            extra = sorted(observed_indices - expected_indices)
+            raise ValueError(
+                "Generated ref rewards do not cover the training dataset exactly. "
+                f"missing dataset indices={missing}, extra dataset indices={extra}."
+            )
+
     def _sleep_rollout_replicas_after_generation(self) -> None:
         checkpoint_manager = getattr(self, "checkpoint_manager", None)
         if checkpoint_manager is None:
@@ -557,6 +1097,141 @@ class QRPOTrainer(RayPPOTrainer):
         # only auto-loads it back when param offload is enabled, so QRPO must
         # restore the model before entering the actor update.
         to_device("device", model=True, optimizer=False, grad=False)
+
+    def _sync_ref_model_from_actor(
+        self,
+        *,
+        ref_version: str,
+        global_step: int,
+    ) -> str:
+        if self.ref_reward_store is None:
+            raise ValueError("QRPOTrainer requires ref_reward_store.")
+
+        actor_rollout_wg = getattr(self, "actor_rollout_wg", None)
+        if actor_rollout_wg is None:
+            raise ValueError("QRPOTrainer requires actor_rollout_wg.")
+
+        sync_ref = getattr(actor_rollout_wg, "sync_ref_model_from_actor", None)
+        if sync_ref is None:
+            raise RuntimeError(
+                "QRPO actor_rollout_wg does not support sync_ref_model_from_actor."
+            )
+
+        checkpoint_path = str(self.ref_reward_store.model_checkpoint_path(ref_version))
+        sync_ref(
+            local_path=checkpoint_path,
+            global_step=int(global_step),
+        )
+        return checkpoint_path
+
+    def _load_ref_model_checkpoint(self, *, ref_version: str) -> str:
+        if self.ref_reward_store is None:
+            raise ValueError("QRPOTrainer requires ref_reward_store.")
+
+        actor_rollout_wg = getattr(self, "actor_rollout_wg", None)
+        if actor_rollout_wg is None:
+            raise ValueError("QRPOTrainer requires actor_rollout_wg.")
+
+        load_ref = getattr(actor_rollout_wg, "load_ref_model_checkpoint", None)
+        if load_ref is None:
+            raise RuntimeError(
+                "QRPO actor_rollout_wg does not support load_ref_model_checkpoint."
+            )
+
+        checkpoint_path = str(self.ref_reward_store.model_checkpoint_path(ref_version))
+        load_ref(local_path=checkpoint_path, del_local_after_load=False)
+        return checkpoint_path
+
+    def _save_qrpo_checkpoint_state(self) -> None:
+        state_path = self._qrpo_checkpoint_state_path(self.global_steps)
+        os.makedirs(os.path.dirname(state_path), exist_ok=True)
+        with open(state_path, "w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    K.REF_VERSION: self.current_ref_version,
+                },
+                handle,
+                indent=2,
+                sort_keys=True,
+            )
+            handle.write("\n")
+
+    def _load_qrpo_checkpoint_state(self) -> None:
+        global_steps = int(getattr(self, "global_steps", 0))
+        if global_steps <= 0:
+            return
+
+        state_path = self._qrpo_checkpoint_state_path(global_steps)
+        if not os.path.exists(state_path):
+            return
+
+        with open(state_path, "r", encoding="utf-8") as handle:
+            state = json.load(handle)
+
+        ref_version = state.get(K.REF_VERSION)
+        if not ref_version:
+            raise ValueError(
+                f"QRPO checkpoint state {state_path} is missing "
+                f"{K.REF_VERSION!r}."
+            )
+
+        self.current_ref_version = str(ref_version)
+
+        if self.ref_reward_store is None:
+            return
+
+        checkpoint_path = self.ref_reward_store.model_checkpoint_path(
+            self.current_ref_version
+        )
+        if os.path.exists(checkpoint_path):
+            self._load_ref_model_checkpoint(ref_version=self.current_ref_version)
+            return
+
+        self._check_ref_model_checkpoint_not_required(
+            ref_version=self.current_ref_version,
+            checkpoint_path=checkpoint_path,
+        )
+
+    def _load_current_ref_model_checkpoint_if_required(self) -> None:
+        if self.ref_reward_store is None or not self.current_ref_version:
+            return
+
+        checkpoint_path = self.ref_reward_store.model_checkpoint_path(
+            self.current_ref_version
+        )
+        if os.path.exists(checkpoint_path):
+            self._load_ref_model_checkpoint(ref_version=self.current_ref_version)
+            return
+
+        self._check_ref_model_checkpoint_not_required(
+            ref_version=self.current_ref_version,
+            checkpoint_path=checkpoint_path,
+        )
+
+    def _check_ref_model_checkpoint_not_required(
+        self,
+        *,
+        ref_version: str,
+        checkpoint_path: os.PathLike[str] | str,
+    ) -> None:
+        if self.ref_reward_store is None:
+            return
+
+        manifest = self.ref_reward_store.load_manifest(ref_version)
+        if manifest.get("source") != "refresh":
+            return
+
+        raise FileNotFoundError(
+            f"Ref reward version {ref_version!r} was produced by a ref refresh, "
+            f"but its ref model checkpoint is missing at {checkpoint_path!s}."
+        )
+
+    def _qrpo_checkpoint_state_path(self, global_steps: int) -> str:
+        return os.path.join(
+            self.config.trainer.default_local_dir,
+            f"global_step_{int(global_steps)}",
+            "qrpo_state.json",
+        )
 
     @staticmethod
     def _compute_qrpo_batch_metrics(batch: DataProto) -> dict[str, float]:
@@ -686,6 +1361,73 @@ class QRPOTrainer(RayPPOTrainer):
         return self.offline_selector
 
     @staticmethod
+    def _check_ref_version_consistency(
+        batches: Sequence[DataProto],
+        *,
+        expected_ref_version: Any | None,
+    ) -> None:
+        observed_versions = [
+            batch.meta_info.get(K.REF_VERSION)
+            for batch in batches
+            if batch.meta_info.get(K.REF_VERSION) is not None
+        ]
+
+        if expected_ref_version is not None:
+            missing_count = len(batches) - len(observed_versions)
+            if missing_count:
+                raise ValueError(
+                    f"{missing_count} QRPO train batch(es) are missing "
+                    f"meta_info[{K.REF_VERSION!r}] while expected ref version is "
+                    f"{expected_ref_version!r}."
+                )
+
+            mismatched = [
+                version
+                for version in observed_versions
+                if version != expected_ref_version
+            ]
+            if mismatched:
+                raise ValueError(
+                    f"QRPO train batch ref versions {mismatched} do not match "
+                    f"expected ref version {expected_ref_version!r}."
+                )
+            return
+
+        if observed_versions and len(observed_versions) != len(batches):
+            raise ValueError(
+                f"QRPO train batches must either all define {K.REF_VERSION!r} "
+                "or all omit it."
+            )
+
+        if observed_versions and len(set(observed_versions)) != 1:
+            raise ValueError(
+                f"QRPO train batches must agree on {K.REF_VERSION!r}, got "
+                f"{observed_versions}."
+            )
+
+    def _attach_current_ref_rewards(
+        self,
+        prompt_records: Sequence[PromptRecord],
+    ) -> list[PromptRecord]:
+        if self.ref_reward_store is None:
+            raise ValueError("QRPOTrainer requires ref_reward_store.")
+        if not self.current_ref_version:
+            raise ValueError("QRPOTrainer requires current_ref_version.")
+
+        prompt_records = list(prompt_records)
+        if all(
+            isinstance(prompt, PromptRecord)
+            and prompt.metadata.get(K.REF_VERSION) == self.current_ref_version
+            for prompt in prompt_records
+        ):
+            return list(prompt_records)
+
+        return self.ref_reward_store.attach_ref_rewards(
+            prompt_records,
+            ref_version=self.current_ref_version,
+        )
+
+    @staticmethod
     def _batch_to_prompt_records(batch_payload: Any) -> list[PromptRecord]:
         if isinstance(batch_payload, PromptRecord):
             return [batch_payload]
@@ -779,30 +1521,75 @@ def validate_qrpo_trainer_config(config: Any) -> None:
     if transform != "identity":
         raise ValueError("Only qrpo.transform='identity' is implemented for now.")
 
+    rollout_n = int(_select(config, "actor_rollout_ref.rollout.n", default=1) or 1)
+    if rollout_n != 1:
+        raise ValueError(
+            "QRPO expects actor_rollout_ref.rollout.n=1 because it expands "
+            "online and ref-reward requests explicitly."
+        )
+
+    ref_initial_source = _select(
+        config,
+        "ref_rewards.initial_source",
+        default="dataset",
+    )
+    if ref_initial_source not in {"dataset", "store", "generate"}:
+        raise ValueError(
+            "ref_rewards.initial_source must be one of 'dataset', 'store', or "
+            f"'generate', got {ref_initial_source!r}."
+        )
+
+    ref_refresh_scope = _select(
+        config,
+        "ref_rewards.refresh_scope",
+        default="full_dataset",
+    )
+    if ref_refresh_scope != "full_dataset":
+        raise NotImplementedError(
+            "Only ref_rewards.refresh_scope='full_dataset' is implemented for now."
+        )
+
+    ref_refresh_interval_epochs = _select(
+        config,
+        "ref_rewards.refresh_interval_epochs",
+        default=None,
+    )
+    if (
+        ref_refresh_interval_epochs is not None
+        and float(ref_refresh_interval_epochs) <= 0.0
+    ):
+        raise ValueError("ref_rewards.refresh_interval_epochs must be positive.")
+
     n_online = int(
         _select(config, "source_schedule.n_online", default=0)
         or _select(config, "qrpo.source_schedule.n_online", default=0)
         or 0
     )
 
-    if n_online > 0:
+    if (
+        n_online > 0
+        or ref_initial_source == "generate"
+        or ref_refresh_interval_epochs is not None
+    ):
         reward_num_workers = int(_select(config, "reward.num_workers", default=0))
         if reward_num_workers <= 0:
             raise ValueError(
-                "Online QRPO requires reward.num_workers > 0 so AgentLoop "
-                "computes reward during rollout."
+                "Online QRPO and generated/refreshed ref rewards require "
+                "reward.num_workers > 0 so AgentLoop computes reward during rollout."
             )
 
         reward_path = _select(config, "reward.custom_reward_function.path", default=None)
         if reward_path is None:
             raise ValueError(
-                "Online QRPO requires reward.custom_reward_function.path."
+                "Online QRPO and generated/refreshed ref rewards require "
+                "reward.custom_reward_function.path."
             )
 
         reward_name = _select(config, "reward.custom_reward_function.name", default=None)
         if not reward_name:
             raise ValueError(
-                "Online QRPO requires reward.custom_reward_function.name."
+                "Online QRPO and generated/refreshed ref rewards require "
+                "reward.custom_reward_function.name."
             )
 
 
@@ -847,3 +1634,22 @@ def _to_plain_container(value: Any) -> Any:
     if isinstance(value, DictConfig):
         return OmegaConf.to_container(value, resolve=True)
     return value
+
+
+def _file_sha256(path: Any | None) -> str | None:
+    if not path:
+        return None
+
+    path = os.fspath(path)
+    if not os.path.isfile(path):
+        return None
+
+    hasher = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def _ref_version_for_step(global_step: int) -> str:
+    return f"ref_step_{int(global_step):06d}"
