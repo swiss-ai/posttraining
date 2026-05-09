@@ -4,6 +4,7 @@
 #SBATCH -t 12:00:00
 #SBATCH -A infra01
 #SBATCH --output=sremote-development.out
+#SBATCH --error=sremote-development.err
 ##SBATCH --reservation=PA-2338-RL
 #SBATCH --reservation=SD-69241-apertus-1-5
 #SBATCH --nodes 1

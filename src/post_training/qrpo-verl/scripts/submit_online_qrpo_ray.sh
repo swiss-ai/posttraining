@@ -44,6 +44,7 @@ srun \
   --no-container-entrypoint \
   --container-writable \
   /opt/template-entrypoints/pre-entrypoint.sh \
-  "${PROJECT_ROOT_AT}/src/post_training/qrpo-verl/scripts/run_online_qrpo_ray.sh"
+  "${PROJECT_ROOT_AT}/src/post_training/qrpo-verl/scripts/run_online_qrpo_ray.sh" \
+  "$@"
 
 exit 0

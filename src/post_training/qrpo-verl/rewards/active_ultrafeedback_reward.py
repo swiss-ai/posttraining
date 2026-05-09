@@ -117,8 +117,8 @@ def _expected_score(probs: Mapping[str, float]) -> float:
 def _extract_probabilities(res: Any) -> dict[str, float]:
     try:
         first_token_logprobs = res.choices[0].logprobs.content[0].top_logprobs
-    except Exception:
-        return {token: 0.0 for token in TARGET_TOKENS}
+    except Exception as exc:
+        raise ValueError("Judge response does not contain first-token top_logprobs.") from exc
 
     best_logprob = {token: -float("inf") for token in TARGET_TOKENS}
 
@@ -134,7 +134,10 @@ def _extract_probabilities(res: Any) -> dict[str, float]:
 
     total = sum(exp_values.values())
     if total <= 0:
-        return {token: 0.0 for token in TARGET_TOKENS}
+        raise ValueError(
+            "Judge response top_logprobs contain no probability mass for target "
+            f"tokens {TARGET_TOKENS}."
+        )
 
     return {
         token: float(value / total)
@@ -221,12 +224,18 @@ async def _judge_aspect(
 
             return _expected_score(_extract_probabilities(res))
 
-        except Exception:
+        except Exception as exc:
             if attempt >= max_retries:
-                return 0.0
+                raise RuntimeError(
+                    "Active UltraFeedback judge request failed after "
+                    f"{max_retries + 1} attempts for aspect {aspect!r}."
+                ) from exc
             await asyncio.sleep(retry_base_sleep_s * (2**attempt))
 
-    return 0.0
+    raise RuntimeError(
+        "Active UltraFeedback judge request failed unexpectedly for "
+        f"aspect {aspect!r}."
+    )
 
 
 async def compute_score(

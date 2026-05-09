@@ -27,8 +27,10 @@ from ref_rewards import RefRewardStore
 from ref_rewards.generation import (
     attach_ref_rollout_metadata,
     extract_ref_rollout_metadata,
+    pad_ref_rollout_input_for_agent_workers,
     ref_reward_rollout_input_from_prompt_records,
     ref_rollout_output_to_store_rows,
+    truncate_ref_rollout_output,
 )
 from verl_adapters.engine_worker import QRPOEngineActorRolloutRefWorker
 from verl_adapters.online_completion_logging import (
@@ -1005,8 +1007,16 @@ class QRPOTrainer(RayPPOTrainer):
             },
         )
         rollout_metadata = extract_ref_rollout_metadata(rollout_input)
+        rollout_input, original_size = pad_ref_rollout_input_for_agent_workers(
+            rollout_input,
+            num_workers=self._agent_loop_worker_count(),
+        )
         rollout_output = self.async_rollout_manager.generate_sequences(
             rollout_input
+        )
+        rollout_output = truncate_ref_rollout_output(
+            rollout_output,
+            size=original_size,
         )
         attach_ref_rollout_metadata(
             rollout_output=rollout_output,
@@ -1017,6 +1027,19 @@ class QRPOTrainer(RayPPOTrainer):
             tokenizer=tokenizer,
             ref_version=ref_version,
             num_ref_completions=num_ref_completions,
+        )
+
+    def _agent_loop_worker_count(self) -> int:
+        workers = getattr(self.async_rollout_manager, "agent_loop_workers", None)
+        if workers is not None:
+            return len(workers)
+        return int(
+            _select(
+                self.config,
+                "actor_rollout_ref.rollout.agent.num_workers",
+                default=1,
+            )
+            or 1
         )
 
     @staticmethod
