@@ -46,7 +46,7 @@ submit_script = (
     f"{project_root}/src/post_training/qrpo-verl/scripts/submit_online_qrpo_ray.sh"
 )
 
-judge_base_url = "http://172.28.35.28:30000/v1"
+judge_base_url = "http://172.28.33.144:30000/v1"
 judge_model = "Qwen/Qwen3.6-27B-smatrenok"
 judge_max_concurrency_per_worker = 64
 judge_max_connections = 2048
@@ -66,7 +66,7 @@ reservation = None
 
 data_path = (
     f"{project_root}/artifacts/private/datasets/"
-    "MaxMin-Filtered-Ref-Completions-30-Annotated-Combined-Final-OnlineQRPOformat/"
+    "MaxMin-Filtered-OnlineQRPOformat-30-ref-rewards-qwen-36-27B-judge/"
     "train_split"
 )
 model_path = (
@@ -79,7 +79,7 @@ reward_function_path = (
 )
 ref_reward_store_dir = (
     f"{project_root}/artifacts/private/outputs/ref_reward_stores/"
-    "apertus-8b-sft-1.5--lr8e-5_initial_activeuf_helpfulness"
+    "apertus-8b-sft-1.5--lr8e-5_initial_activeuf_helpfulness_sweep"
 )
 output_root = f"{project_root}/artifacts/private/outputs/online-qrpo"
 
@@ -87,11 +87,11 @@ project_name = "qrpo-mixed-sweep"
 wandb_entity = "matrs01"
 
 learning_rates = [1e-5, 2.5e-5, 5e-5]
-betas = [0.01, 0.025, 0.05]
+betas = [0.005, 0.01, 0.025, 0.05]
 # length_normalizations = [False, True]
 length_normalizations = [False]
 nums_online = [1]
-nums_offline = [0, 1]
+nums_offline = [1]
 offline_selectors = ["minmax_rewards"]
 
 # Useful extra dimensions to add later:
@@ -118,10 +118,10 @@ common_hydra_overrides = {
     "online_rollout.completion_logging.outputs": '["wandb"]',
     "online_rollout.completion_logging.selection": "all",
     # Sweeps should reuse a completed store. Do not let all jobs generate it.
-    "ref_rewards.initial_source": "store",
+    "ref_rewards.initial_source": "dataset",
     "ref_rewards.initial_version": "ref_step_000000",
     "ref_rewards.refresh_interval_epochs": None,
-    "data.ref_rewards_key": None,
+    "data.ref_rewards_key": "ref_rewards",
     "ref_rewards.store_dir": ref_reward_store_dir,
     "ref_rewards.generation_num_chunks": None,
     "actor_rollout_ref.rollout.checkpoint_engine.update_weights_bucket_megabytes": 4096,

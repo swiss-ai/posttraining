@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from datasets import Dataset
 
@@ -79,6 +81,62 @@ def test_ref_reward_store_imports_dataset_ref_rewards(tmp_path):
         "p0": (1.0, 2.0),
         "p1": (3.0, 4.0),
     }
+
+
+def test_ref_reward_store_tolerates_concurrent_complete_version_publish(
+    tmp_path,
+    monkeypatch,
+):
+    store = RefRewardStore(tmp_path / "refs")
+
+    rows = [
+        {
+            "prompt_id": "p0",
+            "dataset_index": 0,
+            "ref_version": "ref_v1",
+            "ref_completions": ["a"],
+            "ref_rewards": [1.0],
+            "reward_extra_info": [None],
+        }
+    ]
+    original_rename = type(store.version_dir("ref_v1")).rename
+
+    def publish_same_version_first(self, target):
+        if (
+            self.name.startswith("ref_v1.tmp.")
+            and target == store.version_dir("ref_v1")
+        ):
+            target.mkdir(parents=True)
+            Dataset.from_list(rows).save_to_disk(str(target / "dataset"))
+            with (target / "manifest.json").open("w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "ref_version": "ref_v1",
+                        "status": "complete",
+                        "source": "unit",
+                        "prompt_count": 1,
+                        "num_ref_completions": 1,
+                    },
+                    handle,
+                )
+            raise OSError("target was published concurrently")
+        return original_rename(self, target)
+
+    monkeypatch.setattr(
+        type(store.version_dir("ref_v1")),
+        "rename",
+        publish_same_version_first,
+    )
+
+    store.save_version_rows(
+        ref_version="ref_v1",
+        rows=rows,
+        manifest={"source": "unit"},
+        overwrite=False,
+    )
+
+    assert store.load_ref_rewards("ref_v1") == {"p0": (1.0,)}
+    assert not list(store.versions_dir.glob("ref_v1.tmp.*"))
 
 
 def test_ref_reward_store_rejects_missing_prompt(tmp_path):

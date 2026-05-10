@@ -4,6 +4,7 @@ import json
 import math
 import os
 import shutil
+import uuid
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -175,6 +176,11 @@ class RefRewardStore:
             manifest=manifest,
             overwrite=overwrite,
         )
+        self._check_existing_dataset_import(
+            ref_version=ref_version,
+            dataset=dataset,
+            metadata=metadata,
+        )
 
     def save_version_rows(
         self,
@@ -191,35 +197,51 @@ class RefRewardStore:
         _validate_rows(rows, ref_version=ref_version)
 
         version_dir = self.version_dir(ref_version)
-        tmp_dir = version_dir.with_name(f"{version_dir.name}.tmp")
+        tmp_dir = version_dir.with_name(
+            f"{version_dir.name}.tmp.{os.getpid()}.{uuid.uuid4().hex}"
+        )
 
-        if tmp_dir.exists():
-            shutil.rmtree(tmp_dir)
         if version_dir.exists():
             if not overwrite:
                 raise FileExistsError(f"Ref reward version already exists: {version_dir}")
             shutil.rmtree(version_dir)
 
-        tmp_dir.mkdir(parents=True)
+        try:
+            tmp_dir.mkdir(parents=True)
 
-        from datasets import Dataset
+            from datasets import Dataset
 
-        Dataset.from_list([dict(row) for row in rows]).save_to_disk(
-            str(tmp_dir / "dataset")
-        )
+            Dataset.from_list([dict(row) for row in rows]).save_to_disk(
+                str(tmp_dir / "dataset")
+            )
 
-        full_manifest = dict(manifest)
-        full_manifest["ref_version"] = str(ref_version)
-        full_manifest["status"] = "complete"
-        full_manifest.setdefault("prompt_count", len(rows))
-        full_manifest.setdefault("num_ref_completions", _shared_ref_count(rows))
+            full_manifest = dict(manifest)
+            full_manifest["ref_version"] = str(ref_version)
+            full_manifest["status"] = "complete"
+            full_manifest.setdefault("prompt_count", len(rows))
+            full_manifest.setdefault("num_ref_completions", _shared_ref_count(rows))
 
-        with (tmp_dir / "manifest.json").open("w", encoding="utf-8") as handle:
-            json.dump(full_manifest, handle, indent=2, sort_keys=True)
-            handle.write("\n")
+            with (tmp_dir / "manifest.json").open("w", encoding="utf-8") as handle:
+                json.dump(full_manifest, handle, indent=2, sort_keys=True)
+                handle.write("\n")
 
-        tmp_dir.replace(version_dir)
-        self._cache.pop(str(ref_version), None)
+            try:
+                tmp_dir.rename(version_dir)
+            except OSError as exc:
+                if not overwrite and self.has_complete_version(ref_version):
+                    return
+                if not overwrite and version_dir.exists():
+                    raise FileExistsError(
+                        "Ref reward version directory already exists but is not a "
+                        f"complete reusable version: {version_dir}. Remove it, "
+                        "choose a new ref_version, or set overwrite=True."
+                    ) from exc
+                raise
+            finally:
+                self._cache.pop(str(ref_version), None)
+        finally:
+            if tmp_dir.exists():
+                shutil.rmtree(tmp_dir)
 
     def save_generation_chunk(
         self,

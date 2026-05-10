@@ -2,7 +2,8 @@
 
 #SBATCH -J post-training-run
 #SBATCH -t 12:00:00
-#SBATCH -A a-infra01-1
+#SBATCH -A infra01
+#SBATCH --reservation=SD-69241-apertus-1-5
 #SBATCH --nodes 1
 
 # Variables used by the entrypoint script
