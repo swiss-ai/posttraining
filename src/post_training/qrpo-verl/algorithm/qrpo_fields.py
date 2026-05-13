@@ -281,6 +281,8 @@ def add_qrpo_fields(
             device=trajectory_rewards.device
         )
         effective_beta = torch.full_like(trajectory_length, beta) / trajectory_length
+        # clamp max to 0.1 otherwise grad norm is too high.
+        effective_beta = effective_beta.clamp(max=0.1)
     else:
         # We still expose trajectory_length for logging/debugging when available,
         # but it does not affect effective_beta.
