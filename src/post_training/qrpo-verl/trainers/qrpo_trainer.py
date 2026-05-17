@@ -1540,6 +1540,14 @@ def validate_qrpo_trainer_config(config: Any) -> None:
     if not isinstance(length_normalization, bool):
         raise ValueError("qrpo.length_normalization must be a boolean.")
 
+    effective_beta_max = _select(config, "qrpo.effective_beta_max", default=None)
+    if effective_beta_max is not None:
+        effective_beta_max = float(effective_beta_max)
+        if not math.isfinite(effective_beta_max) or effective_beta_max <= 0.0:
+            raise ValueError(
+                "qrpo.effective_beta_max must be finite and positive when set."
+            )
+
     transform = _select(config, "qrpo.transform", default="identity")
     if transform != "identity":
         raise ValueError("Only qrpo.transform='identity' is implemented for now.")

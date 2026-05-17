@@ -2259,6 +2259,15 @@ def test_validate_qrpo_config_allows_online_with_reward_loop(tmp_path):
     validate_qrpo_trainer_config(config)
 
 
+def test_validate_qrpo_config_rejects_non_positive_effective_beta_max():
+    for value in (0.0, -1.0, float("nan")):
+        config = _minimal_qrpo_config()
+        config.qrpo.effective_beta_max = value
+
+        with pytest.raises(ValueError, match="effective_beta_max"):
+            validate_qrpo_trainer_config(config)
+
+
 def test_validate_qrpo_config_allows_streaming_reward_workers_without_batch_divisibility(
     tmp_path,
 ):

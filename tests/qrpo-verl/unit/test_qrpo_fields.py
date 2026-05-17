@@ -298,6 +298,45 @@ def test_add_qrpo_fields_boolean_length_normalization_config() -> None:
     )
 
 
+def test_add_qrpo_fields_supports_effective_beta_max() -> None:
+    data = make_qrpo_data()
+
+    add_qrpo_fields(
+        data,
+        config={
+            "beta": 6.0,
+            "length_normalization": True,
+            "effective_beta_max": 0.1,
+        },
+    )
+
+    expected_effective_beta = torch.tensor([0.1, 0.1, 0.1], dtype=torch.float32)
+    expected_log_z = identity_quantile_log_partition(expected_effective_beta)
+    expected_beta_log_z = identity_quantile_beta_log_partition(expected_effective_beta)
+
+    assert torch.equal(data.batch[K.EFFECTIVE_BETA], expected_effective_beta)
+    assert torch.allclose(data.batch[K.LOG_PARTITION], expected_log_z)
+    assert torch.allclose(data.batch[K.BETA_LOG_PARTITION], expected_beta_log_z)
+
+
+def test_add_qrpo_fields_effective_beta_max_caps_non_length_normalized_beta() -> None:
+    data = make_qrpo_data()
+
+    add_qrpo_fields(
+        data,
+        config={
+            "beta": 6.0,
+            "length_normalization": False,
+            "effective_beta_max": 0.1,
+        },
+    )
+
+    assert torch.equal(
+        data.batch[K.EFFECTIVE_BETA],
+        torch.tensor([0.1, 0.1, 0.1], dtype=torch.float32),
+    )
+
+
 def test_add_qrpo_fields_stores_terms_for_stable_residual() -> None:
     data = make_qrpo_data()
 
@@ -401,6 +440,20 @@ def test_add_qrpo_fields_rejects_non_boolean_length_normalization() -> None:
                 "length_normalization": "trainable_tokens",
             },
         )
+
+
+def test_add_qrpo_fields_rejects_non_positive_effective_beta_max() -> None:
+    data = make_qrpo_data()
+
+    for value in (0.0, -1.0, float("nan")):
+        with pytest.raises(ValueError, match="effective_beta_max"):
+            add_qrpo_fields(
+                data,
+                config={
+                    "beta": 1.0,
+                    "effective_beta_max": value,
+                },
+            )
 
 
 def test_add_qrpo_fields_requires_reward_keys() -> None:

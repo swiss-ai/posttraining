@@ -9,6 +9,9 @@ qrpo:
   beta: 0.05
   transform: identity
   length_normalization: false
+  # Optional cap on the final per-sample effective beta. Leave null to use the
+  # algorithmic value exactly; set e.g. 0.1 to bound gradient scale.
+  effective_beta_max: null
 
 ref_rewards:
   # QRPO always resolves reference rewards through this versioned store. The

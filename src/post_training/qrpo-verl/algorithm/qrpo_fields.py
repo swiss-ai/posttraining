@@ -219,6 +219,10 @@ def add_qrpo_fields(
       true:
         effective_beta = beta / response_mask.sum(-1)
 
+    Optional effective-beta cap:
+      effective_beta_max:
+        effective_beta = min(effective_beta, effective_beta_max)
+
     Stable actor-loss residual:
 
         log_ratio = log pi_theta(y|x) - log pi_ref(y|x)
@@ -255,6 +259,14 @@ def add_qrpo_fields(
             "QRPO config field 'length_normalization' must be a boolean."
         )
 
+    effective_beta_max = config.get("effective_beta_max", None)
+    if effective_beta_max is not None:
+        effective_beta_max = float(effective_beta_max)
+        if not math.isfinite(effective_beta_max) or effective_beta_max <= 0.0:
+            raise ValueError(
+                "QRPO config field 'effective_beta_max' must be finite and positive."
+            )
+
     if K.TRAJECTORY_REWARD not in data.batch:
         raise KeyError(f"DataProto.batch is missing {K.TRAJECTORY_REWARD!r}.")
 
@@ -281,8 +293,6 @@ def add_qrpo_fields(
             device=trajectory_rewards.device
         )
         effective_beta = torch.full_like(trajectory_length, beta) / trajectory_length
-        # clamp max to 0.1 otherwise grad norm is too high.
-        effective_beta = effective_beta.clamp(max=0.1)
     else:
         # We still expose trajectory_length for logging/debugging when available,
         # but it does not affect effective_beta.
@@ -294,6 +304,9 @@ def add_qrpo_fields(
             trajectory_length = torch.ones_like(trajectory_rewards)
 
         effective_beta = torch.full_like(trajectory_rewards, beta)
+
+    if effective_beta_max is not None:
+        effective_beta = effective_beta.clamp(max=effective_beta_max)
 
     log_partition = identity_quantile_log_partition(effective_beta).to(
         device=trajectory_rewards.device
