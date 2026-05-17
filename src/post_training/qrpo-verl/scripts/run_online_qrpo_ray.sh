@@ -60,7 +60,6 @@ if (( QRPO_TRAIN_BATCH_SIZE % (TOTAL_TRAIN_GPUS * LOG_PROB_MICRO_BATCH_SIZE_PER_
 fi
 GRAD_ACCUM_STEPS="$((TRAIN_BATCH_SIZE_PER_GPU / TRAIN_MICRO_BATCH_SIZE_PER_GPU))"
 LOG_PROB_ACCUM_STEPS="$((TRAIN_BATCH_SIZE_PER_GPU / LOG_PROB_MICRO_BATCH_SIZE_PER_GPU))"
-REF_REWARD_GENERATION_PROMPT_BATCH_SIZE="${REF_REWARD_GENERATION_PROMPT_BATCH_SIZE:-128}"
 RAY_PORT="${RAY_PORT:-6379}"
 RAY_WAIT_TIMEOUT_S="${RAY_WAIT_TIMEOUT_S:-600}"
 RAY_JOB_DIR="${RAY_JOB_DIR:-${SCRATCH:-/tmp}/qrpo-ray/${SLURM_JOB_ID:-manual}}"
@@ -129,7 +128,6 @@ export QRPO_PROMPT_BATCH_SIZE
 export QRPO_TRAIN_BATCH_SIZE
 export GRAD_ACCUM_STEPS
 export LOG_PROB_ACCUM_STEPS
-export REF_REWARD_GENERATION_PROMPT_BATCH_SIZE
 export RAY_WAIT_TIMEOUT_S
 
 cat <<EOF
@@ -177,46 +175,6 @@ finally:
 PY
 
 python -m entrypoints.main_qrpo \
-  data.path=/users/smatreno/projects/posttraining/dev/artifacts/private/datasets/MaxMin-Filtered-Ref-Completions-30-Annotated-Combined-Final-OnlineQRPOformat/train_split \
-  actor_rollout_ref.model.path=/users/smatreno/projects/posttraining/dev/artifacts/private/baseline-checkpoints/Apertus-8b-sft-1.5--lr8e-5 \
-  tokenizer.use_eos_as_pad=false \
-  data.train_batch_size="${QRPO_PROMPT_BATCH_SIZE}" \
-  qrpo_runtime.train_mini_batch_size="${QRPO_TRAIN_BATCH_SIZE}" \
-  qrpo_runtime.train_micro_batch_size_per_gpu="${TRAIN_MICRO_BATCH_SIZE_PER_GPU}" \
-  qrpo_runtime.log_prob_micro_batch_size_per_gpu="${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU}" \
-  source_schedule.n_online=1 \
-  source_schedule.n_offline=0 \
-  actor_rollout_ref.rollout.n=1 \
-  reward.num_workers=32 \
-  reward.custom_reward_function.path=/users/smatreno/projects/posttraining/dev/src/post_training/qrpo-verl/rewards/active_ultrafeedback_reward.py \
-  reward.custom_reward_function.name=compute_score \
-  online_rollout.data_source=activeultrafeedback \
-  trainer.save_freq=100 \
-  trainer.test_freq=0 \
-  trainer.default_local_dir=/users/smatreno/projects/posttraining/dev/artifacts/private/outputs/online-qrpo/online-qrpo-test/apertus_8b_online_qrpo_debug \
-  trainer.val_before_train=false \
-  trainer.logger='["console","wandb"]' \
-  trainer.project_name=online-qrpo-test \
-  trainer.experiment_name=apertus_8b_online_qrpo_debug \
-  offline_selector=random \
-  online_rollout.completion_logging.enabled=false \
-  online_rollout.completion_logging.outputs='["wandb"]' \
-  online_rollout.completion_logging.selection=all \
-  ref_rewards.initial_source=generate \
-  ref_rewards.initial_version=ref_step_000000 \
-  ref_rewards.refresh_interval_epochs=null \
-  data.ref_rewards_key=null \
-  ref_rewards.store_dir=/users/smatreno/projects/posttraining/dev/artifacts/private/outputs/ref_reward_stores/apertus-8b-sft-1.5--lr8e-5_initial_activeuf_helpfulness \
-  ref_rewards.generation_num_chunks=null \
-  actor_rollout_ref.rollout.checkpoint_engine.update_weights_bucket_megabytes=4096 \
-  actor_rollout_ref.rollout.agent.num_workers=32 \
-  actor_rollout_ref.rollout.max_num_seqs=4096 \
-  actor_rollout_ref.rollout.max_num_batched_tokens=131072 \
-  actor_rollout_ref.rollout.gpu_memory_utilization=0.8 \
-  actor_rollout_ref.rollout.disable_log_stats=false \
   ++ray_kwargs.ray_init.runtime_env.env_vars.VLLM_LOGGING_LEVEL=INFO \
-  trainer.nnodes="${TRAINER_NNODES}" \
-  trainer.n_gpus_per_node="${N_GPUS_PER_NODE}" \
-  ref_rewards.generation_prompt_batch_size="${REF_REWARD_GENERATION_PROMPT_BATCH_SIZE}" \
   ++ray_kwargs.ray_init.address="${RAY_ADDRESS}" \
   "${EXTRA_HYDRA_OVERRIDES[@]}"
