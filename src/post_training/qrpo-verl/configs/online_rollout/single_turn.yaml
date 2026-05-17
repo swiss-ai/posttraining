@@ -6,6 +6,15 @@ agent_name: null
 
 validate: false
 
+candidate_selection:
+  enabled: false
+  # Number of rollout candidates generated for each selected online train slot.
+  # QRPO still trains on one selected candidate per slot.
+  candidates_per_train_sample: 1
+  probability: 1.0
+  selection: best_reward
+  seed: 0
+
 completion_logging:
   enabled: false
   outputs: ["wandb"]  # console | wandb

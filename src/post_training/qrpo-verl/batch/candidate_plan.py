@@ -25,6 +25,9 @@ class OnlineRolloutRequest:
     trajectory_id: str
 
     tools: tuple[Mapping[str, Any], ...] | None = None
+    train_trajectory_id: str | None = None
+    candidate_index: int | None = None
+    candidates_per_train_sample: int | None = None
 
 
 @dataclass(frozen=True)

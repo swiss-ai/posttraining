@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import random
+from dataclasses import dataclass, replace
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -14,6 +16,22 @@ _ONLINE_ROLLOUT_TRAIN_METADATA_KEYS = (
     K.TRAJECTORY_ID,
     K.REF_REWARDS,
 )
+
+
+@dataclass(frozen=True)
+class OnlineRolloutCandidatePlan:
+    """Mapping from online train slots to rollout candidate requests."""
+
+    training_requests: tuple[OnlineRolloutRequest, ...]
+    candidate_requests: tuple[OnlineRolloutRequest, ...]
+    candidate_counts_per_train_slot: tuple[int, ...]
+    candidates_per_train_sample: int
+    actual_probability: float
+    selection: str
+
+    @property
+    def has_extra_candidates(self) -> bool:
+        return any(count > 1 for count in self.candidate_counts_per_train_slot)
 
 
 def online_rollout_requests_to_dataproto(
@@ -45,6 +63,17 @@ def online_rollout_requests_to_dataproto(
 
     for i, request in enumerate(requests):
         prompt_messages = tuple(request.prompt_messages)
+        train_trajectory_id = request.train_trajectory_id or request.trajectory_id
+        candidate_index = (
+            0
+            if request.candidate_index is None
+            else int(request.candidate_index)
+        )
+        request_candidates_per_train_sample = (
+            1
+            if request.candidates_per_train_sample is None
+            else int(request.candidates_per_train_sample)
+        )
 
         # VERL's naive reward-manager adapter requires reward_model["ground_truth"].
         # Our active UltraFeedback reward will mostly use extra_info["prompt"],
@@ -54,6 +83,9 @@ def online_rollout_requests_to_dataproto(
                 "prompt": prompt_messages,
                 "prompt_id": request.prompt_id,
                 "trajectory_id": request.trajectory_id,
+                "train_trajectory_id": train_trajectory_id,
+                "candidate_index": candidate_index,
+                "candidates_per_train_sample": request_candidates_per_train_sample,
             }
         }
 
@@ -61,6 +93,9 @@ def online_rollout_requests_to_dataproto(
             "prompt": prompt_messages,
             "prompt_id": request.prompt_id,
             "trajectory_id": request.trajectory_id,
+            "train_trajectory_id": train_trajectory_id,
+            "candidate_index": candidate_index,
+            "candidates_per_train_sample": request_candidates_per_train_sample,
             "online_index": request.online_index,
             "ref_rewards": tuple(request.ref_rewards),
         }
@@ -90,6 +125,197 @@ def online_rollout_requests_to_dataproto(
         non_tensor_batch=non_tensor_batch,
         meta_info=merged_meta_info,
     )
+
+
+def expand_online_rollout_candidate_requests(
+    *,
+    requests: Sequence[OnlineRolloutRequest],
+    config: Mapping[str, Any],
+    meta_info: Mapping[str, Any] | None = None,
+    divisible_by: int = 1,
+) -> OnlineRolloutCandidatePlan:
+    """Expand online train slots into rollout candidates for best-of-k."""
+
+    training_requests = tuple(requests)
+    selection_config = config.get("candidate_selection", {}) or {}
+    enabled = bool(selection_config.get("enabled", False))
+    selection = str(selection_config.get("selection", "best_reward"))
+    candidates_per_train_sample = _resolve_candidates_per_train_sample(
+        selection_config
+    )
+    probability = float(selection_config.get("probability", 1.0))
+    seed = int(selection_config.get("seed", 0))
+
+    if not 0.0 <= probability <= 1.0:
+        raise ValueError(
+            "online_rollout.candidate_selection.probability must be in [0, 1]."
+        )
+    if selection != "best_reward":
+        raise ValueError(
+            "online_rollout.candidate_selection.selection must be 'best_reward'."
+        )
+    if divisible_by <= 0:
+        raise ValueError(f"divisible_by must be positive, got {divisible_by}.")
+
+    if not enabled or candidates_per_train_sample == 1 or probability == 0.0:
+        return OnlineRolloutCandidatePlan(
+            training_requests=training_requests,
+            candidate_requests=training_requests,
+            candidate_counts_per_train_slot=tuple([1] * len(training_requests)),
+            candidates_per_train_sample=1,
+            actual_probability=0.0,
+            selection=selection,
+        )
+
+    step = 0 if meta_info is None else int(meta_info.get("global_steps", 0) or 0)
+    rng = random.Random(seed + step * 1_000_003)
+    scores = [rng.random() for _ in training_requests]
+    selected_count = sum(score < probability for score in scores)
+    selected_count = _adjust_best_of_k_count_for_divisibility(
+        base_count=len(training_requests),
+        selected_count=selected_count,
+        max_selected_count=len(training_requests),
+        extra_candidates_per_selected=candidates_per_train_sample - 1,
+        divisible_by=divisible_by,
+    )
+    selected_indices = set(
+        sorted(range(len(training_requests)), key=lambda index: scores[index])[
+            :selected_count
+        ]
+    )
+
+    candidate_requests: list[OnlineRolloutRequest] = []
+    candidate_counts_per_train_slot: list[int] = []
+
+    for index, request in enumerate(training_requests):
+        count = candidates_per_train_sample if index in selected_indices else 1
+        candidate_counts_per_train_slot.append(count)
+
+        if count == 1:
+            candidate_requests.append(request)
+            continue
+
+        for candidate_index in range(count):
+            candidate_requests.append(
+                replace(
+                    request,
+                    trajectory_id=(
+                        f"{request.trajectory_id}::candidate_{candidate_index}"
+                    ),
+                    train_trajectory_id=request.trajectory_id,
+                    candidate_index=candidate_index,
+                    candidates_per_train_sample=count,
+                )
+            )
+
+    return OnlineRolloutCandidatePlan(
+        training_requests=training_requests,
+        candidate_requests=tuple(candidate_requests),
+        candidate_counts_per_train_slot=tuple(candidate_counts_per_train_slot),
+        candidates_per_train_sample=candidates_per_train_sample,
+        actual_probability=selected_count / max(1, len(training_requests)),
+        selection=selection,
+    )
+
+
+def select_online_rollout_candidates(
+    *,
+    rollout_output: DataProto,
+    rewards: torch.Tensor,
+    candidate_plan: OnlineRolloutCandidatePlan,
+) -> tuple[DataProto, torch.Tensor, dict[str, float]]:
+    """Select one rollout output per online train slot."""
+
+    if not candidate_plan.has_extra_candidates:
+        return rollout_output, rewards, {}
+
+    if rewards.ndim != 1 or rewards.shape[0] != len(candidate_plan.candidate_requests):
+        raise ValueError(
+            "candidate rewards must have one value per candidate request, got "
+            f"{tuple(rewards.shape)} for {len(candidate_plan.candidate_requests)} requests."
+        )
+    if len(rollout_output) != len(candidate_plan.candidate_requests):
+        raise ValueError(
+            "rollout_output length must match candidate request count, got "
+            f"{len(rollout_output)} and {len(candidate_plan.candidate_requests)}."
+        )
+
+    selected_indices: list[int] = []
+    selected_rewards: list[torch.Tensor] = []
+    best_minus_first: list[float] = []
+    offset = 0
+
+    for count in candidate_plan.candidate_counts_per_train_slot:
+        if count == 1:
+            selected_index = offset
+        else:
+            group_rewards = rewards[offset : offset + count]
+            relative_index = int(torch.argmax(group_rewards).detach().cpu().item())
+            selected_index = offset + relative_index
+            best_minus_first.append(
+                float(
+                    (group_rewards[relative_index] - group_rewards[0])
+                    .detach()
+                    .cpu()
+                    .item()
+                )
+            )
+
+        selected_indices.append(selected_index)
+        selected_rewards.append(rewards[selected_index])
+        offset += count
+
+    if offset != len(candidate_plan.candidate_requests):
+        raise ValueError(
+            "candidate_counts_per_train_slot does not cover all candidate "
+            f"requests: covered {offset}, expected "
+            f"{len(candidate_plan.candidate_requests)}."
+        )
+
+    selected_output = _index_dataproto_rows(rollout_output, selected_indices)
+    selected_output.non_tensor_batch[K.TRAJECTORY_ID] = np.asarray(
+        [request.trajectory_id for request in candidate_plan.training_requests],
+        dtype=object,
+    )
+    selected_rewards_tensor = torch.stack(selected_rewards).to(device=rewards.device)
+
+    metrics = {
+        "online_candidate_selection/train_slots": float(
+            len(candidate_plan.training_requests)
+        ),
+        "online_candidate_selection/rollout_candidates": float(
+            len(candidate_plan.candidate_requests)
+        ),
+        "online_candidate_selection/best_of_k_slots": float(
+            sum(count > 1 for count in candidate_plan.candidate_counts_per_train_slot)
+        ),
+        "online_candidate_selection/actual_probability": float(
+            candidate_plan.actual_probability
+        ),
+        "online_candidate_selection/candidates_per_train_sample": float(
+            candidate_plan.candidates_per_train_sample
+        ),
+    }
+    if best_minus_first:
+        metrics["online_candidate_selection/best_minus_first_reward_mean"] = float(
+            sum(best_minus_first) / len(best_minus_first)
+        )
+
+    return selected_output, selected_rewards_tensor, metrics
+
+
+def _resolve_candidates_per_train_sample(
+    selection_config: Mapping[str, Any],
+) -> int:
+    value = int(selection_config.get("candidates_per_train_sample", 1))
+
+    if value <= 0:
+        raise ValueError(
+            "online_rollout.candidate_selection.candidates_per_train_sample "
+            "must be positive."
+        )
+
+    return value
 
 
 def extract_online_rollout_train_metadata(
@@ -166,6 +392,59 @@ def attach_online_rollout_train_metadata(
             )
 
     return rollout_output
+
+
+def _adjust_best_of_k_count_for_divisibility(
+    *,
+    base_count: int,
+    selected_count: int,
+    max_selected_count: int,
+    extra_candidates_per_selected: int,
+    divisible_by: int,
+) -> int:
+    if divisible_by == 1:
+        return selected_count
+
+    valid_counts = [
+        count
+        for count in range(max_selected_count + 1)
+        if (base_count + count * extra_candidates_per_selected) % divisible_by == 0
+    ]
+    if not valid_counts:
+        raise ValueError(
+            "Cannot make online rollout candidate count divisible by "
+            f"{divisible_by}: base_count={base_count}, "
+            f"extra_candidates_per_selected={extra_candidates_per_selected}, "
+            f"max_selected_count={max_selected_count}."
+        )
+
+    return min(
+        valid_counts,
+        key=lambda count: (abs(count - selected_count), count > selected_count),
+    )
+
+
+def _index_dataproto_rows(data: DataProto, indices: Sequence[int]) -> DataProto:
+    if data.batch is None:
+        raise ValueError("DataProto.batch is required.")
+
+    index_list = [int(index) for index in indices]
+    tensors = {}
+    for key, value in data.batch.items():
+        index_tensor = torch.tensor(index_list, dtype=torch.long, device=value.device)
+        tensors[key] = value.index_select(0, index_tensor)
+
+    numpy_indices = np.asarray(index_list, dtype=np.int64)
+    non_tensors = {
+        key: values[numpy_indices]
+        for key, values in data.non_tensor_batch.items()
+    }
+
+    return DataProto.from_dict(
+        tensors=tensors,
+        non_tensors=non_tensors,
+        meta_info=dict(data.meta_info or {}),
+    )
 
 
 def online_rollout_output_to_train_dataproto(

@@ -2177,6 +2177,127 @@ def test_run_qrpo_iteration_uses_agent_loop_rewards_for_online_rewards():
     assert output.meta_info["metrics"]["reward/online_max"] == pytest.approx(3.0)
 
 
+def test_run_qrpo_iteration_selects_best_online_candidate_per_train_slot():
+    cfg = make_config(
+        **{
+            "online_rollout.data_source": "activeultrafeedback",
+            "online_rollout.agent_name": None,
+            "online_rollout.validate": False,
+            "online_rollout.candidate_selection.enabled": True,
+            "online_rollout.candidate_selection.candidates_per_train_sample": 2,
+            "online_rollout.candidate_selection.probability": 1.0,
+            "online_rollout.candidate_selection.selection": "best_reward",
+            "actor_rollout_ref.rollout.agent.num_workers": 2,
+        }
+    )
+    trainer = make_trainer_for_unit_test(config=cfg)
+    trainer.checkpoint_manager = FakeCheckpointManager()
+    trainer.ref_reward_store = FakeRefRewardStore({"prompt-0": (0.1, 0.2)})
+    trainer.current_ref_version = "unit_ref"
+
+    class FakeRolloutManager:
+        def __init__(self):
+            self.inputs = []
+
+        def generate_sequences(self, rollout_input: DataProto) -> DataProto:
+            self.inputs.append(rollout_input)
+            size = len(rollout_input)
+            prompts = torch.arange(size * 2, dtype=torch.long).reshape(size, 2)
+            responses = torch.arange(10, 10 + size * 3, dtype=torch.long).reshape(
+                size,
+                3,
+            )
+            input_ids = torch.cat([prompts, responses], dim=-1)
+            return DataProto.from_dict(
+                tensors={
+                    K.PROMPTS: prompts,
+                    K.RESPONSES: responses,
+                    K.RESPONSE_MASK: torch.ones_like(responses, dtype=torch.bool),
+                    K.INPUT_IDS: input_ids,
+                    K.ATTENTION_MASK: torch.ones_like(input_ids),
+                    K.POSITION_IDS: torch.arange(input_ids.shape[1]).repeat(size, 1),
+                    "rm_scores": torch.tensor(
+                        [
+                            [1.0, 0.0, 0.0],
+                            [3.0, 0.0, 0.0],
+                            [4.0, 0.0, 0.0],
+                            [2.0, 0.0, 0.0],
+                        ],
+                        dtype=torch.float32,
+                    ),
+                },
+                non_tensors={},
+            )
+
+    class DummyOfflineSelector:
+        def select(self, *args, **kwargs):
+            return []
+
+    trainer.async_rollout_manager = FakeRolloutManager()
+    captured = {}
+
+    def fake_qrpo_update_step(
+        batches,
+        *,
+        pad_token_id=None,
+        meta_info=None,
+    ):
+        assert len(batches) == 1
+        captured["train_batch"] = batches[0]
+        return DataProto(meta_info={"metrics": {}})
+
+    trainer.qrpo_update_step = fake_qrpo_update_step
+
+    prompt = PromptRecord(
+        prompt_id="prompt-0",
+        prompt_messages=({"role": "user", "content": "Give a short answer."},),
+        ref_rewards=(0.1, 0.2),
+        offline_trajectories=(),
+        offline_rewards=(),
+    )
+
+    output = trainer.run_qrpo_iteration(
+        prompt_records=[prompt],
+        source_counts=[
+            SourceCounts(
+                prompt_index=0,
+                prompt_id="prompt-0",
+                n_online=2,
+                n_offline=0,
+            )
+        ],
+        offline_selector=DummyOfflineSelector(),
+        actor_version=123,
+        meta_info={"global_steps": 1, "epoch": 0},
+    )
+
+    rollout_input = trainer.async_rollout_manager.inputs[0]
+    assert len(rollout_input) == 4
+    assert rollout_input.non_tensor_batch[K.TRAJECTORY_ID].tolist() == [
+        "prompt-0::online::actor_123::0::candidate_0",
+        "prompt-0::online::actor_123::0::candidate_1",
+        "prompt-0::online::actor_123::1::candidate_0",
+        "prompt-0::online::actor_123::1::candidate_1",
+    ]
+
+    train_batch = captured["train_batch"]
+    assert torch.allclose(
+        train_batch.batch[K.TRAJECTORY_REWARD],
+        torch.tensor([3.0, 4.0]),
+    )
+    assert train_batch.non_tensor_batch[K.TRAJECTORY_ID].tolist() == [
+        "prompt-0::online::actor_123::0",
+        "prompt-0::online::actor_123::1",
+    ]
+    assert output.meta_info["metrics"]["reward/online_mean"] == pytest.approx(3.5)
+    assert output.meta_info["metrics"]["reward/online_min"] == pytest.approx(3.0)
+    assert output.meta_info["metrics"]["reward/online_max"] == pytest.approx(4.0)
+    assert (
+        output.meta_info["metrics"]["online_candidate_selection/rollout_candidates"]
+        == 4.0
+    )
+
+
 def test_validate_qrpo_config_allows_offline_without_reward_loop():
     config = _minimal_qrpo_config(
         n_online=0,

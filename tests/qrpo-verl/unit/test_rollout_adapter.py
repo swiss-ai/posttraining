@@ -10,8 +10,10 @@ from data.offline_selector import MinMaxRewardSelector
 from data.schemas import PromptRecord
 from verl_adapters.rollout import (
     attach_online_rollout_train_metadata,
+    expand_online_rollout_candidate_requests,
     extract_online_rollout_train_metadata,
     online_rollout_requests_to_dataproto,
+    select_online_rollout_candidates,
 )
 
 
@@ -293,6 +295,172 @@ def test_online_rollout_requests_preserve_multiple_requests_order():
         item["online_index"]
         for item in data.non_tensor_batch[K.EXTRA_INFO].tolist()
     ] == [0, 1, 0]
+
+
+def test_expand_online_rollout_candidates_disabled_preserves_requests() -> None:
+    requests = make_online_requests()
+
+    plan = expand_online_rollout_candidate_requests(
+        requests=requests,
+        config={
+            "data_source": "activeultrafeedback",
+            "candidate_selection": {
+                "enabled": False,
+                "candidates_per_train_sample": 4,
+            },
+        },
+    )
+
+    assert plan.training_requests == tuple(requests)
+    assert plan.candidate_requests == tuple(requests)
+    assert plan.candidate_counts_per_train_slot == (1, 1, 1, 1)
+    assert not plan.has_extra_candidates
+
+
+def test_expand_online_rollout_candidates_adds_candidate_metadata() -> None:
+    requests = make_online_requests()[:2]
+
+    plan = expand_online_rollout_candidate_requests(
+        requests=requests,
+        config={
+            "data_source": "activeultrafeedback",
+            "candidate_selection": {
+                "enabled": True,
+                "candidates_per_train_sample": 3,
+                "probability": 1.0,
+                "selection": "best_reward",
+                "seed": 0,
+            },
+        },
+        divisible_by=2,
+    )
+
+    assert plan.candidate_counts_per_train_slot == (3, 3)
+    assert [request.trajectory_id for request in plan.candidate_requests] == [
+        "p0::online::actor_10::0::candidate_0",
+        "p0::online::actor_10::0::candidate_1",
+        "p0::online::actor_10::0::candidate_2",
+        "p0::online::actor_10::1::candidate_0",
+        "p0::online::actor_10::1::candidate_1",
+        "p0::online::actor_10::1::candidate_2",
+    ]
+    assert [
+        request.train_trajectory_id for request in plan.candidate_requests
+    ] == [
+        "p0::online::actor_10::0",
+        "p0::online::actor_10::0",
+        "p0::online::actor_10::0",
+        "p0::online::actor_10::1",
+        "p0::online::actor_10::1",
+        "p0::online::actor_10::1",
+    ]
+    assert [request.candidate_index for request in plan.candidate_requests] == [
+        0,
+        1,
+        2,
+        0,
+        1,
+        2,
+    ]
+
+
+def test_online_rollout_requests_to_dataproto_includes_candidate_extra_info() -> None:
+    plan = expand_online_rollout_candidate_requests(
+        requests=make_online_requests()[:1],
+        config={
+            "data_source": "activeultrafeedback",
+            "candidate_selection": {
+                "enabled": True,
+                "candidates_per_train_sample": 2,
+                "probability": 1.0,
+                "selection": "best_reward",
+            },
+        },
+    )
+
+    data = online_rollout_requests_to_dataproto(
+        requests=plan.candidate_requests,
+        config={"data_source": "activeultrafeedback"},
+    )
+
+    assert data.non_tensor_batch[K.TRAJECTORY_ID].tolist() == [
+        "p0::online::actor_10::0::candidate_0",
+        "p0::online::actor_10::0::candidate_1",
+    ]
+    extra_infos = data.non_tensor_batch[K.EXTRA_INFO].tolist()
+    assert [info["train_trajectory_id"] for info in extra_infos] == [
+        "p0::online::actor_10::0",
+        "p0::online::actor_10::0",
+    ]
+    assert [info["candidate_index"] for info in extra_infos] == [0, 1]
+    assert [info["candidates_per_train_sample"] for info in extra_infos] == [2, 2]
+
+
+def test_select_online_rollout_candidates_keeps_best_per_train_slot() -> None:
+    requests = make_online_requests()[:2]
+    plan = expand_online_rollout_candidate_requests(
+        requests=requests,
+        config={
+            "data_source": "activeultrafeedback",
+            "candidate_selection": {
+                "enabled": True,
+                "candidates_per_train_sample": 2,
+                "probability": 1.0,
+                "selection": "best_reward",
+            },
+        },
+        divisible_by=2,
+    )
+
+    prompts = torch.tensor([[101], [102], [103], [104]])
+    responses = torch.tensor([[11], [12], [13], [14]])
+    response_mask = torch.ones_like(responses, dtype=torch.bool)
+    input_ids = torch.cat([prompts, responses], dim=-1)
+    ref_rewards = np.empty(len(plan.candidate_requests), dtype=object)
+    ref_rewards[:] = [
+        request.ref_rewards for request in plan.candidate_requests
+    ]
+    rollout_output = DataProto.from_dict(
+        tensors={
+            K.PROMPTS: prompts,
+            K.RESPONSES: responses,
+            K.RESPONSE_MASK: response_mask,
+            K.INPUT_IDS: input_ids,
+            K.ATTENTION_MASK: torch.ones_like(input_ids),
+            K.POSITION_IDS: torch.arange(2).repeat(4, 1),
+        },
+        non_tensors={
+            K.PROMPT_ID: np.asarray(["p0", "p0", "p0", "p0"], dtype=object),
+            K.TRAJECTORY_ID: np.asarray(
+                [request.trajectory_id for request in plan.candidate_requests],
+                dtype=object,
+            ),
+            K.REF_REWARDS: ref_rewards,
+        },
+    )
+    rewards = torch.tensor([1.0, 3.0, 4.0, 2.0], dtype=torch.float32)
+
+    selected_output, selected_rewards, metrics = select_online_rollout_candidates(
+        rollout_output=rollout_output,
+        rewards=rewards,
+        candidate_plan=plan,
+    )
+
+    assert selected_rewards.tolist() == [3.0, 4.0]
+    assert selected_output.batch[K.RESPONSES].tolist() == [[12], [13]]
+    assert selected_output.non_tensor_batch[K.TRAJECTORY_ID].tolist() == [
+        "p0::online::actor_10::0",
+        "p0::online::actor_10::1",
+    ]
+    assert metrics["online_candidate_selection/train_slots"] == 2.0
+    assert metrics["online_candidate_selection/rollout_candidates"] == 4.0
+    assert metrics["online_candidate_selection/best_of_k_slots"] == 2.0
+    assert (
+        metrics["online_candidate_selection/candidates_per_train_sample"] == 2.0
+    )
+    assert metrics[
+        "online_candidate_selection/best_minus_first_reward_mean"
+    ] == pytest.approx(1.0)
 
 
 def test_extract_online_rollout_train_metadata_keeps_only_qrpo_training_fields():

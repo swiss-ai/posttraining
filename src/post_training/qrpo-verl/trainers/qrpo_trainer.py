@@ -40,9 +40,11 @@ from verl_adapters.online_completion_logging import (
 )
 from verl_adapters.rollout import (
     attach_online_rollout_train_metadata,
+    expand_online_rollout_candidate_requests,
     extract_online_rollout_train_metadata,
     online_rollout_output_to_train_dataproto,
     online_rollout_requests_to_dataproto,
+    select_online_rollout_candidates,
 )
 from verl_adapters.train_batch import concat_qrpo_training_dataprotos
 
@@ -257,8 +259,14 @@ class QRPOTrainer(RayPPOTrainer):
                     "online_rollout_config is required when online requests are present."
                 )
 
-            online_rollout_input = online_rollout_requests_to_dataproto(
+            candidate_plan = expand_online_rollout_candidate_requests(
                 requests=online_requests,
+                config=online_rollout_config,
+                meta_info=meta_info,
+                divisible_by=self._resolve_agent_loop_num_workers(),
+            )
+            online_rollout_input = online_rollout_requests_to_dataproto(
+                requests=list(candidate_plan.candidate_requests),
                 config=online_rollout_config,
                 meta_info=meta_info,
             )
@@ -275,9 +283,23 @@ class QRPOTrainer(RayPPOTrainer):
                 metadata=online_train_metadata,
             )
 
-            online_rewards, online_reward_metrics = (
+            online_rewards, _ = (
                 self._compute_online_rewards_from_rollout_output(rollout_output)
             )
+            (
+                rollout_output,
+                online_rewards,
+                candidate_selection_metrics,
+            ) = select_online_rollout_candidates(
+                rollout_output=rollout_output,
+                rewards=online_rewards,
+                candidate_plan=candidate_plan,
+            )
+            online_reward_metrics = self._compute_online_reward_metrics(
+                rollout_output=rollout_output,
+                rewards=online_rewards,
+            )
+            online_reward_metrics.update(candidate_selection_metrics)
             online_completion_log_rows = build_online_completion_log_rows(
                 config=self.config,
                 online_requests=online_requests,
@@ -743,6 +765,17 @@ class QRPOTrainer(RayPPOTrainer):
                 f"got {tuple(rewards.shape)}."
             )
 
+        return rewards, self._compute_online_reward_metrics(
+            rollout_output=rollout_output,
+            rewards=rewards,
+        )
+
+    def _compute_online_reward_metrics(
+        self,
+        *,
+        rollout_output: DataProto,
+        rewards: torch.Tensor,
+    ) -> dict[str, float]:
         metrics: dict[str, float] = {
             "reward/online_mean": float(rewards.mean().item()),
             "reward/online_min": float(rewards.min().item()),
@@ -765,7 +798,7 @@ class QRPOTrainer(RayPPOTrainer):
 
             metrics[f"{key}/mean"] = float(numeric_values.mean().item())
 
-        return rewards, metrics
+        return metrics
 
     def _resolve_tokenizer(self, tokenizer: Any | None):
         if tokenizer is not None:
@@ -804,6 +837,14 @@ class QRPOTrainer(RayPPOTrainer):
             default=1.0,
         )
         return float(value)
+
+    def _resolve_agent_loop_num_workers(self) -> int:
+        value = _select(
+            self.config,
+            "actor_rollout_ref.rollout.agent.num_workers",
+            default=1,
+        )
+        return max(1, int(value or 1))
 
     def _resolve_ref_refresh_interval_steps(self) -> int | None:
         value = _select(
@@ -1622,6 +1663,42 @@ def validate_qrpo_trainer_config(config: Any) -> None:
                 "Online QRPO and generated/refreshed ref rewards require "
                 "reward.custom_reward_function.name."
             )
+
+    candidate_selection = _select(
+        config,
+        "online_rollout.candidate_selection",
+        default={},
+    ) or {}
+    candidate_enabled = bool(_select(candidate_selection, "enabled", default=False))
+    candidate_count = _select(
+        candidate_selection,
+        "candidates_per_train_sample",
+        default=None,
+    )
+    candidate_num = int(1 if candidate_count is None else candidate_count)
+    candidate_probability = float(
+        _select(candidate_selection, "probability", default=1.0)
+    )
+    candidate_selection_name = str(
+        _select(candidate_selection, "selection", default="best_reward")
+    )
+    if candidate_num <= 0:
+        raise ValueError(
+            "online_rollout.candidate_selection.candidates_per_train_sample "
+            "must be positive."
+        )
+    if not 0.0 <= candidate_probability <= 1.0:
+        raise ValueError(
+            "online_rollout.candidate_selection.probability must be in [0, 1]."
+        )
+    if candidate_selection_name != "best_reward":
+        raise ValueError(
+            "online_rollout.candidate_selection.selection must be 'best_reward'."
+        )
+    if candidate_enabled and n_online <= 0:
+        raise ValueError(
+            "online_rollout.candidate_selection requires source_schedule.n_online > 0."
+        )
 
 
 def build_qrpo_role_worker_mapping(*, use_ray_remote: bool = True):
