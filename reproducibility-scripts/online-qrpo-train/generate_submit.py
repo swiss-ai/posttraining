@@ -39,14 +39,14 @@ stdout_prefix = "init"
 script_dir = Path(__file__).parent.resolve()
 stdout_root = script_dir / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 
-job_name = "online-qrpo-sweep"
+job_name = "ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n_mixed-sweep-true-off-rewards-long"
 
 project_root = "/users/smatreno/projects/posttraining/dev"
 submit_script = (
     f"{project_root}/src/post_training/qrpo-verl/scripts/submit_online_qrpo_ray.sh"
 )
 
-judge_base_url = "http://172.28.33.144:30000/v1"
+judge_base_url = "http://172.28.16.188:30000/v1"
 judge_model = "Qwen/Qwen3.6-27B-smatrenok"
 judge_max_concurrency_per_worker = 64
 judge_max_connections = 2048
@@ -66,12 +66,12 @@ reservation = None
 
 data_path = (
     f"{project_root}/artifacts/private/datasets/"
-    "MaxMin-Filtered-OnlineQRPOformat-30-ref-rewards-qwen-36-27B-judge/"
+    "MaxMin-Filtered-OnlineQRPOformat-30-ref-rewards-qwen-36-27B-judge-decontaminated-offline-rewards-recomputed/"
     "train_split"
 )
 model_path = (
     f"{project_root}/artifacts/private/baseline-checkpoints/"
-    "Apertus-8b-sft-1.5--lr8e-5"
+    "ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n"
 )
 reward_function_path = (
     f"{project_root}/src/post_training/qrpo-verl/rewards/"
@@ -79,23 +79,39 @@ reward_function_path = (
 )
 ref_reward_store_dir = (
     f"{project_root}/artifacts/private/outputs/ref_reward_stores/"
-    "apertus-8b-sft-1.5--lr8e-5_initial_activeuf_helpfulness_sweep"
+    "ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n"
 )
 output_root = f"{project_root}/artifacts/private/outputs/online-qrpo"
 
-project_name = "qrpo-mixed-sweep"
-wandb_entity = "matrs01"
+project_name = "ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n_mixed-sweep-true-off-rewards-long"
+wandb_entity = "apertus" # is overridden in setup.sh
 
-learning_rates = [1e-5, 2.5e-5, 5e-5]
-betas = [0.005, 0.01, 0.025, 0.05]
-# length_normalizations = [False, True]
-length_normalizations = [False]
+# learning_rates = [1.5e-5, 2.5e-5, 3.5e-5]
+# length-norm:
+learning_rates = [1e-5, 1.5e-5, 2.5e-5] # <-- mixed
+# learning_rates = [1.5e-5, 2e-5, 2.5e-5] # <-- online
+# learning_rates = [2.5e-5]
+
+
+# length_normalizations = [False]
+# betas = [0.005, 0.01, 0.025]
+
+length_normalizations = [True]
+length_normalized_effective_beta_max = 0.1
+betas = [1.25, 2.0, 2.5] # <-- mixed
+# betas = [1.25, 2.5, 5.0] # <-- online
+# # betas = [1.25]
+
 nums_online = [1]
 nums_offline = [1]
-offline_selectors = ["minmax_rewards"]
+offline_selectors = ["random"]
+
+candidate_selection_enableds = [False]
+candidates_per_train_sample_values = [16]
+candidate_selection_probability_values = [0.5]
 
 # Useful extra dimensions to add later:
-# grad_clips = [1.0, 5.0]
+grad_clips = [20.0]
 # warmup_ratios = [0.03, 0.1]
 # weight_decays = [0.0, 0.01]
 
@@ -118,7 +134,7 @@ common_hydra_overrides = {
     "online_rollout.completion_logging.outputs": '["wandb"]',
     "online_rollout.completion_logging.selection": "all",
     # Sweeps should reuse a completed store. Do not let all jobs generate it.
-    "ref_rewards.initial_source": "dataset",
+    "ref_rewards.initial_source": "store",
     "ref_rewards.initial_version": "ref_step_000000",
     "ref_rewards.refresh_interval_epochs": None,
     "data.ref_rewards_key": "ref_rewards",
@@ -128,7 +144,7 @@ common_hydra_overrides = {
     "actor_rollout_ref.rollout.agent.num_workers": 32,
     "actor_rollout_ref.rollout.max_num_seqs": 4096,
     "actor_rollout_ref.rollout.max_num_batched_tokens": 131072,
-    "actor_rollout_ref.rollout.gpu_memory_utilization": 0.8,
+    "actor_rollout_ref.rollout.gpu_memory_utilization": 0.6,
     "actor_rollout_ref.rollout.disable_log_stats": False,
 }
 
@@ -178,6 +194,62 @@ def validate_batch_math(*, trajectories_per_prompt: int) -> dict[str, int]:
     }
 
 
+def validate_online_rollout_count(
+    *,
+    online_trajectory_count: int,
+    agent_loop_num_workers: int,
+    candidate_selection_enabled: bool,
+    candidates_per_train_sample: int,
+    candidate_selection_probability: float,
+) -> None:
+    if online_trajectory_count == 0:
+        return
+
+    if candidates_per_train_sample <= 0:
+        raise ValueError(
+            "candidates_per_train_sample_values must be positive."
+        )
+    if not 0.0 <= candidate_selection_probability <= 1.0:
+        raise ValueError(
+            "candidate_selection_probability_values must be in [0, 1]."
+        )
+
+    needs_base_divisibility = (
+        not candidate_selection_enabled
+        or candidates_per_train_sample == 1
+        or candidate_selection_probability == 0.0
+    )
+    if needs_base_divisibility:
+        if online_trajectory_count % agent_loop_num_workers != 0:
+            raise ValueError(
+                "Online rollout request count must be divisible by "
+                "actor_rollout_ref.rollout.agent.num_workers because VERL chunks "
+                "agent-loop input equally. Got "
+                f"online_trajectory_count={online_trajectory_count}, "
+                f"agent_loop_num_workers={agent_loop_num_workers}."
+            )
+        return
+
+    extra_candidates_per_selected = candidates_per_train_sample - 1
+    valid_expanded_count_exists = any(
+        (
+            online_trajectory_count
+            + selected_count * extra_candidates_per_selected
+        )
+        % agent_loop_num_workers
+        == 0
+        for selected_count in range(online_trajectory_count + 1)
+    )
+    if not valid_expanded_count_exists:
+        raise ValueError(
+            "Cannot make candidate-expanded online rollout request count "
+            "divisible by actor_rollout_ref.rollout.agent.num_workers. Got "
+            f"online_trajectory_count={online_trajectory_count}, "
+            f"candidates_per_train_sample={candidates_per_train_sample}, "
+            f"agent_loop_num_workers={agent_loop_num_workers}."
+        )
+
+
 def hydra_value(value) -> str:
     if value is None:
         return "null"
@@ -219,14 +291,22 @@ total_nodes_needed = 0
 for (
     lr,
     beta,
+    grad_clip,
     length_normalization,
+    candidate_selection_enabled,
+    candidates_per_train_sample,
+    candidate_selection_probability,
     num_online,
     num_offline,
     offline_selector,
 ) in itertools.product(
     learning_rates,
     betas,
+    grad_clips,
     length_normalizations,
+    candidate_selection_enableds,
+    candidates_per_train_sample_values,
+    candidate_selection_probability_values,
     nums_online,
     nums_offline,
     offline_selectors,
@@ -243,19 +323,27 @@ for (
         common_hydra_overrides["actor_rollout_ref.rollout.agent.num_workers"]
     )
     online_trajectory_count = prompt_batch_size * num_online
-    if num_online > 0 and online_trajectory_count % agent_loop_num_workers != 0:
-        raise ValueError(
-            "Online rollout request count must be divisible by "
-            "actor_rollout_ref.rollout.agent.num_workers because VERL chunks "
-            "agent-loop input equally. Got "
-            f"prompt_batch_size={prompt_batch_size}, n_online={num_online}, "
-            f"online_trajectory_count={online_trajectory_count}, "
-            f"agent_loop_num_workers={agent_loop_num_workers}."
+    validate_online_rollout_count(
+        online_trajectory_count=online_trajectory_count,
+        agent_loop_num_workers=agent_loop_num_workers,
+        candidate_selection_enabled=candidate_selection_enabled,
+        candidates_per_train_sample=candidates_per_train_sample,
+        candidate_selection_probability=candidate_selection_probability,
+    )
+
+    candidate_selection_slug = (
+        "cand-off"
+        if not candidate_selection_enabled
+        else (
+            f"cand{slug(candidates_per_train_sample)}-"
+            f"p{slug(candidate_selection_probability)}"
         )
+    )
 
     jobid = (
         f"lr{slug(lr)}-beta{slug(beta)}-"
         f"ln{slug(length_normalization)}-"
+        f"{candidate_selection_slug}-"
         f"on{slug(num_online)}-off{slug(num_offline)}-"
         f"sel{slug(offline_selector)}"
     )
@@ -264,16 +352,34 @@ for (
     overrides = {
         **common_hydra_overrides,
         "data.train_batch_size": prompt_batch_size,
+        "ref_rewards.generation_prompt_batch_size": global_train_batch_size,
         "qrpo_runtime.train_mini_batch_size": global_train_batch_size,
+        "qrpo_runtime.train_micro_batch_size_per_gpu": train_micro_batch_size_per_gpu,
+        "qrpo_runtime.log_prob_micro_batch_size_per_gpu": (
+            log_prob_micro_batch_size_per_gpu
+        ),
         "qrpo_runtime.lr": lr,
         "qrpo.beta": beta,
+        "qrpo_runtime.grad_clip": grad_clip,
         "qrpo.length_normalization": length_normalization,
+        "online_rollout.candidate_selection.enabled": candidate_selection_enabled,
         "source_schedule.n_online": num_online,
         "source_schedule.n_offline": num_offline,
         "offline_selector": offline_selector,
+        "trainer.nnodes": num_nodes_per_job,
+        "trainer.n_gpus_per_node": num_devices_per_node,
         "trainer.experiment_name": run_name,
         "trainer.default_local_dir": f"{output_root}/{job_name}/{jobid}",
     }
+    if length_normalization:
+        overrides["qrpo.effective_beta_max"] = length_normalized_effective_beta_max
+    if candidate_selection_enabled:
+        overrides["online_rollout.candidate_selection.candidates_per_train_sample"] = (
+            candidates_per_train_sample
+        )
+        overrides["online_rollout.candidate_selection.probability"] = (
+            candidate_selection_probability
+        )
 
     env = {
         "JUDGE_BASE_URL": judge_base_url,
