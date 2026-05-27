@@ -37,6 +37,29 @@ ref_rewards:
     - ACTIVE_UF_ASPECTS
     - ACTIVE_UF_PROMPTS_PATH
 
+offline_rewards:
+  # Standalone recomputation config used by entrypoints/recompute_offline_rewards.py.
+  output_path: null
+  work_dir: null
+  data_source: ${online_rollout.data_source}
+  chunk_size_completions: ${data.train_batch_size}
+  reuse_existing: true
+  overwrite_output: false
+  reward_extra_info_key: offline_reward_extra_info
+  tokenization:
+    # Reward scoring only needs prompt/response separation. VERL's reward loop
+    # decodes responses via attention_mask, not response_mask, so do not require
+    # chat templates to expose assistant token masks.
+    require_assistant_mask: false
+    verify_prompt_prefix: ${offline_tokenization.verify_prompt_prefix}
+    require_same_tools: ${offline_tokenization.require_same_tools}
+    truncation: ${offline_tokenization.truncation}
+    max_length: ${offline_tokenization.max_length}
+  manifest_env_keys:
+    - JUDGE_MODEL
+    - ACTIVE_UF_ASPECTS
+    - ACTIVE_UF_PROMPTS_PATH
+
 # Project-level knobs. Prefer overriding these instead of editing actor/ref
 # in multiple places.
 qrpo_runtime:

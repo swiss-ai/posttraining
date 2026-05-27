@@ -52,6 +52,7 @@ SOURCE_OFFLINE = "offline"
 ACTOR_VERSION = "actor_version"
 REF_VERSION = "ref_version"
 REF_COMPLETION_INDEX = "ref_completion_index"
+OFFLINE_COMPLETION_INDEX = "offline_completion_index"
 
 GROUP_ID = "group_id"
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Protocol, Sequence
 
 import numpy as np
 import torch
@@ -9,6 +9,13 @@ from verl.utils.model import compute_position_id_with_mask
 
 from batch import keys as K
 from data.schemas import OfflineTrajectoryCandidate
+
+
+class PromptTrajectoryLike(Protocol):
+    prompt_messages: Sequence[Mapping[str, Any]]
+    trajectory_messages: Sequence[Mapping[str, Any]]
+    trajectory_id: str
+    tools: Sequence[Mapping[str, Any]] | None
 
 
 def offline_candidates_to_dataproto(
@@ -49,22 +56,82 @@ def offline_candidates_to_dataproto(
     if not candidates:
         raise ValueError("Cannot tokenize an empty offline candidate list.")
 
+    tensors = tokenize_prompt_trajectory_batch(
+        items=candidates,
+        tokenizer=tokenizer,
+        config=cfg,
+    )
+    tensors.update(
+        {
+            K.TRAJECTORY_REWARD: torch.tensor(
+                [float(candidate.reward) for candidate in candidates],
+                dtype=torch.float32,
+            ),
+            K.REF_REWARDS: torch.tensor(
+                [
+                    tuple(float(x) for x in candidate.ref_rewards)
+                    for candidate in candidates
+                ],
+                dtype=torch.float32,
+            ),
+        }
+    )
+
+    non_tensors = {
+        K.PROMPT_ID: np.asarray([candidate.prompt_id for candidate in candidates], dtype=object),
+        K.TRAJECTORY_ID: np.asarray(
+            [candidate.trajectory_id for candidate in candidates],
+            dtype=object,
+        ),
+        K.SOURCE: np.asarray([K.SOURCE_OFFLINE] * len(candidates), dtype=object),
+    }
+
+    merged_meta_info = {
+        "qrpo_batch_format": "verl_prompt_response",
+        # Required by VERL's model-engine log-prob path.
+        # Offline trajectories are fixed data, not sampled from a temperature-scaled rollout.
+        K.TEMPERATURE: float(cfg.get("temperature", 1.0)),
+    }
+    if meta_info is not None:
+        merged_meta_info.update(meta_info)
+
+    return DataProto.from_dict(
+        tensors=tensors,
+        non_tensors=non_tensors,
+        meta_info=merged_meta_info,
+    )
+
+
+def tokenize_prompt_trajectory_batch(
+    *,
+    items: Sequence[PromptTrajectoryLike],
+    tokenizer: Any,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, torch.Tensor]:
+    """Tokenize prompt+trajectory pairs into VERL prompt/response tensors."""
+
+    cfg = config or {}
+    items = tuple(items)
+
+    if not items:
+        raise ValueError("Cannot tokenize an empty prompt trajectory list.")
+
     require_assistant_mask = bool(cfg.get("require_assistant_mask", True))
     verify_prompt_prefix = bool(cfg.get("verify_prompt_prefix", True))
     require_same_tools = bool(cfg.get("require_same_tools", True))
 
-    tools = candidates[0].tools
-    if require_same_tools and any(candidate.tools != tools for candidate in candidates[1:]):
+    tools = items[0].tools
+    if require_same_tools and any(item.tools != tools for item in items[1:]):
         raise ValueError(
-            "Offline tokenization currently requires all candidates in a batch "
+            "Offline tokenization currently requires all items in a batch "
             "to share the same tools spec. Group by tools before tokenization."
         )
 
     full_conversations = [
-        list(candidate.prompt_messages) + list(candidate.trajectory_messages)
-        for candidate in candidates
+        list(item.prompt_messages) + list(item.trajectory_messages)
+        for item in items
     ]
-    prompt_conversations = [list(candidate.prompt_messages) for candidate in candidates]
+    prompt_conversations = [list(item.prompt_messages) for item in items]
 
     common_kwargs: dict[str, Any] = {
         "tokenize": True,
@@ -114,13 +181,13 @@ def offline_candidates_to_dataproto(
     response_rows: list[torch.Tensor] = []
     response_mask_rows: list[torch.Tensor] = []
 
-    for i, candidate in enumerate(candidates):
+    for i, item in enumerate(items):
         prompt_len = int(prompt_attention_mask_for_lengths[i].sum().item())
         full_len = int(full_attention_mask[i].sum().item())
 
         if prompt_len > full_len:
             raise ValueError(
-                f"Prompt prefix for trajectory {candidate.trajectory_id!r} is longer "
+                f"Prompt prefix for trajectory {item.trajectory_id!r} is longer "
                 "than the full conversation."
             )
 
@@ -130,7 +197,7 @@ def offline_candidates_to_dataproto(
         if verify_prompt_prefix and not torch.equal(prompt_ids, full_prefix):
             raise ValueError(
                 f"Prompt prefix tokens are not a prefix of the full conversation for "
-                f"trajectory {candidate.trajectory_id!r}."
+                f"trajectory {item.trajectory_id!r}."
             )
 
         response_ids = full_input_ids[i, prompt_len:full_len]
@@ -138,12 +205,12 @@ def offline_candidates_to_dataproto(
 
         if response_ids.numel() == 0:
             raise ValueError(
-                f"Offline trajectory {candidate.trajectory_id!r} tokenized to empty response."
+                f"Offline trajectory {item.trajectory_id!r} tokenized to empty response."
             )
 
         if require_assistant_mask and not response_mask.any():
             raise ValueError(
-                f"Offline trajectory {candidate.trajectory_id!r} has no trainable "
+                f"Offline trajectory {item.trajectory_id!r} has no trainable "
                 "assistant/model tokens according to the chat template mask."
             )
 
@@ -200,43 +267,11 @@ def offline_candidates_to_dataproto(
     attention_mask = torch.cat([prompt_attention_mask, response_attention_mask], dim=-1)
     position_ids = compute_position_id_with_mask(attention_mask)
 
-    tensors = {
+    return {
         K.PROMPTS: prompts,
         K.RESPONSES: responses,
         K.RESPONSE_MASK: response_mask,
         K.INPUT_IDS: input_ids,
         K.ATTENTION_MASK: attention_mask,
         K.POSITION_IDS: position_ids,
-        K.TRAJECTORY_REWARD: torch.tensor(
-            [float(candidate.reward) for candidate in candidates],
-            dtype=torch.float32,
-        ),
-        K.REF_REWARDS: torch.tensor(
-            [tuple(float(x) for x in candidate.ref_rewards) for candidate in candidates],
-            dtype=torch.float32,
-        ),
     }
-
-    non_tensors = {
-        K.PROMPT_ID: np.asarray([candidate.prompt_id for candidate in candidates], dtype=object),
-        K.TRAJECTORY_ID: np.asarray(
-            [candidate.trajectory_id for candidate in candidates],
-            dtype=object,
-        ),
-        K.SOURCE: np.asarray([K.SOURCE_OFFLINE] * len(candidates), dtype=object),
-    }
-
-    merged_meta_info = {
-        "qrpo_batch_format": "verl_prompt_response",
-        # Required by VERL's model-engine log-prob path.
-        # Offline trajectories are fixed data, not sampled from a temperature-scaled rollout.
-        K.TEMPERATURE: float(cfg.get("temperature", 1.0)),
-    }
-    if meta_info is not None:
-        merged_meta_info.update(meta_info)
-
-    return DataProto.from_dict(
-        tensors=tensors,
-        non_tensors=non_tensors,
-        meta_info=merged_meta_info,
-    )

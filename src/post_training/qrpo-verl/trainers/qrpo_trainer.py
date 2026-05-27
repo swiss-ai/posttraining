@@ -23,6 +23,10 @@ from batch.source_schedule import FixedCountsSourceScheduler, SourceCounts
 from batch.training_candidates import OfflineSelector, build_training_candidates
 from data.dataset_adapter import dataset_batch_to_prompt_records
 from data.schemas import PromptRecord
+from offline_rewards import (
+    offline_reward_requests_from_prompt_records,
+    score_offline_reward_requests,
+)
 from ref_rewards import RefRewardStore
 from ref_rewards.generation import (
     attach_ref_rollout_metadata,
@@ -730,6 +734,67 @@ class QRPOTrainer(RayPPOTrainer):
         )
         self.current_ref_version = ref_version
         return ref_version
+
+    def compute_offline_trajectory_rewards(
+        self,
+        *,
+        prompt_records: Sequence[PromptRecord],
+        dataset_indices: Sequence[int],
+        tokenizer: Any | None = None,
+        data_source: str | None = None,
+        offline_tokenization_config: Mapping[str, Any] | None = None,
+        chunk_size_completions: int | None = None,
+        meta_info: dict[str, Any] | None = None,
+        description: str = "Scoring Offline Rewards",
+    ) -> list[dict[str, Any]]:
+        """Score existing offline trajectories through VERL's reward loop.
+
+        This is intentionally independent of QRPO training. It reuses the same
+        reward manager path as online/ref rewards, but it does not generate,
+        compute log-probs, or update actor weights.
+        """
+
+        reward_loop_manager = getattr(self, "reward_loop_manager", None)
+        if reward_loop_manager is None:
+            raise ValueError(
+                "compute_offline_trajectory_rewards requires reward_loop_manager. "
+                "Call it after reward workers are initialized."
+            )
+
+        tokenizer = self._resolve_tokenizer(tokenizer)
+
+        if data_source is None:
+            data_source = _select(
+                self.config,
+                "online_rollout.data_source",
+                default=None,
+            )
+        if not data_source:
+            raise ValueError(
+                "compute_offline_trajectory_rewards requires data_source, either "
+                "as an argument or config.online_rollout.data_source."
+            )
+
+        if offline_tokenization_config is None:
+            offline_tokenization_config = (
+                _select(self.config, "offline_tokenization", default={}) or {}
+            )
+        offline_tokenization_config = dict(offline_tokenization_config)
+
+        requests = offline_reward_requests_from_prompt_records(
+            prompt_records=prompt_records,
+            dataset_indices=dataset_indices,
+        )
+        return score_offline_reward_requests(
+            reward_loop_manager=reward_loop_manager,
+            requests=requests,
+            tokenizer=tokenizer,
+            data_source=str(data_source),
+            offline_tokenization_config=offline_tokenization_config,
+            chunk_size_completions=chunk_size_completions,
+            meta_info=meta_info,
+            description=description,
+        )
 
     def _compute_online_rewards_from_rollout_output(
             self,
@@ -1637,6 +1702,18 @@ def validate_qrpo_trainer_config(config: Any) -> None:
         or _select(config, "qrpo.source_schedule.n_online", default=0)
         or 0
     )
+    n_offline = int(
+        _select(config, "source_schedule.n_offline", default=0)
+        or _select(config, "qrpo.source_schedule.n_offline", default=0)
+        or 0
+    )
+
+    if n_offline > 0 and _select(config, "data.offline_rewards_key", default="offline_rewards") is None:
+        raise ValueError(
+            "Offline QRPO training requires data.offline_rewards_key. "
+            "Use data.offline_rewards_key=null only for standalone offline "
+            "reward recomputation."
+        )
 
     if (
         n_online > 0

@@ -58,7 +58,12 @@ def row_to_prompt_record(
         ref_rewards = []
     else:
         ref_rewards = _list_like(_require(row, ref_rewards_key, row_index=row_index))
-    offline_rewards = _list_like(_require(row, offline_rewards_key, row_index=row_index))
+    if offline_rewards_key is None:
+        offline_rewards = [0.0] * len(offline_trajectories)
+    else:
+        offline_rewards = _list_like(
+            _require(row, offline_rewards_key, row_index=row_index)
+        )
 
     tools = None
     if tools_key is not None and tools_key in row and row[tools_key] is not None:
