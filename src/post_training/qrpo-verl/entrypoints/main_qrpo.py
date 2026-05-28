@@ -18,7 +18,7 @@ from verl.utils import hf_processor, hf_tokenizer
 from verl.utils.device import auto_set_device
 from verl.utils.fs import copy_to_local
 
-from batch.source_schedule import FixedCountsSourceScheduler
+from batch.source_schedule import build_source_scheduler
 from data.dataset_adapter import load_hf_dataset_from_config, rows_to_prompt_records
 from data.offline_selector import build_offline_selector
 from ref_rewards import RefRewardStore
@@ -99,7 +99,7 @@ def run_qrpo(config: DictConfig) -> None:
         resource_pool_mapping=resource_pool_mapping,
     )
 
-    source_scheduler = FixedCountsSourceScheduler.from_config(
+    source_scheduler = build_source_scheduler(
         OmegaConf.to_container(config.source_schedule, resolve=True)
     )
 

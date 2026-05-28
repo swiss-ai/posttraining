@@ -19,7 +19,7 @@ from verl.utils.metric import reduce_metrics
 from algorithm.qrpo_fields import add_qrpo_fields
 from batch import keys as K
 from batch.offline_tokenization import offline_candidates_to_dataproto
-from batch.source_schedule import FixedCountsSourceScheduler, SourceCounts
+from batch.source_schedule import SourceCounts, build_source_scheduler
 from batch.training_candidates import OfflineSelector, build_training_candidates
 from data.dataset_adapter import dataset_batch_to_prompt_records
 from data.schemas import PromptRecord
@@ -415,7 +415,13 @@ class QRPOTrainer(RayPPOTrainer):
 
                 prompt_records = self._batch_to_prompt_records(batch_payload)
                 prompt_records = self._attach_current_ref_rewards(prompt_records)
-                source_counts = source_scheduler.plan(prompt_records)
+                next_global_step = self.global_steps + 1
+                source_counts = self._plan_source_counts(
+                    source_scheduler=source_scheduler,
+                    prompt_records=prompt_records,
+                    global_step=next_global_step,
+                    online_count_divisible_by=self._resolve_agent_loop_num_workers(),
+                )
 
                 has_online = any(counts.n_online > 0 for counts in source_counts)
 
@@ -1481,8 +1487,32 @@ class QRPOTrainer(RayPPOTrainer):
             )
 
         scheduler_config = _to_plain_container(scheduler_config)
-        self.source_scheduler = FixedCountsSourceScheduler.from_config(scheduler_config)
+        self.source_scheduler = build_source_scheduler(scheduler_config)
         return self.source_scheduler
+
+    @staticmethod
+    def _plan_source_counts(
+        *,
+        source_scheduler: Any,
+        prompt_records: Sequence[PromptRecord],
+        global_step: int,
+        online_count_divisible_by: int = 1,
+    ) -> list[SourceCounts]:
+        source_counts = list(
+            source_scheduler.plan(
+                prompt_records,
+                global_step=global_step,
+                online_count_divisible_by=online_count_divisible_by,
+            )
+        )
+        online_count = sum(counts.n_online for counts in source_counts)
+        if online_count % online_count_divisible_by != 0:
+            raise ValueError(
+                "Source scheduler produced an online request count that is not "
+                "divisible by actor_rollout_ref.rollout.agent.num_workers: "
+                f"{online_count} % {online_count_divisible_by} != 0."
+            )
+        return source_counts
 
     def _resolve_offline_selector(self) -> OfflineSelector:
         if self.offline_selector is None:
@@ -1697,18 +1727,27 @@ def validate_qrpo_trainer_config(config: Any) -> None:
     ):
         raise ValueError("ref_rewards.refresh_interval_epochs must be positive.")
 
-    n_online = int(
-        _select(config, "source_schedule.n_online", default=0)
-        or _select(config, "qrpo.source_schedule.n_online", default=0)
-        or 0
+    source_schedule_config = (
+        _select(config, "source_schedule", default=None)
+        or _select(config, "qrpo.source_schedule", default=None)
     )
-    n_offline = int(
-        _select(config, "source_schedule.n_offline", default=0)
-        or _select(config, "qrpo.source_schedule.n_offline", default=0)
-        or 0
+    if source_schedule_config is None:
+        source_schedule_config = {
+            "name": "fixed_counts",
+            "n_online": 1,
+            "n_offline": 0,
+        }
+    source_scheduler = build_source_scheduler(
+        _to_plain_container(source_schedule_config)
     )
+    can_emit_online = bool(source_scheduler.can_emit_online)
+    can_emit_offline = bool(source_scheduler.can_emit_offline)
 
-    if n_offline > 0 and _select(config, "data.offline_rewards_key", default="offline_rewards") is None:
+    if (
+        can_emit_offline
+        and _select(config, "data.offline_rewards_key", default="offline_rewards")
+        is None
+    ):
         raise ValueError(
             "Offline QRPO training requires data.offline_rewards_key. "
             "Use data.offline_rewards_key=null only for standalone offline "
@@ -1716,7 +1755,7 @@ def validate_qrpo_trainer_config(config: Any) -> None:
         )
 
     if (
-        n_online > 0
+        can_emit_online
         or ref_initial_source == "generate"
         or ref_refresh_interval_epochs is not None
     ):
@@ -1772,9 +1811,10 @@ def validate_qrpo_trainer_config(config: Any) -> None:
         raise ValueError(
             "online_rollout.candidate_selection.selection must be 'best_reward'."
         )
-    if candidate_enabled and n_online <= 0:
+    if candidate_enabled and not can_emit_online:
         raise ValueError(
-            "online_rollout.candidate_selection requires source_schedule.n_online > 0."
+            "online_rollout.candidate_selection requires a source schedule that "
+            "can emit online samples."
         )
 
 

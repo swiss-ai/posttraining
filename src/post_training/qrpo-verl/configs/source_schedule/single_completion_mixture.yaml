@@ -1,0 +1,8 @@
+name: single_completion_mixture
+
+# For each prompt, request exactly one training completion:
+#   offline with this probability, otherwise online.
+offline_probability: 0.5
+
+# Used only to make the online/offline choice deterministic and resume-stable.
+seed: 0

@@ -60,8 +60,14 @@ class FakeSourceScheduler:
         self.source_counts = source_counts
         self.calls = []
 
-    def plan(self, prompts):
-        self.calls.append(prompts)
+    def plan(self, prompts, *, global_step=None, online_count_divisible_by=1):
+        self.calls.append(
+            {
+                "prompts": prompts,
+                "global_step": global_step,
+                "online_count_divisible_by": online_count_divisible_by,
+            }
+        )
         return self.source_counts
 
 
@@ -345,7 +351,15 @@ def make_fit_prompt(prompt_id: str) -> PromptRecord:
 
 
 def test_validate_qrpo_trainer_config_accepts_minimal_valid_config() -> None:
-    validate_qrpo_trainer_config(make_config())
+    validate_qrpo_trainer_config(
+        make_config(
+            **{
+                "reward.num_workers": 1,
+                "reward.custom_reward_function.path": "unit_reward.py",
+                "reward.custom_reward_function.name": "compute_score",
+            }
+        )
+    )
 
 
 def test_validate_qrpo_trainer_config_requires_new_stack() -> None:
@@ -1147,7 +1161,9 @@ def test_fit_resolves_ref_rewards_from_store_before_source_planning() -> None:
     trainer.current_ref_version = "ref_v1"
 
     class AssertingSourceScheduler:
-        def plan(self, prompts):
+        def plan(self, prompts, *, global_step=None, online_count_divisible_by=1):
+            assert global_step == 1
+            assert online_count_divisible_by == 1
             assert prompts[0].ref_rewards == (9.0, 10.0)
             return [
                 SourceCounts(
@@ -2378,6 +2394,57 @@ def test_validate_qrpo_config_allows_online_with_reward_loop(tmp_path):
     )
 
     validate_qrpo_trainer_config(config)
+
+
+def test_validate_qrpo_config_requires_reward_loop_for_mixture_online(tmp_path):
+    reward_path = tmp_path / "reward.py"
+    reward_path.write_text("async def compute_score(*args, **kwargs): return 1.0\n")
+
+    config = _minimal_qrpo_config(
+        n_online=0,
+        reward_num_workers=0,
+        reward_path=str(reward_path),
+    )
+    config.source_schedule = {
+        "name": "single_completion_mixture",
+        "offline_probability": 0.5,
+    }
+
+    with pytest.raises(ValueError, match="reward.num_workers"):
+        validate_qrpo_trainer_config(config)
+
+
+def test_validate_qrpo_config_allows_all_offline_mixture_without_reward_loop():
+    config = _minimal_qrpo_config(
+        n_online=0,
+        reward_num_workers=0,
+        reward_path=None,
+    )
+    config.source_schedule = {
+        "name": "single_completion_mixture",
+        "offline_probability": 1.0,
+    }
+
+    validate_qrpo_trainer_config(config)
+
+
+def test_validate_qrpo_config_requires_offline_rewards_for_mixture_offline(tmp_path):
+    reward_path = tmp_path / "reward.py"
+    reward_path.write_text("async def compute_score(*args, **kwargs): return 1.0\n")
+
+    config = _minimal_qrpo_config(
+        n_online=0,
+        reward_num_workers=2,
+        reward_path=str(reward_path),
+    )
+    config.source_schedule = {
+        "name": "single_completion_mixture",
+        "offline_probability": 0.5,
+    }
+    config.data = {"offline_rewards_key": None}
+
+    with pytest.raises(ValueError, match="offline_rewards_key"):
+        validate_qrpo_trainer_config(config)
 
 
 def test_validate_qrpo_config_rejects_non_positive_effective_beta_max():
