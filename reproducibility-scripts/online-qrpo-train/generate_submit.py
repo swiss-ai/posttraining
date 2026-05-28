@@ -12,8 +12,10 @@ Run this file directly, edit the variables below to change the sweep.
 Batch-size math:
 
 total_gpus = num_nodes_per_job * num_devices_per_node
-trajectories_per_prompt = n_online + n_offline
-prompt_batch_size = global_train_batch_size / trajectories_per_prompt
+train_completions_per_prompt =
+    n_online + n_offline for fixed_counts source schedules
+    1 for single_completion_mixture source schedules
+prompt_batch_size = global_train_batch_size / train_completions_per_prompt
 train_batch_size_per_gpu = global_train_batch_size / total_gpus
 
 actor_gradient_accumulation_steps =
@@ -29,7 +31,7 @@ Therefore:
   - log_prob_micro_batch_size_per_gpu controls ref-logprob memory.
   - global_train_batch_size must be divisible by:
       total_gpus,
-      n_online + n_offline,
+      train_completions_per_prompt,
       total_gpus * train_micro_batch_size_per_gpu,
       total_gpus * log_prob_micro_batch_size_per_gpu.
 """
@@ -39,14 +41,14 @@ stdout_prefix = "init"
 script_dir = Path(__file__).parent.resolve()
 stdout_root = script_dir / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 
-job_name = "ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n_mixed-sweep-true-off-rewards-long"
+job_name = "ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n_noLN-mixed-offp0p25-sweep"
 
 project_root = "/users/smatreno/projects/posttraining/dev"
 submit_script = (
     f"{project_root}/src/post_training/qrpo-verl/scripts/submit_online_qrpo_ray.sh"
 )
 
-judge_base_url = "http://172.28.16.188:30000/v1"
+judge_base_url = "http://172.28.16.88:30000/v1"
 judge_model = "Qwen/Qwen3.6-27B-smatrenok"
 judge_max_concurrency_per_worker = 64
 judge_max_connections = 2048
@@ -83,27 +85,37 @@ ref_reward_store_dir = (
 )
 output_root = f"{project_root}/artifacts/private/outputs/online-qrpo"
 
-project_name = "ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n_mixed-sweep-true-off-rewards-long"
+project_name = "ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n_noLN-mixed-offp0p25-sweep"
 wandb_entity = "apertus" # is overridden in setup.sh
 
 # learning_rates = [1.5e-5, 2.5e-5, 3.5e-5]
-# length-norm:
-learning_rates = [1e-5, 1.5e-5, 2.5e-5] # <-- mixed
-# learning_rates = [1.5e-5, 2e-5, 2.5e-5] # <-- online
+# learning_rates = [1e-5, 1.5e-5, 2.5e-5] # <-- mixed
+learning_rates = [1.5e-5, 2e-5, 2.5e-5] # <-- online/mixed
 # learning_rates = [2.5e-5]
 
 
-# length_normalizations = [False]
+length_normalizations = [False]
 # betas = [0.005, 0.01, 0.025]
+betas = [0.005, 0.01, 0.02]
 
-length_normalizations = [True]
+# length_normalizations = [True]
 length_normalized_effective_beta_max = 0.1
-betas = [1.25, 2.0, 2.5] # <-- mixed
+# betas = [1.25, 2.0, 2.5] # <-- mixed
 # betas = [1.25, 2.5, 5.0] # <-- online
 # # betas = [1.25]
 
-nums_online = [1]
-nums_offline = [1]
+source_schedules = [
+    # {
+    #     "name": "fixed_counts",
+    #     "n_online": 1,
+    #     "n_offline": 1,
+    # },
+    {
+        "name": "single_completion_mixture",
+        "offline_probability": 0.25,
+        "seed": 0,
+    },
+]
 offline_selectors = ["random"]
 
 candidate_selection_enableds = [False]
@@ -126,6 +138,7 @@ common_hydra_overrides = {
     "reward.custom_reward_function.name": "compute_score",
     "online_rollout.data_source": "activeultrafeedback",
     "trainer.save_freq": 100,
+    "trainer.resume_mode": "auto",
     "trainer.test_freq": 0,
     "trainer.val_before_train": False,
     "trainer.logger": '["console","wandb"]',
@@ -250,6 +263,72 @@ def validate_online_rollout_count(
         )
 
 
+def source_schedule_train_completions_per_prompt(schedule: dict[str, object]) -> int:
+    name = str(schedule["name"])
+    if name == "fixed_counts":
+        return int(schedule["n_online"]) + int(schedule["n_offline"])
+    if name == "single_completion_mixture":
+        return 1
+    raise ValueError(f"Unknown source schedule {name!r}.")
+
+
+def source_schedule_can_emit_online(schedule: dict[str, object]) -> bool:
+    name = str(schedule["name"])
+    if name == "fixed_counts":
+        return int(schedule["n_online"]) > 0
+    if name == "single_completion_mixture":
+        return float(schedule["offline_probability"]) < 1.0
+    raise ValueError(f"Unknown source schedule {name!r}.")
+
+
+def source_schedule_fixed_online_count(
+    *,
+    schedule: dict[str, object],
+    prompt_batch_size: int,
+) -> int | None:
+    if str(schedule["name"]) != "fixed_counts":
+        return None
+    return prompt_batch_size * int(schedule["n_online"])
+
+
+def source_schedule_overrides(schedule: dict[str, object]) -> dict[str, object]:
+    name = str(schedule["name"])
+    if name == "fixed_counts":
+        return {
+            "source_schedule": "fixed_counts",
+            "source_schedule.n_online": int(schedule["n_online"]),
+            "source_schedule.n_offline": int(schedule["n_offline"]),
+        }
+    if name == "single_completion_mixture":
+        offline_probability = float(schedule["offline_probability"])
+        if not 0.0 <= offline_probability <= 1.0:
+            raise ValueError(
+                "single_completion_mixture offline_probability must be in [0, 1], "
+                f"got {offline_probability}."
+            )
+        return {
+            "source_schedule": "single_completion_mixture",
+            "source_schedule.offline_probability": offline_probability,
+            "source_schedule.seed": int(schedule.get("seed", 0)),
+        }
+    raise ValueError(f"Unknown source schedule {name!r}.")
+
+
+def source_schedule_slug(schedule: dict[str, object]) -> str:
+    name = str(schedule["name"])
+    if name == "fixed_counts":
+        return (
+            f"fixed-on{slug(schedule['n_online'])}-"
+            f"off{slug(schedule['n_offline'])}"
+        )
+    if name == "single_completion_mixture":
+        return (
+            f"mix-offp{slug(schedule['offline_probability'])}-"
+            f"seed{slug(schedule.get('seed', 0))}"
+        )
+    raise ValueError(f"Unknown source schedule {name!r}.")
+
+
 def hydra_value(value) -> str:
     if value is None:
         return "null"
@@ -296,8 +375,7 @@ for (
     candidate_selection_enabled,
     candidates_per_train_sample,
     candidate_selection_probability,
-    num_online,
-    num_offline,
+    source_schedule,
     offline_selector,
 ) in itertools.product(
     learning_rates,
@@ -307,11 +385,12 @@ for (
     candidate_selection_enableds,
     candidates_per_train_sample_values,
     candidate_selection_probability_values,
-    nums_online,
-    nums_offline,
+    source_schedules,
     offline_selectors,
 ):
-    trajectories_per_prompt = num_online + num_offline
+    trajectories_per_prompt = source_schedule_train_completions_per_prompt(
+        source_schedule
+    )
     if trajectories_per_prompt not in batch_math_by_trajectories_per_prompt:
         batch_math_by_trajectories_per_prompt[trajectories_per_prompt] = (
             validate_batch_math(trajectories_per_prompt=trajectories_per_prompt)
@@ -322,14 +401,26 @@ for (
     agent_loop_num_workers = int(
         common_hydra_overrides["actor_rollout_ref.rollout.agent.num_workers"]
     )
-    online_trajectory_count = prompt_batch_size * num_online
-    validate_online_rollout_count(
-        online_trajectory_count=online_trajectory_count,
-        agent_loop_num_workers=agent_loop_num_workers,
-        candidate_selection_enabled=candidate_selection_enabled,
-        candidates_per_train_sample=candidates_per_train_sample,
-        candidate_selection_probability=candidate_selection_probability,
+    if candidate_selection_enabled and not source_schedule_can_emit_online(
+        source_schedule
+    ):
+        raise ValueError(
+            "online_rollout.candidate_selection requires a source schedule "
+            "that can emit online samples."
+        )
+
+    online_trajectory_count = source_schedule_fixed_online_count(
+        schedule=source_schedule,
+        prompt_batch_size=prompt_batch_size,
     )
+    if online_trajectory_count is not None:
+        validate_online_rollout_count(
+            online_trajectory_count=online_trajectory_count,
+            agent_loop_num_workers=agent_loop_num_workers,
+            candidate_selection_enabled=candidate_selection_enabled,
+            candidates_per_train_sample=candidates_per_train_sample,
+            candidate_selection_probability=candidate_selection_probability,
+        )
 
     candidate_selection_slug = (
         "cand-off"
@@ -344,7 +435,7 @@ for (
         f"lr{slug(lr)}-beta{slug(beta)}-"
         f"ln{slug(length_normalization)}-"
         f"{candidate_selection_slug}-"
-        f"on{slug(num_online)}-off{slug(num_offline)}-"
+        f"{source_schedule_slug(source_schedule)}-"
         f"sel{slug(offline_selector)}"
     )
     run_name = f"{job_name}/{jobid}"
@@ -363,14 +454,13 @@ for (
         "qrpo_runtime.grad_clip": grad_clip,
         "qrpo.length_normalization": length_normalization,
         "online_rollout.candidate_selection.enabled": candidate_selection_enabled,
-        "source_schedule.n_online": num_online,
-        "source_schedule.n_offline": num_offline,
         "offline_selector": offline_selector,
         "trainer.nnodes": num_nodes_per_job,
         "trainer.n_gpus_per_node": num_devices_per_node,
         "trainer.experiment_name": run_name,
         "trainer.default_local_dir": f"{output_root}/{job_name}/{jobid}",
     }
+    overrides.update(source_schedule_overrides(source_schedule))
     if length_normalization:
         overrides["qrpo.effective_beta_max"] = length_normalized_effective_beta_max
     if candidate_selection_enabled:
@@ -452,9 +542,10 @@ for trajectories_per_prompt, math in sorted(
     batch_math_by_trajectories_per_prompt.items()
 ):
     batch_math_lines.append(
-        "  trajectories_per_prompt = n_online + n_offline = "
+        "  train_completions_per_prompt = "
         f"{trajectories_per_prompt}; "
-        "prompt_batch_size = global_train_batch_size / trajectories_per_prompt = "
+        "prompt_batch_size = "
+        "global_train_batch_size / train_completions_per_prompt = "
         f"{math['prompt_batch_size']}"
     )
 

@@ -3,7 +3,7 @@
 #SBATCH -J online-qrpo-run
 #SBATCH -t 12:00:00
 #SBATCH -A infra01
-#SBATCH --reservation=SD-69241-apertus-1-5
+#SBATCH --reservation=SD-69241-apertus-1-5-0
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=288
