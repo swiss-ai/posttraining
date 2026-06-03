@@ -36,6 +36,8 @@ train_dataset_paths = [
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered",
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_4096-Filtered-Decontaminated/",
     "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated/",
+    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated-ResponsesReplaced-Filtered",
+    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated-ResponsesReplaced",
 
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_4096-Filtered",
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_TrPh_3600-Filtered",
@@ -43,22 +45,30 @@ train_dataset_paths = [
 ]
 
 batch_size = 128
-num_nodes_per_job = 16
-per_device_train_batch_size = 2
+num_nodes_per_job = 4
+per_device_train_batch_size = 1
 accelerate_config = "src/post_training/configs/accelerate/ds-zero2.yaml"
 model_config = "apertus-8b-sft-1.5--lr8e-5"
 
 model_paths = [
     # "/iopsstor/scratch/cscs/dmelikidze/sft-models/sub/ap-1p5-cooldown-sft-21-04-lr-8e-5",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-0.6B-SFT-lr5e-6-bs512",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-0.6B-SFT-lr8e-5-bs512",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-1.7B-SFT-lr5e-6-bs512",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-1.7B-SFT-lr8e-5-bs512",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-3.0B-SFT-lr5e-6-bs512",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-3.0B-SFT-lr8e-5-bs512",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-0.6B-SFT",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-1.7B-SFT",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-3.0B-SFT",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/active_dpo_new4/sft-image",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-0.6B-SFT-lr5e-6-bs512",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-0.6B-SFT-lr8e-5-bs512",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-1.7B-SFT-lr5e-6-bs512",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-1.7B-SFT-lr8e-5-bs512",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-3.0B-SFT-lr5e-6-bs512",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-3.0B-SFT-lr8e-5-bs512",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-0.6B-SFT",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-1.7B-SFT",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-3.0B-SFT",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/active_dpo_new7/ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n",
+    # "/iopsstor/scratch/cscs/dmelikidze/infra01/models/SFT/latest-sft-notooluse",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/last2/sft-multimodal"
+    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3000",
+    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3600",
+    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200",
+    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500",
 ]
 reward_models = ["skywork-llama3-8b"]
 

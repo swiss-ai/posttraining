@@ -15,10 +15,10 @@ Output schema:
 import argparse
 import os
 
-from datasets import load_dataset
+from datasets import load_from_disk
 
-OUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "train_dolci.parquet")
-DATASET_ID = "allenai/Dolci-Instruct-DPO"
+OUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "train_dolci_final.parquet")
+DATASET_PATH = "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated"
 
 
 def to_prompt_row(example):
@@ -38,7 +38,11 @@ def main():
     parser.add_argument("--output", type=str, default=OUT_PATH, help="Output parquet path.")
     args = parser.parse_args()
 
-    ds = load_dataset(DATASET_ID, split="train")
+    ds = load_from_disk(DATASET_PATH)
+    if isinstance(ds, dict) or hasattr(ds, "keys"):
+        split = list(ds.keys())[0]
+        print(f"DatasetDict detected, using split: '{split}'")
+        ds = ds[split]
     if args.num_samples is not None:
         ds = ds.select(range(min(args.num_samples, len(ds))))
     keep = ["prompt", "data_source", "reward_model", "extra_info"]

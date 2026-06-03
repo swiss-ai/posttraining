@@ -19,8 +19,13 @@ export JUDGE_MODEL="${JUDGE_MODEL:-Qwen/Qwen3.6-27B-dmelikidze}"
 
 export MODEL_PATH="${MODEL_PATH:-/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--swiss-ai--Apertus-8B-Instruct-2509-SFT/snapshots/d57e4f1a3baa6315c60707346b5498b48b40a364}"
 export OUTPUT_DIR="${OUTPUT_DIR:-/iopsstor/scratch/cscs/dmelikidze/verl-training/online-dpo-run-from-SFT/}"
-export OUTPUT_DIR="${OUTPUT_DIR%/}-${SLURM_JOB_ID}"
+if [[ -z "${RESUME_OUTPUT_DIR:-}" ]]; then
+    export OUTPUT_DIR="${OUTPUT_DIR%/}-${SLURM_JOB_ID}"
+fi
 export EXPERIMENT_NAME="${EXPERIMENT_NAME:-$(basename "${OUTPUT_DIR}")}"
+# Append the training job id so each launch gets a distinct wandb run name
+# (avoids many runs sharing one display name and looking merged).
+export EXPERIMENT_NAME="${EXPERIMENT_NAME}-${SLURM_JOB_ID}"
 
 # Optional overrides (uncomment or pass as env vars)
 # export TRAIN_DATA=...
@@ -161,6 +166,10 @@ for attempt in $(seq 1 $MAX_RETRIES); do
             export REF_LOGPROB_MICRO_BS='${REF_LOGPROB_MICRO_BS:-}' && \
             export ENFORCE_EAGER='${ENFORCE_EAGER:-}' && \
             export MAX_NUM_BATCHED_TOKENS='${MAX_NUM_BATCHED_TOKENS:-}' && \
+            export ASYNC_ROLLOUT='${ASYNC_ROLLOUT:-}' && \
+            export REWARD_NUM_WORKERS='${REWARD_NUM_WORKERS:-}' && \
+            export OFFPOLICY_DATA='${OFFPOLICY_DATA:-}' && \
+            export OFFPOLICY_BATCH_SIZE='${OFFPOLICY_BATCH_SIZE:-}' && \
             cd ${SCRIPT_DIR}/verl && pip install -e . --quiet && cd ${SCRIPT_DIR} && \
             export RAY_ADDRESS=${ip_head} && \
             export RAY_TMPDIR=${RAY_TMPDIR} && \

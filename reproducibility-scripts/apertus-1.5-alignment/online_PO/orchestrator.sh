@@ -115,7 +115,9 @@ echo "JUDGE_BASE_URL=${BASE_URL}"
 echo "Training nodes: ${TRAIN_NODES}"
 
 # Append server job ID to output dir to avoid collisions
-export OUTPUT_DIR="${OUTPUT_DIR}-${SERVER_JOB_ID}"
+if [[ -z "${RESUME_OUTPUT_DIR:-}" ]]; then
+    export OUTPUT_DIR="${OUTPUT_DIR}-${SERVER_JOB_ID}"
+fi
 
 TRAIN_JOB_ID=$(sbatch \
     --job-name="train-${EXPERIMENT_NAME}" \
@@ -124,6 +126,7 @@ TRAIN_JOB_ID=$(sbatch \
     --partition="${PARTITION}" \
     --time="${JOB_TIME}" \
     --nodes="${TRAIN_NODES}" \
+    --exclude="${EXCLUDE_NODES}" \
     --parsable \
     --export=ALL,\
 JUDGE_BASE_URL="${BASE_URL}",\
@@ -153,7 +156,12 @@ SAVE_FREQ="${SAVE_FREQ}",\
 TP_SIZE="${TP_SIZE}",\
 FSDP_SIZE="${FSDP_SIZE}",\
 GRAD_CLIP="${GRAD_CLIP}",\
-LENGTH_NORMALIZE="${LENGTH_NORMALIZE}" \
+LENGTH_NORMALIZE="${LENGTH_NORMALIZE}",\
+ASYNC_ROLLOUT="${ASYNC_ROLLOUT}",\
+REWARD_NUM_WORKERS="${REWARD_NUM_WORKERS}",\
+OFFPOLICY_DATA="${OFFPOLICY_DATA}",\
+OFFPOLICY_BATCH_SIZE="${OFFPOLICY_BATCH_SIZE}",\
+RESUME_OUTPUT_DIR="${RESUME_OUTPUT_DIR:-}" \
     "${SCRIPT_DIR}/submit_multinode.sh")
 
 echo "Training job submitted: ${TRAIN_JOB_ID}"

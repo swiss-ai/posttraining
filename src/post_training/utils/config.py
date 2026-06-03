@@ -12,10 +12,29 @@ import sys
 from hashlib import blake2b
 from pathlib import Path
 
+import json
+
 import wandb
+import wandb.sdk.lib.server
 from omegaconf import DictConfig, OmegaConf, omegaconf
 
 from post_training import utils
+
+_orig_query_with_timeout = wandb.sdk.lib.server.Server.query_with_timeout
+
+
+def _patched_query_with_timeout(self):
+    try:
+        _orig_query_with_timeout(self)
+    except TypeError:
+        if hasattr(self, "_viewer") and self._viewer:
+            flags = self._viewer.get("flags")
+            self._flags = json.loads(flags) if isinstance(flags, str) else {}
+        else:
+            self._flags = {}
+
+
+wandb.sdk.lib.server.Server.query_with_timeout = _patched_query_with_timeout
 
 # Hydra sets up the logger automatically.
 # https://hydra.cc/docs/tutorials/basic/running_your_app/logging/

@@ -15,6 +15,7 @@ MODEL_PATH="${MODEL_PATH:?MODEL_PATH must be set}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:?EXPERIMENT_NAME must be set}"
 OUTPUT_DIR="${OUTPUT_DIR:?OUTPUT_DIR must be set}"
 
+REF_MODEL_PATH="${REF_MODEL_PATH:-}"
 TRAIN_DATA="${TRAIN_DATA:-}"
 VAL_DATA="${VAL_DATA:-}"
 PROJECT_NAME="${PROJECT_NAME:-apertus-1.5-online-dpo}"
@@ -40,6 +41,10 @@ LOGPROB_MICRO_BS="${LOGPROB_MICRO_BS:-1}"
 REF_LOGPROB_MICRO_BS="${REF_LOGPROB_MICRO_BS:-1}"
 ENFORCE_EAGER="${ENFORCE_EAGER:-true}"
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-8192}"
+ASYNC_ROLLOUT="${ASYNC_ROLLOUT:-false}"
+REWARD_NUM_WORKERS="${REWARD_NUM_WORKERS:-16}"
+OFFPOLICY_DATA="${OFFPOLICY_DATA:-}"
+OFFPOLICY_BATCH_SIZE="${OFFPOLICY_BATCH_SIZE:-${TRAIN_BATCH_SIZE}}"
 
 # ── Script paths ────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -55,6 +60,7 @@ export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH}"
 DATA_DIR="${SCRIPT_DIR}/data"
 TRAIN_DATA="${TRAIN_DATA:-${DATA_DIR}/train_dolci.parquet}"
 VAL_DATA="${VAL_DATA:-${DATA_DIR}/train_dolci.parquet}"
+OFFPOLICY_DATA="${OFFPOLICY_DATA:-}"
 
 python3 -m recipe.spin.main_spin \
     data.train_files="${TRAIN_DATA}" \
@@ -65,6 +71,7 @@ python3 -m recipe.spin.main_spin \
     data.dataloader_num_workers=0 \
     data.filter_overlong_prompts=true \
     actor_rollout_ref.model.path=${MODEL_PATH} \
+    ${REF_MODEL_PATH:+actor_rollout_ref.model.ref_path=${REF_MODEL_PATH}} \
     actor_rollout_ref.model.trust_remote_code=true \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.actor.optim.lr=${LEARNING_RATE} \
@@ -91,6 +98,7 @@ python3 -m recipe.spin.main_spin \
     actor_rollout_ref.rollout.load_format=auto \
     data.trust_remote_code=true \
     reward_model.reward_manager=naive \
+    reward.num_workers=${REWARD_NUM_WORKERS} \
     algorithm.adv_estimator=null \
     +algorithm.length_normalize=${LENGTH_NORMALIZE} \
     trainer.nnodes=1 \
@@ -106,4 +114,7 @@ python3 -m recipe.spin.main_spin \
     trainer.default_local_dir=${OUTPUT_DIR} \
     trainer.test_freq=-1 \
     trainer.val_only=false \
+    +trainer.async_rollout=${ASYNC_ROLLOUT} \
+    +data.offpolicy_files="${OFFPOLICY_DATA}" \
+    +data.offpolicy_batch_size=${OFFPOLICY_BATCH_SIZE} \
     "$@"
