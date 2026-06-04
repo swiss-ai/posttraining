@@ -23,11 +23,11 @@ from trl import (
 )
 
 from post_training import utils
-from post_training.data_sft.utils_for_dataset import load_dataset_flexible
-from post_training.trainers.preference import (
-    PreferenceTrainer,
-    PreferenceTrainerConfig,
+from post_training.data_alignment.tokenized_preference import (
+    build_hf_dataset_from_tokenized,
 )
+from post_training.data_sft.utils_for_dataset import load_dataset_flexible
+from post_training.trainers.preference import PreferenceTrainer, PreferenceTrainerConfig
 from post_training.utils import utils_for_trl
 
 utils.config.register_resolvers()
@@ -62,6 +62,10 @@ def main(config: DictConfig) -> None:
         quantization_config=quantization_config,
     )
     training_args.model_init_kwargs = model_kwargs
+    # Propagate the tokenized-data toggle so PreferenceTrainer._prepare_dataset skips tokenization.
+    training_args.load_tokenized_data = config.dataset_args.get(
+        "load_tokenized_data", False
+    )
     if (
         training_args.ref_logprobs_from_dataset
         or training_args.precompute_ref_log_probs
@@ -98,7 +102,30 @@ def main(config: DictConfig) -> None:
     ############################ Dataset Setup ############################
 
     with acc_state.main_process_first():
-        ds = load_dataset_flexible(config.script_args.dataset_name)
+        if training_args.load_tokenized_data:
+            # Forward only the tokenized-loader options that are present in dataset_args; their
+            # defaults live solely in build_hf_dataset_from_tokenized's signature.
+            tokenized_kwargs = {
+                key: config.dataset_args[key]
+                for key in (
+                    "tokenizer_consistency",
+                    "accepted_prefix",
+                    "rejected_prefix",
+                    "parquet_path",
+                    "chosen_index_col",
+                    "rejected_index_col",
+                )
+                if key in config.dataset_args
+            }
+            ds = build_hf_dataset_from_tokenized(
+                root=config.script_args.dataset_name,
+                tokenizer=tokenizer,
+                max_prompt_length=training_args.max_prompt_length,
+                max_completion_length=training_args.max_completion_length,
+                **tokenized_kwargs,
+            )
+        else:
+            ds = load_dataset_flexible(config.script_args.dataset_name)
 
         if isinstance(ds, DatasetDict):
             ds = DatasetDict(

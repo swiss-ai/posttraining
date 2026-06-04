@@ -26,6 +26,16 @@ dataset_args:
     train: 0
     eval: 0
   shuffle: true
+  # Load already-tokenized preference data (Megatron .bin/.idx) instead of tokenizing at runtime.
+  # When true, dataset_name points at the tokenized dataset root (accepted/rejected indexed datasets
+  # + a parquet driver). See data_alignment/tokenized_preference.py.
+  load_tokenized_data: false
+  tokenizer_consistency: warn # warn | error | off (checks manifest.json tokenizer vs training one)
+  accepted_prefix: accepted # <root>/<accepted_prefix>.{bin,idx}
+  rejected_prefix: rejected # <root>/<rejected_prefix>.{bin,idx}
+  parquet_path: null # defaults to <root>/pairs.parquet
+  chosen_index_col: chosen_index
+  rejected_index_col: rejected_index
 
 script_args:
   dataset_name: ${dataset_args.dataset_name}

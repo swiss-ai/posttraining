@@ -31,14 +31,12 @@ job_name = "apertus-first-sweep"
 datasets = ["swissai-olmo2-32b-preference"]
 train_dataset_paths = [
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_3600-Filtered",
-
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_4096-Filtered",
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered",
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_4096-Filtered-Decontaminated/",
     "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated/",
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated-ResponsesReplaced-Filtered",
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated-ResponsesReplaced",
-
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_4096-Filtered",
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_TrPh_3600-Filtered",
     # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_TrPh_4096-Filtered",
@@ -82,13 +80,20 @@ reward_models = ["skywork-llama3-8b"]
 ref_logprobs_from_dataset = False
 train_num_ref_rewards = -1  # Directly use the quantile rewards from the dataset.
 
+# Load already-tokenized preference data (Megatron .bin/.idx) instead of tokenizing at runtime.
+# When True, each train_dataset_path must be a tokenized dataset root (accepted/rejected indexed
+# datasets + pairs.parquet); see data_alignment/tokenized_preference.py. Completions are capped at
+# tokenized_max_completion_length; prompt length varies.
+load_tokenized_data = False
+tokenized_max_completion_length = 2048
+
 losses = ["dpo"]
-normalize_beta_by_length = True # Important
+normalize_beta_by_length = True  # Important
 betas = {
     "qrpo": [2.0],
     "dpo": [25.0],
 }
-learning_rates = [1e-6] # [5e-7] for QRPO
+learning_rates = [1e-6]  # [5e-7] for QRPO
 optimizers = ["adamw_torch"]
 max_grad_norm = 20  # Disable but still log.
 num_epochs = [1]
@@ -149,6 +154,12 @@ for dataset in datasets:
                                             f"'wandb.tags=[prod,{job_name}]' "
                                             "artifacts_subdir=private "
                                             "resuming.resume=True "
+                                            + (
+                                                f"dataset_args.load_tokenized_data=True "
+                                                f"training_args.max_completion_length={tokenized_max_completion_length} "
+                                                if load_tokenized_data
+                                                else ""
+                                            )
                                         )
                                     )
                                     total_nodes_needed += num_nodes_per_job

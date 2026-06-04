@@ -1,0 +1,27 @@
+# @package _global_
+
+# Template for already-tokenized (Megatron .bin/.idx) preference data used for offline DPO.
+# Point dataset_name at the dataset root containing:
+#   <root>/accepted.{bin,idx}   accepted (chosen) sequences = tokens[prompt + response]
+#   <root>/rejected.{bin,idx}   rejected sequences          = tokens[prompt + response]
+#   <root>/pairs.parquet        one row per pair, columns chosen_index / rejected_index
+# The prompt/completion boundary is recovered as the token-level common prefix of each pair.
+
+dataset_args:
+  dataset_name: /iopsstor/scratch/cscs/CHANGEME/tokenized-preference-root
+  load_tokenized_data: true
+  tokenizer_consistency: warn
+  accepted_prefix: accepted
+  rejected_prefix: rejected
+  parquet_path: null # defaults to <root>/pairs.parquet
+  chosen_index_col: chosen_index
+  rejected_index_col: rejected_index
+  train_split:
+    name: train
+  eval_split:
+    name: null
+
+training_args:
+  max_completion_length: 2048 # cap each response; prompt length varies
+  eval_strategy: "no"
+  eval_steps: null
