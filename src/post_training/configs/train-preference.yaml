@@ -36,6 +36,22 @@ dataset_args:
   parquet_path: null # defaults to <root>/pairs.parquet
   chosen_index_col: chosen_index
   rejected_index_col: rejected_index
+  # Mix several preference sources into one run (overrides single-dataset loading when set).
+  # See data_alignment/tokenized_preference.build_mixed_preference_dataset. Example:
+  # mixture:
+  #   seed: 5315
+  #   combine: interleave                # interleave (default, uses weights) | concatenate (uses order)
+  #   stopping_strategy: all_exhausted   # interleave only: all_exhausted (default) | first_exhausted
+  #   total_samples: null                # optional cap, clamped to the available combined size
+  #   cache_dir: null                    # optional writable dir; persists hf entries' tokenized subset
+  #   datasets:                          # interleave needs `weight` (sum=1); concatenate ignores weight
+  #     - {type: tokenized, path: /.../root, chosen_index_col: pos_in_A, rejected_index_col: pos_in_B,
+  #        weight: 0.129, max_samples: null, selection: random}
+  #     - {type: hf, path: /.../hf_pref_dataset, split: train_split,
+  #        weight: 0.871, max_samples: 34840, selection: random}
+  # # concatenate example ("source A fully + fill with B up to N"): combine=concatenate,
+  # # total_samples=N, list A first (max_samples=null), B with a max_samples that fills the rest.
+  mixture: null
 
 script_args:
   dataset_name: ${dataset_args.dataset_name}
