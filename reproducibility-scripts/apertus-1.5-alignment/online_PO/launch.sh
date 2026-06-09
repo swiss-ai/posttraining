@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOGS_DIR="/iopsstor/scratch/cscs/dmelikidze/online-dpo/logs"
+LOGS_DIR="${SCRATCH}/online-dpo/logs"
 mkdir -p "${LOGS_DIR}/orchestrator" "${LOGS_DIR}/training"
 
 # ── SLURM / Account ────────────────────────────────────────────────────
@@ -20,7 +20,7 @@ JOB_TIME="12:00:00"
 EXCLUDE_NODES="nid007613"
 
 # ── Inference server config ─────────────────────────────────────────────
-SERVER_MODEL="/iopsstor/scratch/cscs/dmelikidze/huggingface/hub/models--Qwen--Qwen3.6-27B/snapshots/6a9e13bd6fc8f0983b9b99948120bc37f49c13e9"
+SERVER_MODEL="${SCRATCH}/huggingface/hub/models--Qwen--Qwen3.6-27B/snapshots/6a9e13bd6fc8f0983b9b99948120bc37f49c13e9"
 SERVER_SERVED_NAME="Qwen/Qwen3.6-27B-dmelikidze"
 SERVER_NODES=8
 SERVER_WORKERS=8
@@ -34,21 +34,21 @@ TRAIN_NODES=16
 # Add one path per line; the script submits the full grid for each model.
 # MODEL_NAME is derived from the basename of each path.
 MODEL_PATHS=(
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3000"
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3600"
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200"
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500"
+    # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3000"
+    # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3600"
+    "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200"
+    # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500"
 
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/new_era3/Apertus-1p5-8B-sft-16k-lr6e-5-constant-it38036"
+    # "${SCRATCH}/ap_mo/new_era3/Apertus-1p5-8B-sft-16k-lr6e-5-constant-it38036"
     # "/capstor/store/cscs/swissai/infra01/models/apertus-8b-sft-1.5--lr8e-5"
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/active_dpo_new4/sft-image"
-    # "/iopsstor/scratch/cscs/dmelikidze/infra01/models/SFT/latest-sft-notooluse"
-    # "/iopsstor/scratch/cscs/dmelikidze/infra01/models/Alignment/current_newest_models/MultiModal-OffPolicy-DPO"
+    # "${SCRATCH}/ap_mo/active_dpo_new4/sft-image"
+    # "${SCRATCH}/infra01/models/SFT/latest-sft-notooluse"
+    # "${SCRATCH}/infra01/models/Alignment/current_newest_models/MultiModal-OffPolicy-DPO"
 )
 REF_MODEL_PATH=""  # leave empty to use MODEL_PATH as reference
-OUTPUT_BASE_DIR="/iopsstor/scratch/cscs/dmelikidze/verl-training"
+OUTPUT_BASE_DIR="${SCRATCH}/verl-training"
 JUDGE_MODEL="Qwen/Qwen3.6-27B-dmelikidze"
-JUDGE_API_KEY="sk-rc-MH1IEiFLN35rXSJq5pWECQ"
+JUDGE_API_KEY="<API_KEY>"
 
 # Fixed training params (override per-run via grid arrays below)
 GPU_MEM_UTIL=0.35
@@ -82,7 +82,7 @@ OFFPOLICY_DATA=""
 OFFPOLICY_BATCH_SIZE=256
 
 # ── Resume from checkpoint (set to the exact output dir to resume) ──────
-# RESUME_OUTPUT_DIR="/iopsstor/scratch/cscs/dmelikidze/verl-training/apertus1.5-sft1.5-online-DPO-lr5e-6-beta0.1-bs256-lenNormfalse-maxPL2048-rollout16-offpolicy-2093197-2093226"
+# RESUME_OUTPUT_DIR="${SCRATCH}/verl-training/apertus1.5-sft1.5-online-DPO-lr5e-6-beta0.1-bs256-lenNormfalse-maxPL2048-rollout16-offpolicy-2093197-2093226"
 RESUME_OUTPUT_DIR=""
 
 # ── Hyperparameter grid ─────────────────────────────────────────────────
