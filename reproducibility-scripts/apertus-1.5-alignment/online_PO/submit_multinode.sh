@@ -101,7 +101,7 @@ start_ray_cluster() {
                 ray start --address ${ip_head} \
                     --num-gpus ${SLURM_GPUS_PER_NODE} --temp-dir=${RAY_TMPDIR} --block
             " &
-        sleep 1
+        sleep 6
     done
 }
 
@@ -160,6 +160,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
             export LENGTH_NORMALIZE='${LENGTH_NORMALIZE:-}' && \
             export TOTAL_EPOCHS='${TOTAL_EPOCHS:-}' && \
             export GPU_MEM_UTIL='${GPU_MEM_UTIL:-}' && \
+            export LARGE_MODEL='${LARGE_MODEL:-}' && \
             export ACTOR_MICRO_BS='${ACTOR_MICRO_BS:-}' && \
             export ROLLOUT_N='${ROLLOUT_N:-}' && \
             export LOGPROB_MICRO_BS='${LOGPROB_MICRO_BS:-}' && \

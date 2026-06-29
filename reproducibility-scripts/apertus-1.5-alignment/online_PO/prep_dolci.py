@@ -14,6 +14,7 @@ Output schema:
 
 import argparse
 import os
+import random
 
 from datasets import load_from_disk
 
@@ -34,7 +35,8 @@ def to_prompt_row(example):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num-samples", type=int, default=None, help="If set, take the first N prompts.")
+    parser.add_argument("--num-samples", type=int, default=None, help="If set, randomly sample N prompts.")
+    parser.add_argument("--seed", type=int, default=42, help="RNG seed for the random subset (reproducible).")
     parser.add_argument("--output", type=str, default=OUT_PATH, help="Output parquet path.")
     args = parser.parse_args()
 
@@ -43,8 +45,12 @@ def main():
         split = list(ds.keys())[0]
         print(f"DatasetDict detected, using split: '{split}'")
         ds = ds[split]
-    if args.num_samples is not None:
-        ds = ds.select(range(min(args.num_samples, len(ds))))
+    if args.num_samples is not None and args.num_samples < len(ds):
+        total = len(ds)
+        rng = random.Random(args.seed)
+        idx = sorted(rng.sample(range(total), args.num_samples))
+        ds = ds.select(idx)
+        print(f"Randomly sampled {len(idx)} of {total} prompts (seed={args.seed})")
     keep = ["prompt", "data_source", "reward_model", "extra_info"]
     ds = ds.map(to_prompt_row, remove_columns=[c for c in ds.column_names if c not in keep])
     os.makedirs(os.path.dirname(args.output), exist_ok=True)

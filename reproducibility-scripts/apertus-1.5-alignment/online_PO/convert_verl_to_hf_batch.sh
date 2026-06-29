@@ -13,13 +13,24 @@ OUTPUT_DIR="$2"
 VERL_DIR="/iopsstor/scratch/cscs/dmelikidze/verl"
 
 for subdir in "${INPUT_DIR}"/*/; do
-    if [ -d "${subdir}actor" ]; then
-        name="$(basename "${subdir}")"
-        echo "Converting ${name} ..."
+    name="$(basename "${subdir}")"
+
+    if [ -f "${subdir}latest_checkpointed_iteration.txt" ]; then
+        iter="$(cat "${subdir}latest_checkpointed_iteration.txt")"
+        step_dir="${subdir}global_step_${iter}"
+    else
+        echo "Skipping ${name}: no latest_checkpointed_iteration.txt"
+        continue
+    fi
+
+    if [ -d "${step_dir}/actor" ]; then
+        echo "Converting ${name} (global_step_${iter}) ..."
         python "${VERL_DIR}/scripts/legacy_model_merger.py" merge \
             --backend fsdp \
-            --local_dir "${subdir}actor" \
+            --local_dir "${step_dir}/actor" \
             --target_dir "${OUTPUT_DIR}/${name}"
         echo "Done: ${OUTPUT_DIR}/${name}"
+    else
+        echo "Skipping ${name}: ${step_dir}/actor not found"
     fi
 done

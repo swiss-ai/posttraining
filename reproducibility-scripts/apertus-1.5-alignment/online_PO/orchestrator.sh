@@ -18,6 +18,14 @@ SERVER_LOGS_DIR="/iopsstor/scratch/cscs/dmelikidze/online-dpo/logs/serving"
 mkdir -p "${SERVER_LOGS_DIR}"
 
 # ── Step 1: Launch inference server ─────────���───────────────────────────
+# If JUDGE_BASE_URL is provided, skip launching a server and use it directly.
+if [[ -n "${JUDGE_BASE_URL:-}" ]]; then
+    BASE_URL="${JUDGE_BASE_URL}"
+    SERVER_JOB_ID="manual"
+    echo "=== Using hardcoded server URL (skipping server launch) ==="
+    echo "JUDGE_BASE_URL=${BASE_URL}"
+else
+
 echo "=== Launching inference server ==="
 echo "Model: ${SERVER_MODEL}"
 echo "Framework: ${SERVER_FRAMEWORK}"
@@ -91,6 +99,8 @@ while [[ -z "${BASE_URL}" ]]; do
     fi
 done
 
+fi  # end server-launch branch (JUDGE_BASE_URL not set)
+
 # ── Step 3: Health check ─────────────���──────────────────────────────────
 HEALTH_URL="${BASE_URL%/v1}/health"
 echo "Health-checking: ${HEALTH_URL}"
@@ -138,6 +148,7 @@ EXPERIMENT_NAME="${EXPERIMENT_NAME}",\
 LEARNING_RATE="${LEARNING_RATE}",\
 DPO_BETA="${DPO_BETA}",\
 GPU_MEM_UTIL="${GPU_MEM_UTIL}",\
+LARGE_MODEL="${LARGE_MODEL}",\
 ENFORCE_EAGER="${ENFORCE_EAGER}",\
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS}",\
 TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE}",\

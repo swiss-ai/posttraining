@@ -14,10 +14,16 @@ mkdir -p "${LOGS_DIR}/orchestrator" "${LOGS_DIR}/training"
 
 # ── SLURM / Account ────────────────────────────────────────────────────
 ACCOUNT="infra01"
-RESERVATION="SD-69241-apertus-1-5-0"
+RESERVATION="SD-69241-apertus-1-5-0"  # leave empty to submit without a reservation SD-69241-apertus-1-5-0
 PARTITION="normal"
 JOB_TIME="12:00:00"
-EXCLUDE_NODES="nid007613"
+EXCLUDE_NODES="nid006076"
+
+# Only pass --reservation when one is set (sbatch rejects an empty value)
+RESERVATION_FLAG=()
+if [[ -n "${RESERVATION}" ]]; then
+    RESERVATION_FLAG=(--reservation="${RESERVATION}")
+fi
 
 # ── Inference server config ─────────────────────────────────────────────
 SERVER_MODEL="${SCRATCH}/huggingface/hub/models--Qwen--Qwen3.6-27B/snapshots/6a9e13bd6fc8f0983b9b99948120bc37f49c13e9"
@@ -27,16 +33,20 @@ SERVER_WORKERS=8
 SERVER_NODES_PER_WORKER=1
 SERVER_TP_SIZE=4
 SERVER_FRAMEWORK="vllm"
+# Set this to a running server URL (e.g. http://nidXXXXXX:8080/v1) to SKIP
+# launching a server; the orchestrator will use it directly. Leave empty to
+# launch a server as before.
+JUDGE_BASE_URL=""
 
 # ── Training config (fixed across grid) ─────────────────────────────────
-TRAIN_NODES=16
+TRAIN_NODES=32
 # ── Model paths to ablate over ──────────────────────────────────────────
 # Add one path per line; the script submits the full grid for each model.
 # MODEL_NAME is derived from the basename of each path.
 MODEL_PATHS=(
     # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3000"
     # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3600"
-    "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200"
+    "${SCRATCH}/ap_mo/ap_70_baselines/ap1p5-70b-sft-16k-9220"
     # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500"
 
     # "${SCRATCH}/ap_mo/new_era3/Apertus-1p5-8B-sft-16k-lr6e-5-constant-it38036"
@@ -48,17 +58,22 @@ MODEL_PATHS=(
 REF_MODEL_PATH=""  # leave empty to use MODEL_PATH as reference
 OUTPUT_BASE_DIR="${SCRATCH}/verl-training"
 JUDGE_MODEL="Qwen/Qwen3.6-27B-dmelikidze"
-JUDGE_API_KEY="<API_KEY>"
+JUDGE_API_KEY="sk-rc-MH1IEiFLN35rXSJq5pWECQ"
 
 # Fixed training params (override per-run via grid arrays below)
 GPU_MEM_UTIL=0.35
 ENFORCE_EAGER=false
 MAX_NUM_BATCHED_TOKENS=8192
-TRAIN_BATCH_SIZE=256
+TRAIN_BATCH_SIZE=512
 ROLLOUT_N=8
 ACTOR_MICRO_BS=1
 LOGPROB_MICRO_BS=1
 REF_LOGPROB_MICRO_BS=1
+# DPO actor-update packing (Fix B). Set false to revert to the original
+# fixed-micro_bs DPO loop (no code change). ACTOR_MAX_TOKEN_LEN = padded
+# token-slots per packed micro-batch; lower it if memory runs tight.
+DPO_DYNAMIC_BSZ=false
+ACTOR_MAX_TOKEN_LEN=8192
 MAX_PROMPT_LENGTH=2048
 MAX_RESPONSE_LENGTH=2048
 LR_SCHEDULER_TYPE=linear
@@ -66,7 +81,7 @@ LR_WARMUP_STEPS=-1
 LR_WARMUP_STEPS_RATIO=0.1
 MIN_LR_RATIO=0.0
 TOTAL_EPOCHS=1
-SAVE_FREQ=500
+SAVE_FREQ=250
 TP_SIZE=4
 FSDP_SIZE=64
 GRAD_CLIP=20.0
@@ -75,11 +90,23 @@ ASYNC_ROLLOUT=false
 # Reward-loop workers: >0 enables STREAMING annotation (judge scores each rollout
 # as it is generated, overlapping the judge with generation); 0 = post-hoc.
 REWARD_NUM_WORKERS=16
-TRAIN_DATA="${SCRIPT_DIR}/data/train_dolci_final.parquet"
-VAL_DATA="${SCRIPT_DIR}/data/train_dolci_final.parquet"
+TRAIN_DATA="${SCRIPT_DIR}/data/train_dolci_100k.parquet"
+VAL_DATA="${SCRIPT_DIR}/data/train_dolci_100k.parquet"
 # OFFPOLICY_DATA="${SCRIPT_DIR}/data/train_dolci_offpolicy.parquet"
 OFFPOLICY_DATA=""
 OFFPOLICY_BATCH_SIZE=256
+
+# ── Large-model (70B) memory mode ───────────────────────────────────────
+# Single switch for everything needed to fit a large model (e.g. 70B) on
+# 96GB GH200s: it widens the rollout tensor-parallel size, raises the SGLang
+# static memory fraction, and turns on CPU offload of params/optimizer/
+# activations (applied in train_spin.sh). Leave false for 8B — at that size
+# the offloads only add CPU<->GPU paging overhead with no benefit.
+LARGE_MODEL=true
+if [[ "${LARGE_MODEL}" == "true" ]]; then
+    TP_SIZE=8
+    GPU_MEM_UTIL=0.55
+fi
 
 # ── Resume from checkpoint (set to the exact output dir to resume) ──────
 # RESUME_OUTPUT_DIR="${SCRATCH}/verl-training/apertus1.5-sft1.5-online-DPO-lr5e-6-beta0.1-bs256-lenNormfalse-maxPL2048-rollout16-offpolicy-2093197-2093226"
@@ -89,6 +116,12 @@ RESUME_OUTPUT_DIR=""
 # Each array defines values to sweep. All combinations are launched.
 LEARNING_RATES=(5e-6) #(1e-7 5e-7 1e-6 5e-6 1e-5)
 DPO_BETAS=(0.1) #(0.01 0.1)
+
+# Large-model (70B) overrides for LR/beta
+if [[ "${LARGE_MODEL}" == "true" ]]; then
+    LEARNING_RATES=(2e-6)
+    DPO_BETAS=(0.3)
+fi
 
 # ── Submit jobs ─────────────────────────────────────────────────────────
 for MODEL_PATH in "${MODEL_PATHS[@]}"; do
@@ -108,7 +141,7 @@ for BETA in "${DPO_BETAS[@]}"; do
     sbatch \
         --job-name="orch-${RUN_NAME}" \
         --account="${ACCOUNT}" \
-        --reservation="${RESERVATION}" \
+        "${RESERVATION_FLAG[@]}" \
         --partition="${PARTITION}" \
         --time="${JOB_TIME}" \
         --nodes=1 \
@@ -133,9 +166,11 @@ OUTPUT_DIR="${OUTPUT_DIR}",\
 EXPERIMENT_NAME="${RUN_NAME}",\
 JUDGE_MODEL="${JUDGE_MODEL}",\
 JUDGE_API_KEY="${JUDGE_API_KEY}",\
+JUDGE_BASE_URL="${JUDGE_BASE_URL}",\
 LEARNING_RATE="${LR}",\
 DPO_BETA="${BETA}",\
 GPU_MEM_UTIL="${GPU_MEM_UTIL}",\
+LARGE_MODEL="${LARGE_MODEL}",\
 ENFORCE_EAGER="${ENFORCE_EAGER}",\
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS}",\
 TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE}",\
@@ -143,6 +178,8 @@ ROLLOUT_N="${ROLLOUT_N}",\
 ACTOR_MICRO_BS="${ACTOR_MICRO_BS}",\
 LOGPROB_MICRO_BS="${LOGPROB_MICRO_BS}",\
 REF_LOGPROB_MICRO_BS="${REF_LOGPROB_MICRO_BS}",\
+DPO_DYNAMIC_BSZ="${DPO_DYNAMIC_BSZ}",\
+ACTOR_MAX_TOKEN_LEN="${ACTOR_MAX_TOKEN_LEN}",\
 MAX_PROMPT_LENGTH="${MAX_PROMPT_LENGTH}",\
 MAX_RESPONSE_LENGTH="${MAX_RESPONSE_LENGTH}",\
 LR_SCHEDULER_TYPE="${LR_SCHEDULER_TYPE}",\

@@ -39,12 +39,20 @@ GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.35}"
 ACTOR_MICRO_BS="${ACTOR_MICRO_BS:-1}"
 LOGPROB_MICRO_BS="${LOGPROB_MICRO_BS:-1}"
 REF_LOGPROB_MICRO_BS="${REF_LOGPROB_MICRO_BS:-1}"
+REF_LOGPROB_MAX_TOKEN_LEN="${REF_LOGPROB_MAX_TOKEN_LEN:-16384}"
+# DPO actor-update packing (Fix B). DPO_DYNAMIC_BSZ=false reverts to the
+# original fixed-micro_bs loop with no code change. ACTOR_MAX_TOKEN_LEN bounds
+# the padded token-slots (rows*width) per packed micro-batch; raise to pack more
+# pairs, lower if memory is tight.
+DPO_DYNAMIC_BSZ="${DPO_DYNAMIC_BSZ:-true}"
+ACTOR_MAX_TOKEN_LEN="${ACTOR_MAX_TOKEN_LEN:-8192}"
 ENFORCE_EAGER="${ENFORCE_EAGER:-true}"
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-8192}"
 ASYNC_ROLLOUT="${ASYNC_ROLLOUT:-false}"
 REWARD_NUM_WORKERS="${REWARD_NUM_WORKERS:-16}"
 OFFPOLICY_DATA="${OFFPOLICY_DATA:-}"
 OFFPOLICY_BATCH_SIZE="${OFFPOLICY_BATCH_SIZE:-${TRAIN_BATCH_SIZE}}"
+LARGE_MODEL="${LARGE_MODEL:-false}"
 
 # ── Script paths ────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -61,6 +69,36 @@ DATA_DIR="${SCRIPT_DIR}/data"
 TRAIN_DATA="${TRAIN_DATA:-${DATA_DIR}/train_dolci.parquet}"
 VAL_DATA="${VAL_DATA:-${DATA_DIR}/train_dolci.parquet}"
 OFFPOLICY_DATA="${OFFPOLICY_DATA:-}"
+
+# ── Large-model memory optimizations (CPU offload) ──────────────────────
+# Only applied for big models (e.g. 70B), gated by LARGE_MODEL from
+# launch.sh. Offloading params/optimizer/activations to CPU is what lets a
+# 70B fit on 96GB GH200s; at 8B it is pure CPU<->GPU paging overhead, so we
+# leave it off and these args expand to nothing.
+OFFLOAD_ARGS=()
+if [[ "${LARGE_MODEL}" == "true" ]]; then
+    OFFLOAD_ARGS=(
+        # actor_rollout_ref.actor.fsdp_config.param_offload=true
+        # actor_rollout_ref.actor.fsdp_config.optimizer_offload=true
+        # actor_rollout_ref.ref.fsdp_config.param_offload=true
+        # actor_rollout_ref.model.enable_activation_offload=true
+    )
+fi
+
+# ── Ref-pass dynamic batching (text-only data) ──────────────────────────
+# With the multimodal false-positive fixed in compute_log_prob, the ref
+# log-prob pass packs micro-batches by token length instead of padding every
+# sequence to max_len. The reorder is reverted (get_reverse_idx) before
+# return, so the positional chosen/rejected split is unaffected. Gated on
+# LARGE_MODEL alongside the other 70B settings; tune the budget via
+# REF_LOGPROB_MAX_TOKEN_LEN (must be >= the longest sequence, 4096 here).
+REF_PACKING_ARGS=()
+if [[ "${LARGE_MODEL}" == "true" ]]; then
+    REF_PACKING_ARGS=(
+        actor_rollout_ref.ref.log_prob_use_dynamic_bsz=true
+        actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=${REF_LOGPROB_MAX_TOKEN_LEN}
+    )
+fi
 
 python3 -m recipe.spin.main_spin \
     data.train_files="${TRAIN_DATA}" \
@@ -83,6 +121,8 @@ python3 -m recipe.spin.main_spin \
     actor_rollout_ref.actor.dpo_beta=${DPO_BETA} \
     actor_rollout_ref.actor.ppo_mini_batch_size=${TRAIN_BATCH_SIZE} \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${ACTOR_MICRO_BS} \
+    +actor_rollout_ref.actor.dpo_use_dynamic_bsz=${DPO_DYNAMIC_BSZ} \
+    +actor_rollout_ref.actor.dpo_max_token_len_per_gpu=${ACTOR_MAX_TOKEN_LEN} \
     actor_rollout_ref.rollout.name=sglang \
     actor_rollout_ref.rollout.n=${ROLLOUT_N} \
     actor_rollout_ref.rollout.tensor_model_parallel_size=${TP_SIZE} \
@@ -117,4 +157,6 @@ python3 -m recipe.spin.main_spin \
     +trainer.async_rollout=${ASYNC_ROLLOUT} \
     +data.offpolicy_files="${OFFPOLICY_DATA}" \
     +data.offpolicy_batch_size=${OFFPOLICY_BATCH_SIZE} \
+    "${OFFLOAD_ARGS[@]}" \
+    "${REF_PACKING_ARGS[@]}" \
     "$@"
