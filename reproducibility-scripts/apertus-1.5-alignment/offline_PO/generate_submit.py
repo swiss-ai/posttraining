@@ -48,8 +48,8 @@ train_dataset_paths = [
 batch_size = 128
 num_nodes_per_job = 4
 per_device_train_batch_size = 1
-accelerate_config = "src/post_training/configs/accelerate/ds-zero2.yaml"
-model_config = "apertus-8b-sft-1.5--lr8e-5"
+accelerate_config = "src/post_training/configs/accelerate/ds-zero3.yaml"
+model_config = "apertus-70b-sft-1.5"
 
 model_paths = [
     # "/iopsstor/scratch/cscs/dmelikidze/sft-models/sub/ap-1p5-cooldown-sft-21-04-lr-8e-5",
@@ -70,7 +70,8 @@ model_paths = [
     # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3600",
     # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200",
     # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/rlruns/final/rl_1p5-8b-stage2_notools_mixthink_1606_480it",
+    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/rlruns/final/rl_1p5-8b-stage2_notools_mixthink_1606_480it",
+    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_70_baselines/ap1p5-70b-sft-262k-2700",
 ]
 reward_models = ["skywork-llama3-8b"]
 

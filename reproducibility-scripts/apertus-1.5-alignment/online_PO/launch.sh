@@ -28,25 +28,30 @@ fi
 # ── Inference server config ─────────────────────────────────────────────
 SERVER_MODEL="${SCRATCH}/huggingface/hub/models--Qwen--Qwen3.6-27B/snapshots/6a9e13bd6fc8f0983b9b99948120bc37f49c13e9"
 SERVER_SERVED_NAME="Qwen/Qwen3.6-27B-dmelikidze"
-SERVER_NODES=8
-SERVER_WORKERS=8
+SERVER_NODES=16
+SERVER_WORKERS=16
 SERVER_NODES_PER_WORKER=1
 SERVER_TP_SIZE=4
 SERVER_FRAMEWORK="vllm"
 # Set this to a running server URL (e.g. http://nidXXXXXX:8080/v1) to SKIP
 # launching a server; the orchestrator will use it directly. Leave empty to
 # launch a server as before.
+# JUDGE_BASE_URL="http://172.28.36.148:30000/v1"
 JUDGE_BASE_URL=""
 
 # ── Training config (fixed across grid) ─────────────────────────────────
-TRAIN_NODES=32
+TRAIN_NODES=128
 # ── Model paths to ablate over ──────────────────────────────────────────
 # Add one path per line; the script submits the full grid for each model.
 # MODEL_NAME is derived from the basename of each path.
 MODEL_PATHS=(
     # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3000"
     # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3600"
-    "${SCRATCH}/ap_mo/ap_70_baselines/ap1p5-70b-sft-16k-9220"
+    # "${SCRATCH}/ap_mo/ap_70_baselines/ap1p5-70b-sft-16k-9220"
+    # "${SCRATCH}/ap_mo/ap_70_baselines/Apertus-70B-Instruct-2509-SFT"
+    # "${SCRATCH}/ap_mo/ap_70_baselines/ap1p5-70b-sft-262k-2700"
+    # "${SCRATCH}/ap_mo/ap_70_baselines/rl_1p5-70b_notools_mixthink_0107_180it"
+    "${SCRATCH}/ap_mo/ap_70_baselines/rl_1p5-70b_notools_nothink_0107_340it"
     # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500"
 
     # "${SCRATCH}/ap_mo/new_era3/Apertus-1p5-8B-sft-16k-lr6e-5-constant-it38036"
@@ -73,7 +78,7 @@ REF_LOGPROB_MICRO_BS=1
 # fixed-micro_bs DPO loop (no code change). ACTOR_MAX_TOKEN_LEN = padded
 # token-slots per packed micro-batch; lower it if memory runs tight.
 DPO_DYNAMIC_BSZ=false
-ACTOR_MAX_TOKEN_LEN=8192
+ACTOR_MAX_TOKEN_LEN=4096
 MAX_PROMPT_LENGTH=2048
 MAX_RESPONSE_LENGTH=2048
 LR_SCHEDULER_TYPE=linear
@@ -81,17 +86,17 @@ LR_WARMUP_STEPS=-1
 LR_WARMUP_STEPS_RATIO=0.1
 MIN_LR_RATIO=0.0
 TOTAL_EPOCHS=1
-SAVE_FREQ=250
+SAVE_FREQ=50
 TP_SIZE=4
-FSDP_SIZE=64
+FSDP_SIZE=128
 GRAD_CLIP=20.0
 LENGTH_NORMALIZE=false
 ASYNC_ROLLOUT=false
 # Reward-loop workers: >0 enables STREAMING annotation (judge scores each rollout
 # as it is generated, overlapping the judge with generation); 0 = post-hoc.
 REWARD_NUM_WORKERS=16
-TRAIN_DATA="${SCRIPT_DIR}/data/train_dolci_100k.parquet"
-VAL_DATA="${SCRIPT_DIR}/data/train_dolci_100k.parquet"
+TRAIN_DATA="${SCRIPT_DIR}/data/train_dolci_final.parquet"
+VAL_DATA="${SCRIPT_DIR}/data/train_dolci_final.parquet"
 # OFFPOLICY_DATA="${SCRIPT_DIR}/data/train_dolci_offpolicy.parquet"
 OFFPOLICY_DATA=""
 OFFPOLICY_BATCH_SIZE=256
@@ -104,13 +109,13 @@ OFFPOLICY_BATCH_SIZE=256
 # the offloads only add CPU<->GPU paging overhead with no benefit.
 LARGE_MODEL=true
 if [[ "${LARGE_MODEL}" == "true" ]]; then
-    TP_SIZE=8
-    GPU_MEM_UTIL=0.55
+    TP_SIZE=4
+    GPU_MEM_UTIL=0.5
 fi
 
 # ── Resume from checkpoint (set to the exact output dir to resume) ──────
 # RESUME_OUTPUT_DIR="${SCRATCH}/verl-training/apertus1.5-sft1.5-online-DPO-lr5e-6-beta0.1-bs256-lenNormfalse-maxPL2048-rollout16-offpolicy-2093197-2093226"
-RESUME_OUTPUT_DIR=""
+RESUME_OUTPUT_DIR="/iopsstor/scratch/cscs/dmelikidze/verl-training/rl_1p5-70b_notools_nothink_0107_340it-online-lr1e-6-beta0.3-bs512-lenNormfalse-maxPL2048-rollout8-images-2670790-2670863"
 
 # ── Hyperparameter grid ─────────────────────────────────────────────────
 # Each array defines values to sweep. All combinations are launched.
@@ -119,7 +124,7 @@ DPO_BETAS=(0.1) #(0.01 0.1)
 
 # Large-model (70B) overrides for LR/beta
 if [[ "${LARGE_MODEL}" == "true" ]]; then
-    LEARNING_RATES=(2e-6)
+    LEARNING_RATES=(1e-6)
     DPO_BETAS=(0.3)
 fi
 

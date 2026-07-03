@@ -39,7 +39,7 @@ GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.35}"
 ACTOR_MICRO_BS="${ACTOR_MICRO_BS:-1}"
 LOGPROB_MICRO_BS="${LOGPROB_MICRO_BS:-1}"
 REF_LOGPROB_MICRO_BS="${REF_LOGPROB_MICRO_BS:-1}"
-REF_LOGPROB_MAX_TOKEN_LEN="${REF_LOGPROB_MAX_TOKEN_LEN:-16384}"
+REF_LOGPROB_MAX_TOKEN_LEN="${REF_LOGPROB_MAX_TOKEN_LEN:-4096}"
 # DPO actor-update packing (Fix B). DPO_DYNAMIC_BSZ=false reverts to the
 # original fixed-micro_bs loop with no code change. ACTOR_MAX_TOKEN_LEN bounds
 # the padded token-slots (rows*width) per packed micro-batch; raise to pack more
@@ -86,18 +86,77 @@ if [[ "${LARGE_MODEL}" == "true" ]]; then
 fi
 
 # ── Ref-pass dynamic batching (text-only data) ──────────────────────────
-# With the multimodal false-positive fixed in compute_log_prob, the ref
-# log-prob pass packs micro-batches by token length instead of padding every
-# sequence to max_len. The reorder is reverted (get_reverse_idx) before
-# return, so the positional chosen/rejected split is unaffected. Gated on
-# LARGE_MODEL alongside the other 70B settings; tune the budget via
-# REF_LOGPROB_MAX_TOKEN_LEN (must be >= the longest sequence, 4096 here).
+# Packs ref micro-batches by token length (~16 forwards/rank -> ~3-4), cutting
+# ref_log_prob from ~45s to ~12s. This is SAFE now that recipe/spin/dp_actor.py
+# passes dp_group=WORLD to rearrange_micro_batches, which all-reduces the
+# micro-batch COUNT to the max across ranks (same_micro_num_in_dp) so the
+# per-forward FSDP all-gathers stay in lockstep. Without that dp_group the
+# uneven per-rank counts desynced the collective -> NCCL watchdog killed a rank
+# (the ~673s crash). rmpad is already on, and the reorder is reverted via
+# get_reverse_idx, so values are unchanged. REF_LOGPROB_MAX_TOKEN_LEN must be
+# >= the longest sequence (4096 here).
 REF_PACKING_ARGS=()
 if [[ "${LARGE_MODEL}" == "true" ]]; then
     REF_PACKING_ARGS=(
         actor_rollout_ref.ref.log_prob_use_dynamic_bsz=true
         actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=${REF_LOGPROB_MAX_TOKEN_LEN}
     )
+fi
+
+# ── Large-model actor load dtype ────────────────────────────────────────
+# DO NOT set actor model_dtype=bf16. model_dtype is the *master/optimizer*
+# dtype (the FSDP flat param AdamW updates), NOT the compute dtype. verl warns
+# about this (fsdp_workers.py:380). bf16 master + lr=2e-6 => each update
+# (~1e-6) is below the bf16 mantissa step of the weights (~1e-4) and rounds
+# away -> the policy never moves (grad_norm large but KL~0, frozen policy).
+# Correct setup = fp32 master (model_dtype=fp32, the default) + bf16 COMPUTE
+# (fsdp.yaml `dtype: bfloat16`, applied via MixedPrecision) -> fast & low GPU
+# mem without losing updates. We keep fp32 explicit here as a guardrail.
+# Host-RAM note: fp32 load materializes ~292GB on rank-0, but low_cpu_mem_usage
+# (streamed load) + removing the redundant ref-worker actor build keep it under
+# the 450GB node budget.
+ACTOR_DTYPE_ARGS=()
+if [[ "${LARGE_MODEL}" == "true" ]]; then
+    ACTOR_DTYPE_ARGS=(
+        actor_rollout_ref.actor.fsdp_config.model_dtype=fp32
+    )
+fi
+
+# ── Skip the redundant actor build on the ref-only worker ───────────────
+# The ref worker (role="ref") reuses the combined-worker init path, which
+# otherwise builds a full SECOND copy of the model + Adam optimizer that the
+# ref never uses. On rank-0 (sync_module_states) both full copies land in host
+# RAM at load -> ~2x146GB for 70B -> Ray OOM-kill. Skipping it roughly halves
+# the ref worker's host peak. Gated on LARGE_MODEL so small-model runs keep the
+# original path and this is trivially reversible.
+REF_SLIM_ARGS=()
+if [[ "${LARGE_MODEL}" == "true" ]]; then
+    REF_SLIM_ARGS=(
+        +actor_rollout_ref.ref.skip_redundant_actor_build=true
+    )
+fi
+
+# ── Checkpoint load: low_cpu_mem_usage is HARDCODED True in verl ────────
+# DO NOT pass actor_rollout_ref.model.low_cpu_mem_usage as a hydra arg: HFModelConfig
+# is a strict dataclass and rejects the non-schema key (ConfigKeyError, even with `+`).
+# It is hardcoded True in verl/workers/fsdp_workers.py (streams weights, keeps rank-0
+# host RAM ~1x). This empty array is kept only so the passthrough below stays valid.
+LOW_CPU_MEM_ARGS=()
+
+# ── Rollout weight load: skip SGLang's redundant disk read (hybrid only) ─
+# In colocated/hybrid mode the trainer does an initial actor->rollout
+# update_weights (spin_trainer ~L1138, "Initial weight sync to rollout
+# replicas complete.") BEFORE the first generation, so SGLang does not need to
+# read the checkpoint from disk itself -- it re-reads the same 70B the actor
+# already loaded. load_format=dummy inits the engine with empty weights and
+# lets that sync populate them over NCCL, which (a) skips the ~8-10min
+# "Multi-thread loading shards" stage and (b) removes the slow-load straggler
+# that trips SGLang's 480s init barrier (the transient crash we hit). Only
+# valid in hybrid mode (verl forces dummy->auto otherwise). Gated on
+# LARGE_MODEL; small runs keep auto.
+ROLLOUT_LOAD_FORMAT="auto"
+if [[ "${LARGE_MODEL}" == "true" ]]; then
+    ROLLOUT_LOAD_FORMAT="dummy"
 fi
 
 python3 -m recipe.spin.main_spin \
@@ -135,7 +194,7 @@ python3 -m recipe.spin.main_spin \
     actor_rollout_ref.ref.fsdp_config.reshard_after_forward=true \
     actor_rollout_ref.rollout.enforce_eager=${ENFORCE_EAGER} \
     actor_rollout_ref.rollout.max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS} \
-    actor_rollout_ref.rollout.load_format=auto \
+    actor_rollout_ref.rollout.load_format=${ROLLOUT_LOAD_FORMAT} \
     data.trust_remote_code=true \
     reward_model.reward_manager=naive \
     reward.num_workers=${REWARD_NUM_WORKERS} \
@@ -159,4 +218,7 @@ python3 -m recipe.spin.main_spin \
     +data.offpolicy_batch_size=${OFFPOLICY_BATCH_SIZE} \
     "${OFFLOAD_ARGS[@]}" \
     "${REF_PACKING_ARGS[@]}" \
+    "${ACTOR_DTYPE_ARGS[@]}" \
+    "${REF_SLIM_ARGS[@]}" \
+    "${LOW_CPU_MEM_ARGS[@]}" \
     "$@"

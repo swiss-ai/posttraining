@@ -75,6 +75,18 @@ export RAY_TMPDIR
 # Unset AMD ROCm variable that conflicts with CUDA_VISIBLE_DEVICES in verl workers
 unset ROCR_VISIBLE_DEVICES
 
+# ── Fast load toggle (default OFF) ──────────────────────────────────────
+# FAST_LOAD=true -> only GLOBAL rank 0 reads the checkpoint; every other rank builds
+# the model on the meta device and FSDP (sync_module_states) broadcasts rank-0's
+# weights. Avoids BOTH the per-node OOM (4x fp32 materialization at the shard barrier)
+# and the 64-way Lustre read contention -> ~2-3min init, no staging needed. verl reads
+# this via the VERL_RANK0_ONLY_LOAD env var, exported into the ray-start srun env below
+# so the worker processes inherit it. Default off = load on all ranks (unchanged).
+FAST_LOAD="${FAST_LOAD:-false}"
+RANK0_LOAD_FLAG=0
+[[ "${FAST_LOAD}" == "true" ]] && RANK0_LOAD_FLAG=1
+echo "FAST_LOAD=${FAST_LOAD} -> VERL_RANK0_ONLY_LOAD=${RANK0_LOAD_FLAG}"
+
 # ── Helper: start Ray cluster on all nodes ──────────────────────────────
 start_ray_cluster() {
     echo "Starting Ray HEAD at $head_node ($head_node_ip)"
@@ -82,7 +94,10 @@ start_ray_cluster() {
         bash -c "
             unset ROCR_VISIBLE_DEVICES && \
             export WANDB_ENTITY=apertus && \
-            cd ${SCRIPT_DIR}/verl && pip install -e . --quiet && cd ${SCRIPT_DIR} && \
+            export VERL_PPO_LOGGING_LEVEL=DEBUG && export VERL_LOGGING_LEVEL=DEBUG && \
+            export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=1800 && \
+            export VERL_RANK0_ONLY_LOAD=${RANK0_LOAD_FLAG} && \
+            cd ${SCRIPT_DIR}/verl && pip install -e . --no-deps --quiet && cd ${SCRIPT_DIR} && \
             ray start --head --node-ip-address=${head_node_ip} --port=${port} \
                 --num-gpus ${SLURM_GPUS_PER_NODE} --temp-dir=${RAY_TMPDIR} --block
         " &
@@ -97,11 +112,14 @@ start_ray_cluster() {
             bash -c "
                 unset ROCR_VISIBLE_DEVICES && \
                 export WANDB_ENTITY=apertus && \
-                cd ${SCRIPT_DIR}/verl && pip install -e . --quiet && cd ${SCRIPT_DIR} && \
+                export VERL_PPO_LOGGING_LEVEL=DEBUG && export VERL_LOGGING_LEVEL=DEBUG && \
+                export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=1800 && \
+                export VERL_RANK0_ONLY_LOAD=${RANK0_LOAD_FLAG} && \
+                cd ${SCRIPT_DIR}/verl && pip install -e . --no-deps --quiet && cd ${SCRIPT_DIR} && \
                 ray start --address ${ip_head} \
                     --num-gpus ${SLURM_GPUS_PER_NODE} --temp-dir=${RAY_TMPDIR} --block
             " &
-        sleep 6
+        sleep 10
     done
 }
 
@@ -109,11 +127,15 @@ start_ray_cluster() {
 stop_ray_cluster() {
     echo "Stopping Ray cluster on all nodes..."
     for node in "${nodes_array[@]}"; do
-        srun --nodes=1 --ntasks=1 -w "$node" --environment=verl \
+        # --overlap is REQUIRED: the backgrounded `ray start --block` steps still
+        # hold each node's step slot, so without it these cleanup sruns hang on
+        # "Requested nodes are busy" and the auto-retry can never restart the
+        # cluster (a recoverable transient init flake then becomes a dead job).
+        srun --overlap --nodes=1 --ntasks=1 -w "$node" --environment=verl \
             bash -c "ray stop --force 2>/dev/null; true" &
     done
     wait
-    sleep 10
+    sleep 6
 }
 
 # ── Step 2+3: Start Ray cluster and launch training with auto-retry ─────
@@ -122,7 +144,45 @@ stop_ray_cluster() {
 # trainer.resume_mode=auto tells verl to find the latest checkpoint.
 # trainer.save_freq should be low (e.g. 50) to minimise lost work.
 
-MAX_RETRIES=5
+MAX_RETRIES=1  # auto-retry DISABLED: run once, exit on failure (no cluster restart / resume). Set >1 to re-enable.
+
+# ── Stage checkpoint to node-local /dev/shm (RAM) ───────────────────────
+# Lustre concurrent reads (64 FSDP workers x 1123 tensors on the same files)
+# crawl (~18min) even after striping -- it's metadata/serving contention, not
+# bandwidth (a single bulk read is ~4GB/s). /dev/shm is RAM-backed and shared
+# across containers on a node (see RAY_TMPDIR note above), so we bulk-copy the
+# checkpoint ONCE per node (fast sequential read, ~64->16 readers) and point the
+# run at the local copy -> the per-tensor loads then hit RAM. Node RAM is 856GB
+# (train peak ~501GB + ckpt ~140GB fits). Auto-on for LARGE_MODEL; set
+# STAGE_MODEL=false to disable. LOCAL_MODEL_PATH is what training actually loads.
+# DISABLED (default false): staging made the load so fast that all ranks on a node
+# materialize their full fp32 model in host RAM simultaneously (the slow Lustre load
+# used to stagger this) + the 140GB /dev/shm copy -> per-node host OOM-kill at init,
+# every launch (the gloo/TCPStore "connection closed by peer" cascade was the symptom
+# of an OOM-killed rank). Reverting to the slow-but-working Lustre load. Re-enable with
+# STAGE_MODEL=true ONLY after adding staggered / rank-0-broadcast loading so the 4
+# ranks/node don't peak together. See project memory for the full analysis.
+STAGE_MODEL="${STAGE_MODEL:-false}"
+LOCAL_MODEL_PATH="${MODEL_PATH}"
+if [[ "${STAGE_MODEL}" == "true" ]]; then
+    MODEL_NAME="$(basename "${MODEL_PATH}")"
+    LOCAL_MODEL_PATH="/dev/shm/${MODEL_NAME}"
+    echo "Staging ${MODEL_PATH} -> ${LOCAL_MODEL_PATH} on all ${SLURM_JOB_NUM_NODES} nodes..."
+    srun --nodes="${SLURM_JOB_NUM_NODES}" --ntasks-per-node=1 --environment=verl \
+        bash -c "
+            set -euo pipefail
+            if [[ -f '${LOCAL_MODEL_PATH}/.stage_complete' ]]; then
+                echo \"[stage] \$(hostname): already staged, reusing\"
+            else
+                rm -rf '${LOCAL_MODEL_PATH}'
+                mkdir -p '${LOCAL_MODEL_PATH}'
+                cp -rL '${MODEL_PATH}/.' '${LOCAL_MODEL_PATH}/'
+                touch '${LOCAL_MODEL_PATH}/.stage_complete'
+                echo \"[stage] \$(hostname): staged \$(du -sh '${LOCAL_MODEL_PATH}' | cut -f1)\"
+            fi
+        " || { echo "ERROR: model staging failed on one or more nodes; aborting."; exit 1; }
+    echo "Staging complete; training will load from ${LOCAL_MODEL_PATH}"
+fi
 
 start_ray_cluster
 
@@ -137,7 +197,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
             export JUDGE_BASE_URL='${JUDGE_BASE_URL}' && \
             export JUDGE_API_KEY='${JUDGE_API_KEY}' && \
             export JUDGE_MODEL='${JUDGE_MODEL}' && \
-            export MODEL_PATH='${MODEL_PATH}' && \
+            export MODEL_PATH='${LOCAL_MODEL_PATH}' && \
             export EXPERIMENT_NAME='${EXPERIMENT_NAME}' && \
             export OUTPUT_DIR='${OUTPUT_DIR}' && \
             export PROJECT_NAME='${PROJECT_NAME:-}' && \
@@ -171,7 +231,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
             export REWARD_NUM_WORKERS='${REWARD_NUM_WORKERS:-}' && \
             export OFFPOLICY_DATA='${OFFPOLICY_DATA:-}' && \
             export OFFPOLICY_BATCH_SIZE='${OFFPOLICY_BATCH_SIZE:-}' && \
-            cd ${SCRIPT_DIR}/verl && pip install -e . --quiet && cd ${SCRIPT_DIR} && \
+            cd ${SCRIPT_DIR}/verl && pip install -e . --no-deps --quiet && cd ${SCRIPT_DIR} && \
             export RAY_ADDRESS=${ip_head} && \
             export RAY_TMPDIR=${RAY_TMPDIR} && \
             bash ${SCRIPT_DIR}/train_spin.sh \
