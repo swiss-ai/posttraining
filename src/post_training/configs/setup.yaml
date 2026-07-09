@@ -37,6 +37,7 @@ hydra:
 
 wandb:
   project: posttraining
+  entity: null # null -> use the WANDB_ENTITY env var / user default; set to a username or team slug to override
   mode: online
   anonymous: allow
   tags:

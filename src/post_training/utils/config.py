@@ -4,6 +4,7 @@
 # result from direct computation of other config variables.
 # Only put variables meant to be edited by the user (as opposed to read-only variables described below)
 # and avoid making them too complicated, the point is not to write code in the config file.
+import json
 import logging
 import os
 import re
@@ -11,8 +12,6 @@ import subprocess
 import sys
 from hashlib import blake2b
 from pathlib import Path
-
-import json
 
 import wandb
 import wandb.sdk.lib.server
@@ -209,6 +208,8 @@ def setup_wandb(config, logger=_logger):
         resume="allow" if config.resuming.resume else "never",
         config=wandb_config,
         project=config.wandb.project,
+        # None -> fall back to the WANDB_ENTITY env var / user default (current behavior).
+        entity=config.wandb.get("entity", None),
         tags=config.wandb.tags,
         mode=config.wandb.mode,
         anonymous=config.wandb.anonymous,

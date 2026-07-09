@@ -23,11 +23,12 @@ from trl import (
 )
 
 from post_training import utils
-from post_training.data_sft.utils_for_dataset import load_dataset_flexible
-from post_training.trainers.preference import (
-    PreferenceTrainer,
-    PreferenceTrainerConfig,
+from post_training.data_alignment.tokenized_preference import (
+    build_hf_dataset_from_tokenized,
+    build_mixed_preference_dataset,
 )
+from post_training.data_sft.utils_for_dataset import load_dataset_flexible
+from post_training.trainers.preference import PreferenceTrainer, PreferenceTrainerConfig
 from post_training.utils import utils_for_trl
 
 utils.config.register_resolvers()
@@ -62,6 +63,12 @@ def main(config: DictConfig) -> None:
         quantization_config=quantization_config,
     )
     training_args.model_init_kwargs = model_kwargs
+    # Propagate the tokenized-data toggle so PreferenceTrainer._prepare_dataset skips tokenization.
+    # A mixture is always pre-tokenized by build_mixed_preference_dataset, so force the flag on.
+    training_args.load_tokenized_data = bool(
+        config.dataset_args.get("load_tokenized_data", False)
+        or config.dataset_args.get("mixture", None)
+    )
     if (
         training_args.ref_logprobs_from_dataset
         or training_args.precompute_ref_log_probs
@@ -98,7 +105,42 @@ def main(config: DictConfig) -> None:
     ############################ Dataset Setup ############################
 
     with acc_state.main_process_first():
-        ds = load_dataset_flexible(config.script_args.dataset_name)
+        if config.dataset_args.get("mixture", None):
+            # Mix several preference sources (tokenized and/or raw HF) into one tokenized dataset.
+            ds = build_mixed_preference_dataset(
+                mixture=OmegaConf.to_container(
+                    config.dataset_args.mixture, resolve=True
+                ),
+                tokenizer=tokenizer,
+                max_prompt_length=training_args.max_prompt_length,
+                max_completion_length=training_args.max_completion_length,
+                dataset_num_proc=training_args.dataset_num_proc,
+                is_encoder_decoder=bool(training_args.is_encoder_decoder),
+            )
+        elif training_args.load_tokenized_data:
+            # Forward only the tokenized-loader options that are present in dataset_args; their
+            # defaults live solely in build_hf_dataset_from_tokenized's signature.
+            tokenized_kwargs = {
+                key: config.dataset_args[key]
+                for key in (
+                    "tokenizer_consistency",
+                    "accepted_prefix",
+                    "rejected_prefix",
+                    "parquet_path",
+                    "chosen_index_col",
+                    "rejected_index_col",
+                )
+                if key in config.dataset_args
+            }
+            ds = build_hf_dataset_from_tokenized(
+                root=config.script_args.dataset_name,
+                tokenizer=tokenizer,
+                max_prompt_length=training_args.max_prompt_length,
+                max_completion_length=training_args.max_completion_length,
+                **tokenized_kwargs,
+            )
+        else:
+            ds = load_dataset_flexible(config.script_args.dataset_name)
 
         if isinstance(ds, DatasetDict):
             ds = DatasetDict(

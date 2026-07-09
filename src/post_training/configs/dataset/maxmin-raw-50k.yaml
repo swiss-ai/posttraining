@@ -1,0 +1,32 @@
+# @package _global_
+
+# Raw-only DPO baseline: 50,000 random samples from the raw MaxMin_Tr_3600 preference set, runtime-
+# tokenized via the same raw path as the mixed run (single-source "mixture" of one hf entry) so it is
+# directly comparable. Use the resolved $STORE path (NOT /users/rkreft/infra01, a home symlink that
+# isn't mounted in the training container). See data_alignment/tokenized_preference.build_mixed_preference_dataset.
+
+dataset_args:
+  dataset_name: maxmin-raw-50k # label only (mixture defines the actual source)
+  load_tokenized_data: true # build_mixed pre-tokenizes; trainer skips its own tokenization
+  train_split:
+    name: train
+  eval_split:
+    name: null
+  mixture:
+    seed: 5315
+    combine: concatenate # single entry; concatenate avoids needing weights
+    total_samples: 50000 # exact cap
+    cache_dir: /iopsstor/scratch/cscs/rkreft/mixture-cache
+    datasets:
+      - type: hf
+        path: /capstor/store/cscs/swissai/infra01/datasets/alignment/preference_datasets/MaxMin_Tr_3600-Filtered-Decontaminated
+        split: train_split
+        max_samples: 50500 # over-provision so empty-completion drops don't leave us short of 50k
+        selection: random
+
+training_args:
+  max_prompt_length: 16384
+  max_completion_length: 2048
+  max_length: 18432 # >= max_prompt_length + max_completion_length
+  eval_strategy: "no"
+  eval_steps: null

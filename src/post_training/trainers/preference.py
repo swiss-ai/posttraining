@@ -48,8 +48,11 @@ from transformers import (
     is_wandb_available,
 )
 from transformers.data.data_collator import DataCollatorMixin
+
 try:
-    from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES
+    from transformers.models.auto.modeling_auto import (
+        MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES,
+    )
 except Exception:
     # Treat as "no vision models" if HF moves/renames the constant.
     MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES = {}
@@ -101,6 +104,9 @@ class PreferenceTrainerConfig(TrainingArguments):
     precompute_ref_log_probs: bool = False
     ref_logprobs_from_dataset: bool = False
     sync_ref_model: bool = False
+    # When True, the dataset already contains tokenized prompt/chosen/rejected input ids and the
+    # runtime tokenization in `_prepare_dataset` is skipped. See data_alignment/tokenized_preference.py
+    load_tokenized_data: bool = False
 
     def __post_init__(self):
         assert self.precompute_ref_log_probs == False, (
@@ -633,6 +639,9 @@ class PreferenceTrainer(Trainer):
         args: PreferenceTrainerConfig,
         dataset_name: str,
     ) -> Dataset:
+        # Pre-tokenized data already has prompt/chosen/rejected input ids; skip tokenization.
+        if args.load_tokenized_data:
+            return dataset
         # Compute that only on the main process for faster data processing.
         # see: https://github.com/huggingface/trl/pull/1255
         with PartialState().main_process_first():
@@ -1363,7 +1372,9 @@ class PreferenceTrainer(Trainer):
         kl_rejected_raw = g_rejected_logps - g_ref_rejected_logps
         kl_all_raw = torch.cat([kl_chosen_raw, kl_rejected_raw], dim=0)
         metrics[f"{prefix}kl/policy_vs_ref_raw/chosen"] = kl_chosen_raw.mean().item()
-        metrics[f"{prefix}kl/policy_vs_ref_raw/rejected"] = kl_rejected_raw.mean().item()
+        metrics[
+            f"{prefix}kl/policy_vs_ref_raw/rejected"
+        ] = kl_rejected_raw.mean().item()
         metrics[f"{prefix}kl/policy_vs_ref_raw/mean"] = kl_all_raw.mean().item()
 
         kl_chosen = kl_chosen_raw / g_chosen_lens

@@ -1,0 +1,45 @@
+# @package _global_
+
+# Mixed preference dataset for offline DPO: the tokenized DPO set (mllm_dpo_naive_layout, ALL ~5,160
+# pairs) plus a random slice of the raw MaxMin_Tr_3600 set, concatenated up to 50,000 samples total.
+# combine=concatenate + tokenized listed FIRST + total_samples=50000 means: every tokenized pair is
+# kept, and the cap trims only the raw tail -> tokenized used fully, raw fills the rest up to 50k.
+# See data_alignment/tokenized_preference.build_mixed_preference_dataset.
+
+dataset_args:
+  dataset_name: mllm-dpo-mixed-maxmin # label only (mixture defines the actual sources)
+  load_tokenized_data: true # combined mix is already tokenized
+  train_split:
+    name: train
+  eval_split:
+    name: null
+  mixture:
+    seed: 5315
+    combine: concatenate # take each source fully (up to max_samples), concat in order, then cap
+    total_samples: 50000 # keep first 50k of [all tokenized, then raw] -> tokenized fully + raw fill
+    # Writable dir where each hf entry's tokenized subset is persisted so reruns skip re-tokenization.
+    cache_dir: /iopsstor/scratch/cscs/rkreft/mixture-cache
+    datasets:
+      # Tokenized source FIRST so the total_samples cap never trims it (used fully, ~5,160 pairs).
+      - type: tokenized
+        path: /capstor/store/cscs/swissai/infra01/vision-datasets/alignment-tokenized/mllm_dpo_naive_layout
+        chosen_index_col: pos_in_A
+        rejected_index_col: pos_in_B
+        max_samples: null # use all ~5,160
+        selection: random
+      # Raw source fills up to the 50k cap; over-provisioned slightly so empty-completion drops don't
+      # leave us short of 50k (the cap trims the excess).
+      - type: hf
+        # Use the resolved $STORE path (NOT the /users/rkreft/infra01 home symlink): the training
+        # container is launched with --no-container-mount-home, so home paths are not visible inside it.
+        path: /capstor/store/cscs/swissai/infra01/datasets/alignment/preference_datasets/MaxMin_Tr_3600-Filtered-Decontaminated
+        split: train_split
+        max_samples: 45500
+        selection: random
+
+training_args:
+  max_prompt_length: 16384
+  max_completion_length: 2048
+  max_length: 18432 # >= max_prompt_length + max_completion_length
+  eval_strategy: "no"
+  eval_steps: null

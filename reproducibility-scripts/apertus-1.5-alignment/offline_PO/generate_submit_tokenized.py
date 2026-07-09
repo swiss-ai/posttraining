@@ -1,7 +1,14 @@
 from datetime import datetime
 from pathlib import Path
 
-"""Nomenclature:
+"""Offline DPO launcher for ALREADY-TOKENIZED (Megatron .bin/.idx) preference data.
+
+Copy of generate_submit.py configured for the tokenized data path: each train_dataset_path is a
+tokenized dataset root (accepted.{bin,idx} + rejected.{bin,idx} + pairs.parquet); runtime
+tokenization is skipped and a larger 16k prompt budget is used. Model and DPO hyperparameters are
+kept identical to generate_submit.py.
+
+Nomenclature:
 
 dataset = f"{dataset}"
 model = f"{sft_model}"
@@ -20,75 +27,53 @@ dataset_with_ref_rewards = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{
 train_dataset = f"{dataset}-{model}-(sftid)-maxlen{max_seq_len}-Nref{NRefDataset}-logprobs-{reward_model}-(train_id)"
 """
 
-stdout_prefix = "init"
+stdout_prefix = "init-tokenized"
 stdout_root = (
     Path(__file__).parent.resolve()
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 )
 
-job_name = "apertus-first-sweep"
+job_name = "apertus-tokenized-dpo"
+# WandB project the runs log to (overrides the train-preference.yaml default `posttraining-alignment`).
+wandb_project = "Ap1p5-DPO"
+# WandB entity (username or team slug). Overrides WANDB_ENTITY=apertus from setup.sh; use a personal
+# entity to avoid 403s when not a member of the team.
+wandb_entity = "rkreft-personal"
 
 datasets = ["swissai-olmo2-32b-preference"]
 train_dataset_paths = [
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_3600-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_4096-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_4096-Filtered-Decontaminated/",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated/",
-    "/capstor/store/cscs/swissai/infra01/datasets/alignment/preference_datasets/MaxMin_Tr_3600-Filtered-Decontaminated",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated-ResponsesReplaced-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated-ResponsesReplaced",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_4096-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_TrPh_3600-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_TrPh_4096-Filtered",
+    # Tokenized (Megatron .bin/.idx) dataset root (naive layout): accepted.{bin,idx},
+    # rejected.{bin,idx} and pairs.parquet (pair-map columns set below).
+    "/capstor/store/cscs/swissai/infra01/vision-datasets/alignment-tokenized/mllm_dpo_naive_layout",
 ]
+# Pair-map (pairs.parquet) column names that index into the accepted / rejected indexed datasets.
+chosen_index_col = "pos_in_A"  # index into accepted.{bin,idx}
+rejected_index_col = "pos_in_B"  # index into rejected.{bin,idx}
 
 batch_size = 128
 num_nodes_per_job = 4
 per_device_train_batch_size = 1
-accelerate_config = "src/post_training/configs/accelerate/ds-zero3.yaml"
-model_config = "apertus-70b-sft-1.5"
+accelerate_config = "src/post_training/configs/accelerate/ds-zero2.yaml"
+model_config = "apertus-8b-sft-1.5--lr8e-5"
 
 model_paths = [
-    # "/iopsstor/scratch/cscs/dmelikidze/sft-models/sub/ap-1p5-cooldown-sft-21-04-lr-8e-5",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/active_dpo_new4/sft-image",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-0.6B-SFT-lr5e-6-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-0.6B-SFT-lr8e-5-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-1.7B-SFT-lr5e-6-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-1.7B-SFT-lr8e-5-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-3.0B-SFT-lr5e-6-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-3.0B-SFT-lr8e-5-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-0.6B-SFT",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-1.7B-SFT",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-3.0B-SFT",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/active_dpo_new7/ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n",
-    # "/iopsstor/scratch/cscs/dmelikidze/infra01/models/SFT/latest-sft-notooluse",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/last2/sft-multimodal"
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3000",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3600",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/rlruns/final/rl_1p5-8b-stage2_notools_mixthink_1606_480it",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_70_baselines/ap1p5-70b-sft-262k-2700",
+    # Only the _4200 SFT checkpoint is used for this DPO run (readable copy under $STORE).
+    "/capstor/store/cscs/swissai/infra01/apertus_1p5/hf_checkpoints/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200",
 ]
 reward_models = ["skywork-llama3-8b"]
-
-"""
-/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-8e-6/2026-04-23_19-42-02/global_step_9688/huggingface
-/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-1e-5/2026-04-23_19-38-55/global_step_9688/huggingface
-/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-5e-5/2026-04-23_19-06-26/global_step_9688/huggingface
-/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-8e-5/2026-04-23_19-08-56/global_step_9688/huggingface
-"""
 
 ref_logprobs_from_dataset = False
 train_num_ref_rewards = -1  # Directly use the quantile rewards from the dataset.
 
-# Load already-tokenized preference data (Megatron .bin/.idx) instead of tokenizing at runtime.
-# When True, each train_dataset_path must be a tokenized dataset root (accepted/rejected indexed
-# datasets + pairs.parquet); see data_alignment/tokenized_preference.py. Completions are capped at
-# tokenized_max_completion_length; prompt length varies.
-load_tokenized_data = False
+# Tokenized data: load already-tokenized preference data (Megatron .bin/.idx) and skip runtime
+# tokenization. Completions are capped at tokenized_max_completion_length; prompts are
+# left-truncated to tokenized_max_prompt_length.
+load_tokenized_data = True
 tokenized_max_completion_length = 2048
+tokenized_max_prompt_length = 16384  # 16k prompt budget (multimodal / long prompts)
+# Total sequence cap. Must be >= prompt + completion, otherwise concatenated_forward right-truncates
+# the [prompt + completion] and silently eats into / zeroes the completion (breaks length-normalized DPO).
+tokenized_max_length = tokenized_max_prompt_length + tokenized_max_completion_length
 
 losses = ["dpo"]
 normalize_beta_by_length = True  # Important
@@ -153,6 +138,8 @@ for dataset in datasets:
                                             f"global_batch_size={batch_size} "
                                             f"num_nodes={num_nodes_per_job} "
                                             f"job_subdir={run_name} "
+                                            f"wandb.project={wandb_project} "
+                                            f"wandb.entity={wandb_entity} "
                                             f"wandb.run_name={run_name} "
                                             f"'wandb.tags=[prod,{job_name}]' "
                                             "artifacts_subdir=private "
@@ -160,6 +147,10 @@ for dataset in datasets:
                                             + (
                                                 f"dataset_args.load_tokenized_data=True "
                                                 f"training_args.max_completion_length={tokenized_max_completion_length} "
+                                                f"training_args.max_prompt_length={tokenized_max_prompt_length} "
+                                                f"training_args.max_length={tokenized_max_length} "
+                                                f"dataset_args.chosen_index_col={chosen_index_col} "
+                                                f"dataset_args.rejected_index_col={rejected_index_col} "
                                                 if load_tokenized_data
                                                 else ""
                                             )
@@ -167,8 +158,8 @@ for dataset in datasets:
                                     )
                                     total_nodes_needed += num_nodes_per_job
 
-# Write th submit commands to a new directory where this batch of experiments will be managed)
-# Path from the project root
+# Write the submit commands to a new directory where this batch of experiments will be managed.
+# Path from the project root.
 submit_dir = Path.cwd() / str(stdout_root)
 submit_dir.mkdir(parents=True, exist_ok=True)
 submit_file = submit_dir / "submit.sh"
