@@ -17,7 +17,10 @@ ACCOUNT="infra01"
 RESERVATION="SD-69241-apertus-1-5-0"  # leave empty to submit without a reservation SD-69241-apertus-1-5-0
 PARTITION="normal"
 JOB_TIME="12:00:00"
-EXCLUDE_NODES="nid006076"
+# Exported (NOT listed in the --export comma-list below) so the comma in the
+# value survives to the orchestrator; a comma inside --export gets split as a
+# separate token, which silently dropped nid007277. nid007277: bad node (mount fails).
+export EXCLUDE_NODES="nid006076,nid007277,nid007375"
 
 # Only pass --reservation when one is set (sbatch rejects an empty value)
 RESERVATION_FLAG=()
@@ -36,7 +39,7 @@ SERVER_FRAMEWORK="vllm"
 # Set this to a running server URL (e.g. http://nidXXXXXX:8080/v1) to SKIP
 # launching a server; the orchestrator will use it directly. Leave empty to
 # launch a server as before.
-# JUDGE_BASE_URL="http://172.28.36.148:30000/v1"
+# JUDGE_BASE_URL="http://172.28.32.48:30000/v1"
 JUDGE_BASE_URL=""
 
 # ── Training config (fixed across grid) ─────────────────────────────────
@@ -51,7 +54,8 @@ MODEL_PATHS=(
     # "${SCRATCH}/ap_mo/ap_70_baselines/Apertus-70B-Instruct-2509-SFT"
     # "${SCRATCH}/ap_mo/ap_70_baselines/ap1p5-70b-sft-262k-2700"
     # "${SCRATCH}/ap_mo/ap_70_baselines/rl_1p5-70b_notools_mixthink_0107_180it"
-    "${SCRATCH}/ap_mo/ap_70_baselines/rl_1p5-70b_notools_nothink_0107_340it"
+    "${SCRATCH}/ap_mo/ap_1p5_70B_dif/ap1p5-70b-sft-262k-2700-MaxMin_Tr_3600-Filtered-Decontaminated-dpo-lr1e-06-beta25.0-lenNormTrue-ebs128-ep1"
+    # "${SCRATCH}/ap_mo/ap_70_baselines/rl_1p5-70b_notools_nothink_0107_340it"
     # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500"
 
     # "${SCRATCH}/ap_mo/new_era3/Apertus-1p5-8B-sft-16k-lr6e-5-constant-it38036"
@@ -63,7 +67,7 @@ MODEL_PATHS=(
 REF_MODEL_PATH=""  # leave empty to use MODEL_PATH as reference
 OUTPUT_BASE_DIR="${SCRATCH}/verl-training"
 JUDGE_MODEL="Qwen/Qwen3.6-27B-dmelikidze"
-JUDGE_API_KEY="sk-rc-MH1IEiFLN35rXSJq5pWECQ"
+JUDGE_API_KEY="<SWISS_AI_RESEARCH_PLATFORM_API_KEY"
 
 # Fixed training params (override per-run via grid arrays below)
 GPU_MEM_UTIL=0.35
@@ -99,7 +103,7 @@ TRAIN_DATA="${SCRIPT_DIR}/data/train_dolci_final.parquet"
 VAL_DATA="${SCRIPT_DIR}/data/train_dolci_final.parquet"
 # OFFPOLICY_DATA="${SCRIPT_DIR}/data/train_dolci_offpolicy.parquet"
 OFFPOLICY_DATA=""
-OFFPOLICY_BATCH_SIZE=256
+OFFPOLICY_BATCH_SIZE=512
 
 # ── Large-model (70B) memory mode ───────────────────────────────────────
 # Single switch for everything needed to fit a large model (e.g. 70B) on
@@ -115,7 +119,8 @@ fi
 
 # ── Resume from checkpoint (set to the exact output dir to resume) ──────
 # RESUME_OUTPUT_DIR="${SCRATCH}/verl-training/apertus1.5-sft1.5-online-DPO-lr5e-6-beta0.1-bs256-lenNormfalse-maxPL2048-rollout16-offpolicy-2093197-2093226"
-RESUME_OUTPUT_DIR="/iopsstor/scratch/cscs/dmelikidze/verl-training/rl_1p5-70b_notools_nothink_0107_340it-online-lr1e-6-beta0.3-bs512-lenNormfalse-maxPL2048-rollout8-images-2670790-2670863"
+# RESUME_OUTPUT_DIR="/iopsstor/scratch/cscs/dmelikidze/verl-training/rl_1p5-70b_notools_nothink_0107_340it-online-lr1e-6-beta0.3-bs512-lenNormfalse-maxPL2048-rollout8-images-2670790-2670863"
+RESUME_OUTPUT_DIR="/iopsstor/scratch/cscs/dmelikidze/verl-training/ap1p5-70b-sft-262k-2700-MaxMin_Tr_3600-Filtered-Decontaminated-dpo-lr1e-06-beta25.0-lenNormTrue-ebs128-ep1-online-lr2.5e-6-beta0.15-bs512-lenNormfalse-maxPL2048-rollout8-images-2785048-2785064"
 
 # ── Hyperparameter grid ─────────────────────────────────────────────────
 # Each array defines values to sweep. All combinations are launched.
@@ -124,8 +129,8 @@ DPO_BETAS=(0.1) #(0.01 0.1)
 
 # Large-model (70B) overrides for LR/beta
 if [[ "${LARGE_MODEL}" == "true" ]]; then
-    LEARNING_RATES=(1e-6)
-    DPO_BETAS=(0.3)
+    LEARNING_RATES=(2.5e-6)
+    DPO_BETAS=(0.15)
 fi
 
 # ── Submit jobs ─────────────────────────────────────────────────────────
@@ -205,7 +210,6 @@ ACCOUNT="${ACCOUNT}",\
 RESERVATION="${RESERVATION}",\
 PARTITION="${PARTITION}",\
 JOB_TIME="${JOB_TIME}",\
-EXCLUDE_NODES="${EXCLUDE_NODES}",\
 RESUME_OUTPUT_DIR="${RESUME_OUTPUT_DIR:-}" \
         "${SCRIPT_DIR}/orchestrator.sh"
 

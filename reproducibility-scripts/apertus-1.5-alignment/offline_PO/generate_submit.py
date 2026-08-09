@@ -46,7 +46,7 @@ train_dataset_paths = [
 ]
 
 batch_size = 128
-num_nodes_per_job = 4
+num_nodes_per_job = 16
 per_device_train_batch_size = 1
 accelerate_config = "src/post_training/configs/accelerate/ds-zero3.yaml"
 model_config = "apertus-70b-sft-1.5"
@@ -75,12 +75,6 @@ model_paths = [
 ]
 reward_models = ["skywork-llama3-8b"]
 
-"""
-/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-8e-6/2026-04-23_19-42-02/global_step_9688/huggingface
-/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-1e-5/2026-04-23_19-38-55/global_step_9688/huggingface
-/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-5e-5/2026-04-23_19-06-26/global_step_9688/huggingface
-/iopsstor/scratch/cscs/hyukhymenko/apertus-sft-runs/ap-1p5-cooldown-sft-21-04-lr-8e-5/2026-04-23_19-08-56/global_step_9688/huggingface
-"""
 
 ref_logprobs_from_dataset = False
 train_num_ref_rewards = -1  # Directly use the quantile rewards from the dataset.

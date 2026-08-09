@@ -97,14 +97,24 @@ start_ray_cluster() {
             export VERL_PPO_LOGGING_LEVEL=DEBUG && export VERL_LOGGING_LEVEL=DEBUG && \
             export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=1800 && \
             export VERL_RANK0_ONLY_LOAD=${RANK0_LOAD_FLAG} && \
-            cd ${SCRIPT_DIR}/verl && pip install -e . --no-deps --quiet && cd ${SCRIPT_DIR} && \
+            export PYTHONPATH=${SCRIPT_DIR}/verl:${SCRIPT_DIR}:\${PYTHONPATH:-} && \
             ray start --head --node-ip-address=${head_node_ip} --port=${port} \
                 --num-gpus ${SLURM_GPUS_PER_NODE} --temp-dir=${RAY_TMPDIR} --block
         " &
 
     sleep 12
 
+    # ── Start workers: ONE srun step per node (matches the known-good run) ───
+    # The batched + throwaway-`bash -c true` mount barrier was removed: that
+    # extra `--environment=verl` container per node set up and tore down the CXI
+    # fabric right before `ray start`, which turned rare VNI_NOT_FOUND fabric
+    # errors into CONSISTENT ones at the first cross-node NCCL collective (the
+    # known-good run 2763918 used this plain per-node loop and had ZERO VNI
+    # errors). So: one clean `srun ... ray start` per node, nothing else touching
+    # the container/fabric first. WORKER_START_GAP staggers launches (the known-
+    # good run used 10s; lower is fine now that bad nodes are excluded).
     worker_num=$((SLURM_JOB_NUM_NODES - 1))
+    WORKER_START_GAP="${WORKER_START_GAP:-2}"   # seconds between per-node launches
     for ((i = 1; i <= worker_num; i++)); do
         node_i=${nodes_array[$i]}
         echo "Starting Ray WORKER $i at $node_i"
@@ -115,11 +125,11 @@ start_ray_cluster() {
                 export VERL_PPO_LOGGING_LEVEL=DEBUG && export VERL_LOGGING_LEVEL=DEBUG && \
                 export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=1800 && \
                 export VERL_RANK0_ONLY_LOAD=${RANK0_LOAD_FLAG} && \
-                cd ${SCRIPT_DIR}/verl && pip install -e . --no-deps --quiet && cd ${SCRIPT_DIR} && \
+                export PYTHONPATH=${SCRIPT_DIR}/verl:${SCRIPT_DIR}:\${PYTHONPATH:-} && \
                 ray start --address ${ip_head} \
                     --num-gpus ${SLURM_GPUS_PER_NODE} --temp-dir=${RAY_TMPDIR} --block
             " &
-        sleep 10
+        sleep "${WORKER_START_GAP}"
     done
 }
 
@@ -231,7 +241,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
             export REWARD_NUM_WORKERS='${REWARD_NUM_WORKERS:-}' && \
             export OFFPOLICY_DATA='${OFFPOLICY_DATA:-}' && \
             export OFFPOLICY_BATCH_SIZE='${OFFPOLICY_BATCH_SIZE:-}' && \
-            cd ${SCRIPT_DIR}/verl && pip install -e . --no-deps --quiet && cd ${SCRIPT_DIR} && \
+            export PYTHONPATH=${SCRIPT_DIR}/verl:${SCRIPT_DIR}:\${PYTHONPATH:-} && \
             export RAY_ADDRESS=${ip_head} && \
             export RAY_TMPDIR=${RAY_TMPDIR} && \
             bash ${SCRIPT_DIR}/train_spin.sh \
