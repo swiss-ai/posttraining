@@ -26,52 +26,28 @@ stdout_root = (
     / f"{stdout_prefix}-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 )
 
-job_name = "apertus-first-sweep"
+job_name = "apertus-70b-sft-init-dpo"
 
 datasets = ["swissai-olmo2-32b-preference"]
 train_dataset_paths = [
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_3600-Filtered",
-
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_4096-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_4096-Filtered-Decontaminated/",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated/",
     "/capstor/store/cscs/swissai/infra01/datasets/alignment/preference_datasets/MaxMin_Tr_3600-Filtered-Decontaminated",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated-ResponsesReplaced-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_3600-Filtered-Decontaminated-ResponsesReplaced",
-
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_Tr_4096-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_TrPh_3600-Filtered",
-    # "/iopsstor/scratch/cscs/dmelikidze/posttraining-data/processing_for_alignment/datasets/ahey/MaxMin_TrPh_4096-Filtered",
 ]
 
 batch_size = 128
-num_nodes_per_job = 16
+num_nodes_per_job = 32  # accumulation_steps -> 1; global batch stays 128
 per_device_train_batch_size = 1
 accelerate_config = "src/post_training/configs/accelerate/ds-zero3.yaml"
 model_config = "apertus-70b-sft-1.5"
 
 model_paths = [
-    # "/iopsstor/scratch/cscs/dmelikidze/sft-models/sub/ap-1p5-cooldown-sft-21-04-lr-8e-5",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/active_dpo_new4/sft-image",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-0.6B-SFT-lr5e-6-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-0.6B-SFT-lr8e-5-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-1.7B-SFT-lr5e-6-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-1.7B-SFT-lr8e-5-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-3.0B-SFT-lr5e-6-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled3/Apertus-3.0B-SFT-lr8e-5-bs512",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-0.6B-SFT",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-1.7B-SFT",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/distilled_base/Apertus-3.0B-SFT",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/active_dpo_new7/ap1p5-8b-64k-lc-stable-lr-ablate-mixed-adam-lr8e-5-linear-64n",
-    # "/iopsstor/scratch/cscs/dmelikidze/infra01/models/SFT/latest-sft-notooluse",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/last2/sft-multimodal"
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3000",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3600",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_4200",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500",
-    # "/iopsstor/scratch/cscs/dmelikidze/ap_mo/rlruns/final/rl_1p5-8b-stage2_notools_mixthink_1606_480it",
-    "/iopsstor/scratch/cscs/dmelikidze/ap_mo/ap_70_baselines/ap1p5-70b-sft-262k-2700",
+    # --- currently staged: SFT-init control (job 2 of 2) ---
+    # The SFT checkpoint the July run actually used (ap1p5-70b-sft-262k-2700). Its
+    # scratch copy was wiped by the purge; this is the surviving capstor copy.
+    "/capstor/store/cscs/swissai/infra01/models/Alignment/ap_1p5/Apertus-1.5-70B-SFT",
+
+    # --- already submitted as job 3088131 (init-2026-08-15-15-42) ---
+    # SFT->RL 70B checkpoint, byte-identical to Alignment/ap_1p5/Apertus-1.5-70B-SFT-RL.
+    # "/capstor/store/cscs/swissai/infra01/models/rleval/rl_1p5-70b_notools_mixthink_0107_180it",
 ]
 reward_models = ["skywork-llama3-8b"]
 
@@ -92,6 +68,7 @@ num_epochs = [1]
 
 num_devices_per_node = 4
 seed = 5315
+save_steps = 500  # ~800 GB per 70B checkpoint; save_total_limit=3 keeps the last three.
 
 commands = []
 total_nodes_needed = 0
@@ -138,6 +115,12 @@ for dataset in datasets:
                                             f"training_args.ref_logprobs_from_dataset={ref_logprobs_from_dataset} "
                                             f"training_args.beta={beta} "
                                             f"training_args.num_train_epochs={epochs} "
+                                            # The previous 70B run died at step 1000 with a single
+                                            # checkpoint to show for ~8h. save_steps is in
+                                            # resuming.ignore_keys, so this does not change the
+                                            # config hash / run id. Drop the line for a byte-identical
+                                            # repeat of the old config.
+                                            f"training_args.save_steps={save_steps} "
                                             f"seed={seed} "
                                             f"global_batch_size={batch_size} "
                                             f"num_nodes={num_nodes_per_job} "
@@ -150,10 +133,12 @@ for dataset in datasets:
                                     )
                                     total_nodes_needed += num_nodes_per_job
 
-# Write th submit commands to a new directory where this batch of experiments will be managed)
+# Write the submit commands to a new directory where this batch of experiments will be managed)
 # Path from the project root
 submit_dir = Path.cwd() / str(stdout_root)
 submit_dir.mkdir(parents=True, exist_ok=True)
+# sbatch -o/-e point here; slurm will not create it and the job dies without logs.
+(submit_dir / "out").mkdir(exist_ok=True)
 submit_file = submit_dir / "submit.sh"
 print(f"Writing {len(commands)} commands to {submit_file}")
 with open(submit_file, "w") as f:

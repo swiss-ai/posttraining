@@ -1,7 +1,7 @@
 #!/bin/bash
 # ── Main launcher: HP grid x (inference server + training) ──────────────
 # For each HP combination, submits an orchestrator job (1 node) that:
-#   1. Launches an inference server via submit_job.py
+#   1. Launches an inference server via submit_job.py from the model-launch repository
 #   2. Waits for the server URL
 #   3. Submits the training job with that URL
 #   4. Exits (server stays running for training to use)
@@ -17,9 +17,6 @@ ACCOUNT="infra01"
 RESERVATION="SD-69241-apertus-1-5-0"  # leave empty to submit without a reservation SD-69241-apertus-1-5-0
 PARTITION="normal"
 JOB_TIME="12:00:00"
-# Exported (NOT listed in the --export comma-list below) so the comma in the
-# value survives to the orchestrator; a comma inside --export gets split as a
-# separate token, which silently dropped nid007277. nid007277: bad node (mount fails).
 export EXCLUDE_NODES="nid006076,nid007277,nid007375"
 
 # Only pass --reservation when one is set (sbatch rejects an empty value)
@@ -48,21 +45,7 @@ TRAIN_NODES=128
 # Add one path per line; the script submits the full grid for each model.
 # MODEL_NAME is derived from the basename of each path.
 MODEL_PATHS=(
-    # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3000"
-    # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_3600"
-    # "${SCRATCH}/ap_mo/ap_70_baselines/ap1p5-70b-sft-16k-9220"
-    # "${SCRATCH}/ap_mo/ap_70_baselines/Apertus-70B-Instruct-2509-SFT"
-    # "${SCRATCH}/ap_mo/ap_70_baselines/ap1p5-70b-sft-262k-2700"
-    # "${SCRATCH}/ap_mo/ap_70_baselines/rl_1p5-70b_notools_mixthink_0107_180it"
-    "${SCRATCH}/ap_mo/ap_1p5_70B_dif/ap1p5-70b-sft-262k-2700-MaxMin_Tr_3600-Filtered-Decontaminated-dpo-lr1e-06-beta25.0-lenNormTrue-ebs128-ep1"
-    # "${SCRATCH}/ap_mo/ap_70_baselines/rl_1p5-70b_notools_nothink_0107_340it"
-    # "${SCRATCH}/ap_mo/ap_1p5_sft/ap1p5-8b-sft-256k-adam-lr6e-5-constant-128n_6500"
-
-    # "${SCRATCH}/ap_mo/new_era3/Apertus-1p5-8B-sft-16k-lr6e-5-constant-it38036"
-    # "/capstor/store/cscs/swissai/infra01/models/apertus-8b-sft-1.5--lr8e-5"
-    # "${SCRATCH}/ap_mo/active_dpo_new4/sft-image"
-    # "${SCRATCH}/infra01/models/SFT/latest-sft-notooluse"
-    # "${SCRATCH}/infra01/models/Alignment/current_newest_models/MultiModal-OffPolicy-DPO"
+    "<BASE_MODEL_PATH>"
 )
 REF_MODEL_PATH=""  # leave empty to use MODEL_PATH as reference
 OUTPUT_BASE_DIR="${SCRATCH}/verl-training"
@@ -78,9 +61,6 @@ ROLLOUT_N=8
 ACTOR_MICRO_BS=1
 LOGPROB_MICRO_BS=1
 REF_LOGPROB_MICRO_BS=1
-# DPO actor-update packing (Fix B). Set false to revert to the original
-# fixed-micro_bs DPO loop (no code change). ACTOR_MAX_TOKEN_LEN = padded
-# token-slots per packed micro-batch; lower it if memory runs tight.
 DPO_DYNAMIC_BSZ=false
 ACTOR_MAX_TOKEN_LEN=4096
 MAX_PROMPT_LENGTH=2048
@@ -96,21 +76,14 @@ FSDP_SIZE=128
 GRAD_CLIP=20.0
 LENGTH_NORMALIZE=false
 ASYNC_ROLLOUT=false
-# Reward-loop workers: >0 enables STREAMING annotation (judge scores each rollout
-# as it is generated, overlapping the judge with generation); 0 = post-hoc.
 REWARD_NUM_WORKERS=16
 TRAIN_DATA="${SCRIPT_DIR}/data/train_dolci_final.parquet"
 VAL_DATA="${SCRIPT_DIR}/data/train_dolci_final.parquet"
 # OFFPOLICY_DATA="${SCRIPT_DIR}/data/train_dolci_offpolicy.parquet"
-OFFPOLICY_DATA=""
+OFFPOLICY_DATA="" # Empty for no action
 OFFPOLICY_BATCH_SIZE=512
 
 # ── Large-model (70B) memory mode ───────────────────────────────────────
-# Single switch for everything needed to fit a large model (e.g. 70B) on
-# 96GB GH200s: it widens the rollout tensor-parallel size, raises the SGLang
-# static memory fraction, and turns on CPU offload of params/optimizer/
-# activations (applied in train_spin.sh). Leave false for 8B — at that size
-# the offloads only add CPU<->GPU paging overhead with no benefit.
 LARGE_MODEL=true
 if [[ "${LARGE_MODEL}" == "true" ]]; then
     TP_SIZE=4
@@ -119,8 +92,7 @@ fi
 
 # ── Resume from checkpoint (set to the exact output dir to resume) ──────
 # RESUME_OUTPUT_DIR="${SCRATCH}/verl-training/apertus1.5-sft1.5-online-DPO-lr5e-6-beta0.1-bs256-lenNormfalse-maxPL2048-rollout16-offpolicy-2093197-2093226"
-# RESUME_OUTPUT_DIR="/iopsstor/scratch/cscs/dmelikidze/verl-training/rl_1p5-70b_notools_nothink_0107_340it-online-lr1e-6-beta0.3-bs512-lenNormfalse-maxPL2048-rollout8-images-2670790-2670863"
-RESUME_OUTPUT_DIR="/iopsstor/scratch/cscs/dmelikidze/verl-training/ap1p5-70b-sft-262k-2700-MaxMin_Tr_3600-Filtered-Decontaminated-dpo-lr1e-06-beta25.0-lenNormTrue-ebs128-ep1-online-lr2.5e-6-beta0.15-bs512-lenNormfalse-maxPL2048-rollout8-images-2785048-2785064"
+RESUME_OUTPUT_DIR="" # Empty for no action
 
 # ── Hyperparameter grid ─────────────────────────────────────────────────
 # Each array defines values to sweep. All combinations are launched.
@@ -130,7 +102,7 @@ DPO_BETAS=(0.1) #(0.01 0.1)
 # Large-model (70B) overrides for LR/beta
 if [[ "${LARGE_MODEL}" == "true" ]]; then
     LEARNING_RATES=(2.5e-6)
-    DPO_BETAS=(0.15)
+    DPO_BETAS=(0.1)
 fi
 
 # ── Submit jobs ─────────────────────────────────────────────────────────

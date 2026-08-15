@@ -104,15 +104,6 @@ start_ray_cluster() {
 
     sleep 12
 
-    # ── Start workers: ONE srun step per node (matches the known-good run) ───
-    # The batched + throwaway-`bash -c true` mount barrier was removed: that
-    # extra `--environment=verl` container per node set up and tore down the CXI
-    # fabric right before `ray start`, which turned rare VNI_NOT_FOUND fabric
-    # errors into CONSISTENT ones at the first cross-node NCCL collective (the
-    # known-good run 2763918 used this plain per-node loop and had ZERO VNI
-    # errors). So: one clean `srun ... ray start` per node, nothing else touching
-    # the container/fabric first. WORKER_START_GAP staggers launches (the known-
-    # good run used 10s; lower is fine now that bad nodes are excluded).
     worker_num=$((SLURM_JOB_NUM_NODES - 1))
     WORKER_START_GAP="${WORKER_START_GAP:-2}"   # seconds between per-node launches
     for ((i = 1; i <= worker_num; i++)); do
