@@ -11,3 +11,4 @@ recipe/*
 verl/*
 !verl/.gitkeep
 verl_old/
+core_nid*
