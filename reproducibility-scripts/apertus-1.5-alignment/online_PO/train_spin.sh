@@ -78,9 +78,16 @@ OFFPOLICY_DATA="${OFFPOLICY_DATA:-}"
 OFFLOAD_ARGS=()
 if [[ "${LARGE_MODEL}" == "true" ]]; then
     OFFLOAD_ARGS=(
+        # Offload the actor's fp32 optimizer master + Adam states to CPU. They are only
+        # needed at optimizer.step(), NOT during the forward/backward that OOMs, so this
+        # frees ~2.2GB at step 1 (fp32 master) and ~6.6GB from step 2 on (master + m/v)
+        # while keeping enforce_eager=false. Small per-step CPU<->GPU transfer cost.
+        actor_rollout_ref.actor.fsdp_config.optimizer_offload=true
+        # Ref shards (~2.3GB/rank fp32 at FSDP=128) page CPU<->GPU around each ref pass
+        # (recipe fsdp_workers.compute_ref_log_prob) instead of squatting on the GPU
+        # during the actor update, which OOMs by <1GB without this.
+        actor_rollout_ref.ref.fsdp_config.param_offload=true
         # actor_rollout_ref.actor.fsdp_config.param_offload=true
-        # actor_rollout_ref.actor.fsdp_config.optimizer_offload=true
-        # actor_rollout_ref.ref.fsdp_config.param_offload=true
         # actor_rollout_ref.model.enable_activation_offload=true
     )
 fi
@@ -194,6 +201,7 @@ python3 -m recipe.spin.main_spin \
     actor_rollout_ref.ref.fsdp_config.reshard_after_forward=true \
     actor_rollout_ref.rollout.enforce_eager=${ENFORCE_EAGER} \
     actor_rollout_ref.rollout.max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS} \
+    actor_rollout_ref.rollout.max_model_len=16384 \
     actor_rollout_ref.rollout.load_format=${ROLLOUT_LOAD_FORMAT} \
     data.trust_remote_code=true \
     reward_model.reward_manager=naive \

@@ -12,6 +12,22 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOGS_DIR="${SCRATCH}/online-dpo/logs"
 mkdir -p "${LOGS_DIR}/orchestrator" "${LOGS_DIR}/training"
 
+# ── Container images: jobs read from iopsstor; capstor holds the masters ────
+# Storage-team complaint (2026-08-17): 128 nodes opening the sqsh images on
+# capstor per launch = heavy metadata load on the capacity tier. The EDFs
+# (~/.edf/verl.toml, model-launch envs) point at the iopsstor copies; scratch
+# is wiped every ~2 weeks, so re-stage any missing image from the capstor
+# master before submitting.
+IMG_DIR="/iopsstor/scratch/cscs/dmelikidze/container-images"
+IMG_MASTER="/capstor/store/cscs/swissai/infra01/container-images"
+mkdir -p "${IMG_DIR}"
+for img in verl-sglang.sqsh vllm_cuda13.sqsh sglang_cuda13.sqsh; do
+    if [[ ! -s "${IMG_DIR}/${img}" ]]; then
+        echo "Re-staging ${img} from capstor master (iopsstor copy missing)..."
+        cp "${IMG_MASTER}/${img}" "${IMG_DIR}/${img}.tmp" && mv "${IMG_DIR}/${img}.tmp" "${IMG_DIR}/${img}"
+    fi
+done
+
 # ── SLURM / Account ────────────────────────────────────────────────────
 ACCOUNT="infra01"
 RESERVATION="SD-69241-apertus-1-5-0"  # leave empty to submit without a reservation SD-69241-apertus-1-5-0
@@ -36,7 +52,6 @@ SERVER_FRAMEWORK="vllm"
 # Set this to a running server URL (e.g. http://nidXXXXXX:8080/v1) to SKIP
 # launching a server; the orchestrator will use it directly. Leave empty to
 # launch a server as before.
-# JUDGE_BASE_URL="http://172.28.32.48:30000/v1"
 JUDGE_BASE_URL=""
 
 # ── Training config (fixed across grid) ─────────────────────────────────
@@ -45,22 +60,30 @@ TRAIN_NODES=128
 # Add one path per line; the script submits the full grid for each model.
 # MODEL_NAME is derived from the basename of each path.
 MODEL_PATHS=(
-    "<BASE_MODEL_PATH>"
+    "/path/to/base/model"
 )
 REF_MODEL_PATH=""  # leave empty to use MODEL_PATH as reference
 OUTPUT_BASE_DIR="${SCRATCH}/verl-training"
 JUDGE_MODEL="Qwen/Qwen3.6-27B-dmelikidze"
-JUDGE_API_KEY="<SWISS_AI_RESEARCH_PLATFORM_API_KEY"
+# Judge API key. Do NOT hardcode a key here -- export it in your shell instead:
+#   export JUDGE_API_KEY="sk-..."
+JUDGE_API_KEY="${JUDGE_API_KEY:?JUDGE_API_KEY must be set in the environment}"
 
 # Fixed training params (override per-run via grid arrays below)
 GPU_MEM_UTIL=0.35
 ENFORCE_EAGER=false
-MAX_NUM_BATCHED_TOKENS=8192
+# Prefill token budget per SGLang scheduler step. 8192 measured no faster than 2048;
+# 2048 keeps peak device memory lower, so leave it.
+MAX_NUM_BATCHED_TOKENS=2048
 TRAIN_BATCH_SIZE=512
 ROLLOUT_N=8
 ACTOR_MICRO_BS=1
 LOGPROB_MICRO_BS=1
 REF_LOGPROB_MICRO_BS=1
+# Token budget per packed ref-logprob micro-batch. Must stay >= the longest sequence
+# (max_prompt + max_response). The actor's dpo_max_token_len_per_gpu is not read by the
+# recipe -- tuning it does nothing.
+REF_LOGPROB_MAX_TOKEN_LEN=12288
 DPO_DYNAMIC_BSZ=false
 ACTOR_MAX_TOKEN_LEN=4096
 MAX_PROMPT_LENGTH=2048
@@ -160,6 +183,7 @@ ROLLOUT_N="${ROLLOUT_N}",\
 ACTOR_MICRO_BS="${ACTOR_MICRO_BS}",\
 LOGPROB_MICRO_BS="${LOGPROB_MICRO_BS}",\
 REF_LOGPROB_MICRO_BS="${REF_LOGPROB_MICRO_BS}",\
+REF_LOGPROB_MAX_TOKEN_LEN="${REF_LOGPROB_MAX_TOKEN_LEN}",\
 DPO_DYNAMIC_BSZ="${DPO_DYNAMIC_BSZ}",\
 ACTOR_MAX_TOKEN_LEN="${ACTOR_MAX_TOKEN_LEN}",\
 MAX_PROMPT_LENGTH="${MAX_PROMPT_LENGTH}",\
