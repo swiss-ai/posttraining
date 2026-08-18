@@ -226,6 +226,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
             export ROLLOUT_N='${ROLLOUT_N:-}' && \
             export LOGPROB_MICRO_BS='${LOGPROB_MICRO_BS:-}' && \
             export REF_LOGPROB_MICRO_BS='${REF_LOGPROB_MICRO_BS:-}' && \
+            export REF_LOGPROB_MAX_TOKEN_LEN='${REF_LOGPROB_MAX_TOKEN_LEN:-}' && \
             export ENFORCE_EAGER='${ENFORCE_EAGER:-}' && \
             export MAX_NUM_BATCHED_TOKENS='${MAX_NUM_BATCHED_TOKENS:-}' && \
             export ASYNC_ROLLOUT='${ASYNC_ROLLOUT:-}' && \
